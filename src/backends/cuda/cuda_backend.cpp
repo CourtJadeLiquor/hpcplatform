@@ -1,0 +1,46 @@
+#include "backends/cuda/cuda_backend.h"
+
+#include <cuda_runtime_api.h>
+
+#include <memory>
+#include <string>
+
+#include "backends/backends_internal.h"
+#include "backends/cuda/cuda_common.h"
+
+namespace mycv {
+
+Status CudaBackend::Initialize() {
+  int device_count = 0;
+  const cudaError_t count_status = cudaGetDeviceCount(&device_count);
+  if (count_status != cudaSuccess) {
+    return Status::Unsupported(std::string("CUDA is unavailable: ") +
+                               cudaGetErrorString(count_status));
+  }
+  if (device_count == 0) return Status::Unsupported("no CUDA device is available");
+  if (device_.index < 0 || device_.index >= device_count) {
+    return Status::InvalidArgument("CUDA device index is out of range");
+  }
+  MYCV_RETURN_IF_ERROR(CudaStatus(cudaSetDevice(device_.index), "cudaSetDevice"));
+  cudaDeviceProp properties{};
+  MYCV_RETURN_IF_ERROR(CudaStatus(cudaGetDeviceProperties(&properties, device_.index),
+                                  "cudaGetDeviceProperties"));
+  device_name_ = properties.name;
+  compute_major_ = properties.major;
+  compute_minor_ = properties.minor;
+  return stream_.Initialize();
+}
+
+std::string CudaBackend::Describe() const {
+  return "CudaBackend(device=" + device_.ToString() + ", name=" + device_name_ +
+         ", compute_capability=" + std::to_string(compute_major_) + "." +
+         std::to_string(compute_minor_) + ")";
+}
+
+Result<std::shared_ptr<Backend>> CreateCudaBackend(int device_index) {
+  auto backend = std::make_shared<CudaBackend>(device_index);
+  MYCV_RETURN_IF_ERROR(backend->Initialize());
+  return std::static_pointer_cast<Backend>(backend);
+}
+
+}  // namespace mycv

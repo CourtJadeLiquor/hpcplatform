@@ -1,0 +1,9 @@
+#ifndef MYCV_VERSION_H_
+#define MYCV_VERSION_H_
+
+#define MYCV_VERSION_MAJOR 0
+#define MYCV_VERSION_MINOR 1
+#define MYCV_VERSION_PATCH 0
+#define MYCV_VERSION_STRING "0.1.0"
+
+#endif  // MYCV_VERSION_H_

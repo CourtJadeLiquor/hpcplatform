@@ -16,6 +16,7 @@
 
 namespace mycv {
 
+class Backend;
 class Context;
 
 // Tensor is a descriptor: shape + dtype + strides + a shared Buffer.
@@ -27,6 +28,12 @@ class Tensor {
 
   static Result<Tensor> Create(Context& context, const Shape& shape,
                                DataType dtype, size_t alignment = 64);
+
+  // Allocates on an explicit backend, keeping the allocation inside the same
+  // resource domain as the tensors it is derived from.
+  static Result<Tensor> Create(const std::shared_ptr<Backend>& backend,
+                               const Shape& shape, DataType dtype,
+                               size_t alignment = 64);
 
   bool defined() const { return static_cast<bool>(buffer_); }
 
@@ -68,7 +75,12 @@ class Tensor {
   // Reshape is zero-copy for contiguous tensors and clones otherwise.
   Result<Tensor> Reshape(const Shape& shape) const;
   Result<Tensor> Clone() const;
-  Result<Tensor> Cast(DataType dst_dtype) const;
+  // Type conversion lives in ops: use mycv::Cast(OpContext, tensor, dtype) so
+  // the registered SIMD / OpenCV / CUDA kernels actually run.
+
+  // Backend that allocated this tensor's buffer. Expires with the Context, so
+  // Clone / copy can refuse instead of touching a dead allocator.
+  std::weak_ptr<Backend> owning_backend() const { return owner_; }
 
   // Stride in elements (not bytes).
   int64_t Stride(int dim) const { return strides_[static_cast<size_t>(dim)]; }
@@ -77,7 +89,9 @@ class Tensor {
   std::string ToString() const;
 
  private:
+  friend class Context;
   std::shared_ptr<Buffer> buffer_;
+  std::weak_ptr<Backend> owner_;
   Shape shape_;
   DataType dtype_ = DataType::kFloat32;
   std::array<int64_t, Shape::kMaxDims> strides_{};

@@ -25,6 +25,13 @@ class Backend {
   virtual Stream& stream() = 0;
   virtual Status Synchronize() = 0;
 
+  // Transfers raw bytes into a buffer this backend owns (or can reach).
+  // Implementations that cannot touch device memory must return kUnsupported
+  // rather than staging through the host behind the caller's back, so that a
+  // new backend only needs to override this to participate in copies.
+  virtual Status CopyBuffer(Buffer* dst, size_t dst_offset, const Buffer* src,
+                            size_t src_offset, size_t bytes, Stream* stream);
+
   virtual bool SupportsDType(DataType dtype) const {
     return DTypeSize(dtype) != 0;
   }

@@ -1,10 +1,16 @@
 #include <cuda_runtime_api.h>
 
 #include "backends/backends_internal.h"
+#include "backends/cuda/cuda_backend.h"
 #include "backends/cuda/cuda_common.h"
 #include "backends/cuda/cuda_stream.h"
 
 namespace mycv {
+
+Status CudaBackend::CopyBuffer(Buffer* dst, size_t dst_offset, const Buffer* src,
+                               size_t src_offset, size_t bytes, Stream* stream) {
+  return CudaCopyBuffer(dst, dst_offset, src, src_offset, bytes, stream);
+}
 
 Status CudaCopyBuffer(Buffer* dst, size_t dst_offset, const Buffer* src,
                       size_t src_offset, size_t bytes, Stream* stream) {

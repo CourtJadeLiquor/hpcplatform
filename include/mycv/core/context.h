@@ -28,6 +28,7 @@ class Context {
   Device device() const { return backend_->device(); }
   Backend& backend() { return *backend_; }
   const Backend& backend() const { return *backend_; }
+  const std::shared_ptr<Backend>& backend_ptr() const { return backend_; }
 
   MemoryManager& memory() { return backend_->memory(); }
   const MemoryManager& memory() const { return backend_->memory(); }
@@ -39,6 +40,15 @@ class Context {
                                 size_t alignment = 64) {
     return Tensor::Create(*this, shape, dtype, alignment);
   }
+
+  // Wraps externally owned memory as a Tensor without allocating or copying.
+  // `data` must hold at least shape.Numel() * DTypeSize(dtype) bytes. When
+  // `deleter` is empty the Tensor borrows the memory (caller keeps it alive);
+  // otherwise the deleter is invoked when the last reference dies, so memory
+  // from another runtime (cv::Mat, cudaMalloc, NPU, ...) can be adopted.
+  Result<Tensor> Wrap(void* data, const Shape& shape, DataType dtype,
+                      MemoryKind kind = MemoryKind::kHost,
+                      Buffer::Deleter deleter = nullptr);
 
   // Copies logical elements, including non-contiguous views. The destination
   // context selects the copy path; copies are synchronized before returning.

@@ -20,6 +20,8 @@ class CudaBackend final : public Backend {
   MemoryManager& memory() override { return memory_; }
   Stream& stream() override { return stream_; }
   Status Synchronize() override { return stream_.Synchronize(); }
+  Status CopyBuffer(Buffer* dst, size_t dst_offset, const Buffer* src,
+                    size_t src_offset, size_t bytes, Stream* stream) override;
   bool SupportsKernelLevel(CpuKernelLevel level) const override {
     return level == CpuKernelLevel::kNaive;
   }

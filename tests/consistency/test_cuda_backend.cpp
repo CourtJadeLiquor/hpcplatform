@@ -1,11 +1,15 @@
 #include "test_framework.h"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <iostream>
 #include <memory>
+#include <vector>
+
+#include <cuda_runtime_api.h>
 
 #include "mycv/mycv.h"
 
@@ -100,6 +104,207 @@ MYCV_TEST(CudaTensorCanOutliveItsContext) {
   MYCV_EXPECT_TRUE(output.ok());
   if (output.ok()) {
     MYCV_EXPECT_EQ(std::memcmp(input.data(), output.value().data(), input.ByteSize()), 0);
+  }
+}
+
+MYCV_TEST(CudaCloneReusesTheOwningContext) {
+  auto cuda = GetCudaContext();
+  if (!cuda) return;
+  auto native = Context::Create(BackendType::kNativeCpu).value();
+  auto host = native->AllocateTensor(Shape{16}, DataType::kFloat32).value();
+  for (int i = 0; i < 16; ++i) host.Data<float>()[i] = static_cast<float>(i);
+  auto uploaded = CopyTo(*cuda, host);
+  MYCV_EXPECT_TRUE(uploaded.ok());
+  if (!uploaded.ok()) return;
+  Tensor device = uploaded.value();
+
+  const size_t allocations_before = cuda->memory().Stats().allocation_count;
+  auto clone = device.Clone();
+  MYCV_EXPECT_TRUE(clone.ok());
+  if (!clone.ok()) return;
+  // Clone must allocate from the tensor's own context, not a throwaway one.
+  MYCV_EXPECT_EQ(cuda->memory().Stats().allocation_count, allocations_before + 1);
+  MYCV_EXPECT_EQ(clone.value().backend(), BackendType::kCUDA);
+
+  auto downloaded = CopyTo(*native, clone.value());
+  MYCV_EXPECT_TRUE(downloaded.ok());
+  if (downloaded.ok()) {
+    for (int i = 0; i < 16; ++i) {
+      MYCV_EXPECT_EQ(downloaded.value().Data<float>()[i], static_cast<float>(i));
+    }
+  }
+}
+
+MYCV_TEST(CudaRejectsNonContiguousDeviceCopy) {
+  auto cuda = GetCudaContext();
+  if (!cuda) return;
+  auto source = cuda->AllocateTensor(Shape{4, 4}, DataType::kFloat32).value();
+  auto destination = cuda->AllocateTensor(Shape{4, 2}, DataType::kFloat32).value();
+
+  auto narrowed_result = source.Slice(1, 0, 2);
+  MYCV_EXPECT_TRUE(narrowed_result.ok());
+  if (!narrowed_result.ok()) return;
+  auto status = cuda->Copy(&destination, narrowed_result.value());
+  // Explicit refusal beats a per-element synchronous GPU copy.
+  MYCV_EXPECT_EQ(status.code(), StatusCode::kUnsupported);
+}
+
+// --- End-to-end pipeline: resize -> normalize -> warp_affine -> crop ->
+// transpose. The point of this test is not timing but the invariant that the
+// whole chain executes on the GPU without staging through host memory.
+
+constexpr int64_t kPipeH = 128;
+constexpr int64_t kPipeW = 160;
+constexpr int64_t kPipeC = 3;
+constexpr int64_t kResizeH = 96;
+constexpr int64_t kResizeW = 112;
+constexpr int64_t kWarpH = 112;
+constexpr int64_t kWarpW = 112;
+constexpr int64_t kCropTop = 8;
+constexpr int64_t kCropLeft = 8;
+constexpr int64_t kCropH = 96;
+constexpr int64_t kCropW = 96;
+
+std::array<double, 6> ComputePipeMatrix() {
+  constexpr double kPi = 3.14159265358979323846;
+  const double angle = 10.0 * kPi / 180.0;
+  const double scale = 0.9;
+  const double c = std::cos(angle) * scale;
+  const double s = std::sin(angle) * scale;
+  const double sx = static_cast<double>(kResizeW) / 2.0;
+  const double sy = static_cast<double>(kResizeH) / 2.0;
+  const double tx = static_cast<double>(kWarpW) / 2.0;
+  const double ty = static_cast<double>(kWarpH) / 2.0;
+  return {c, s, tx - c * sx - s * sy, -s, c, ty + s * sx - c * sy};
+}
+
+const std::array<double, 6> kPipeMatrix = ComputePipeMatrix();
+const std::vector<double> kPipeMean{0.485, 0.456, 0.406};
+const std::vector<double> kPipeStd{0.229, 0.224, 0.225};
+const std::vector<int> kPipeOrder{2, 0, 1};
+
+Result<Tensor> RunImageChain(const OpContext& ops, const Tensor& input,
+                             std::vector<Tensor>* stages) {
+  auto resized = Resize(ops, input, kResizeH, kResizeW);
+  if (!resized.ok()) return resized.status();
+  if (stages != nullptr) stages->push_back(resized.value());
+
+  auto normalized =
+      Normalize(ops, resized.value(), kPipeMean, kPipeStd, 1e-6);
+  if (!normalized.ok()) return normalized.status();
+  if (stages != nullptr) stages->push_back(normalized.value());
+
+  auto warped = WarpAffine(ops, normalized.value(), kPipeMatrix, kWarpH, kWarpW);
+  if (!warped.ok()) return warped.status();
+  if (stages != nullptr) stages->push_back(warped.value());
+
+  auto cropped = Crop(ops, warped.value(), kCropTop, kCropLeft, kCropH, kCropW);
+  if (!cropped.ok()) return cropped.status();
+  if (stages != nullptr) stages->push_back(cropped.value());
+
+  auto transposed = Transpose(ops, cropped.value(), kPipeOrder);
+  if (!transposed.ok()) return transposed.status();
+  if (stages != nullptr) stages->push_back(transposed.value());
+  return transposed;
+}
+
+// Mean absolute error normalised by the stage value range. cv::warpAffine and
+// the native kernel disagree by ~1/128 px on border pixels, so a per-element
+// tolerance would fail there; the mean over the stage does not.
+double StageMeanRelative(const Tensor& actual_host,
+                         const Tensor& reference_host) {
+  if (actual_host.Numel() != reference_host.Numel() ||
+      actual_host.dtype() != reference_host.dtype()) {
+    return 1.0;
+  }
+  const int64_t count = reference_host.Numel();
+  double sum_abs = 0.0;
+  double range = 0.0;
+  const auto accumulate = [&](double a, double e) {
+    sum_abs += std::fabs(a - e);
+    range = std::max(range, std::fabs(e));
+  };
+  if (reference_host.dtype() == DataType::kUInt8) {
+    const uint8_t* a = actual_host.Data<uint8_t>();
+    const uint8_t* r = reference_host.Data<uint8_t>();
+    for (int64_t i = 0; i < count; ++i) accumulate(a[i], r[i]);
+  } else if (reference_host.dtype() == DataType::kFloat32) {
+    const float* a = actual_host.Data<float>();
+    const float* r = reference_host.Data<float>();
+    for (int64_t i = 0; i < count; ++i) accumulate(a[i], r[i]);
+  } else {
+    return 1.0;
+  }
+  return count > 0 ? sum_abs / static_cast<double>(count) /
+                          std::max(1.0, range)
+                    : 0.0;
+}
+
+MYCV_TEST(CudaPipelineNeverTouchesHost) {
+  auto native = Context::Create(BackendType::kNativeCpu).value();
+  auto cuda_result = Context::Create(BackendType::kCUDA);
+  if (!cuda_result.ok()) {
+    std::cout << "SKIP CudaPipelineNeverTouchesHost: "
+              << cuda_result.status().ToString() << '\n';
+    return;
+  }
+  auto cuda = cuda_result.value();
+
+  auto input =
+      native->AllocateTensor(Shape{kPipeH, kPipeW, kPipeC}, DataType::kUInt8)
+          .value();
+  uint8_t* pixels = input.Data<uint8_t>();
+  for (int64_t y = 0; y < kPipeH; ++y) {
+    for (int64_t x = 0; x < kPipeW; ++x) {
+      for (int64_t c = 0; c < kPipeC; ++c) {
+        const double v =
+            64.0 + 120.0 * x / kPipeW + 60.0 * y / kPipeH + 20.0 * c;
+        pixels[(y * kPipeW + x) * kPipeC + c] =
+            static_cast<uint8_t>(std::min(255.0, std::max(0.0, v)));
+      }
+    }
+  }
+
+  // Exactly one upload before the chain. Everything below must stay on device.
+  auto uploaded = CopyTo(*cuda, input);
+  MYCV_EXPECT_TRUE(uploaded.ok());
+  if (!uploaded.ok()) return;
+
+  const size_t allocations_before = cuda->memory().Stats().allocation_count;
+
+  std::vector<Tensor> device_stages;
+  auto output = RunImageChain(Ops(*cuda), uploaded.value(), &device_stages);
+  MYCV_EXPECT_TRUE(output.ok());
+  if (!output.ok()) return;
+
+  // Five operators -> five device allocations. Any hidden host staging buffer
+  // allocated on this context (or any extra device temporary) would show up
+  // here and fail the test.
+  MYCV_EXPECT_EQ(device_stages.size(), static_cast<size_t>(5));
+  MYCV_EXPECT_EQ(cuda->memory().Stats().allocation_count,
+                 allocations_before + 5);
+
+  // Every intermediate is resident on the GPU.
+  for (const Tensor& stage : device_stages) {
+    MYCV_EXPECT_EQ(stage.backend(), BackendType::kCUDA);
+    MYCV_EXPECT_EQ(stage.device().type, DeviceType::kGPU);
+    MYCV_EXPECT_EQ(stage.buffer()->kind(), MemoryKind::kDevice);
+  }
+
+  // Correctness against the native CPU chain, after a single copy-back per
+  // stage. Same tolerance as the pipeline benchmark.
+  std::vector<Tensor> reference_stages;
+  auto reference = RunImageChain(Ops(*native), input, &reference_stages);
+  MYCV_EXPECT_TRUE(reference.ok());
+  if (!reference.ok()) return;
+  MYCV_EXPECT_EQ(reference_stages.size(), device_stages.size());
+
+  for (size_t i = 0; i < device_stages.size(); ++i) {
+    auto downloaded = CopyTo(*native, device_stages[i]);
+    MYCV_EXPECT_TRUE(downloaded.ok());
+    if (!downloaded.ok()) return;
+    MYCV_EXPECT_TRUE(StageMeanRelative(downloaded.value(), reference_stages[i]) <=
+                     1e-3);
   }
 }
 
@@ -235,6 +440,73 @@ MYCV_TEST(CudaCastPreservesIntegerAndFloat16Semantics) {
   auto restored = Cast(Ops(*cuda), half.value(), DataType::kFloat32);
   MYCV_EXPECT_TRUE(restored.ok());
   if (restored.ok()) ExpectEquivalent(input, restored.value(), *native, 0.001);
+}
+
+MYCV_TEST(CudaWrapAdoptsExternalDeviceMemory) {
+  auto cuda = GetCudaContext();
+  if (!cuda) return;
+  auto native = Context::Create(BackendType::kNativeCpu).value();
+
+  // Build reference data on the host, then upload to a device allocation that
+  // mycv did NOT make — stand-in for a pointer from another runtime
+  // (cv::cuda::GpuMat, a raw cudaMalloc, an NPU buffer mapped to device, ...).
+  constexpr int64_t kCount = 8;
+  auto host = native->AllocateTensor(Shape{kCount}, DataType::kFloat32).value();
+  for (int64_t i = 0; i < kCount; ++i) {
+    host.Data<float>()[i] = static_cast<float>(i) * 1.5f;
+  }
+
+  void* device_ptr = nullptr;
+  MYCV_EXPECT_EQ(cudaMalloc(&device_ptr, host.ByteSize()), cudaSuccess);
+  if (device_ptr == nullptr) return;
+  MYCV_EXPECT_EQ(cudaMemcpy(device_ptr, host.data(), host.ByteSize(),
+                            cudaMemcpyHostToDevice),
+                 cudaSuccess);
+  // The external runtime produced this memory on the default stream; make it
+  // visible to mycv's non-blocking stream before the kernel reads it.
+  MYCV_EXPECT_EQ(cudaDeviceSynchronize(), cudaSuccess);
+
+  const size_t allocations_before = cuda->memory().Stats().allocation_count;
+  auto freed = std::make_shared<int>(0);
+
+  {
+    auto wrapped =
+        cuda->Wrap(device_ptr, host.shape(), host.dtype(), MemoryKind::kDevice,
+                   [freed](void* p, size_t) {
+                     cudaFree(p);
+                     ++(*freed);
+                   });
+    MYCV_EXPECT_TRUE(wrapped.ok());
+    if (!wrapped.ok()) {
+      cudaFree(device_ptr);
+      return;
+    }
+    const Tensor& t = wrapped.value();
+    // Wrap aliases the external device pointer and records no manager
+    // allocation — the whole point of zero-copy adoption.
+    MYCV_EXPECT_EQ(t.buffer()->kind(), MemoryKind::kDevice);
+    MYCV_EXPECT_EQ(t.data(), device_ptr);
+    MYCV_EXPECT_EQ(cuda->memory().Stats().allocation_count, allocations_before);
+    MYCV_EXPECT_EQ(*freed, 0);
+
+    // Zero-copy device input: feed the adopted pointer straight into a GPU op.
+    auto result = Add(Ops(*cuda), t, t);
+    MYCV_EXPECT_TRUE(result.ok());
+    if (!result.ok()) return;
+
+    auto downloaded = CopyTo(*native, result.value());
+    MYCV_EXPECT_TRUE(downloaded.ok());
+    if (downloaded.ok()) {
+      for (int64_t i = 0; i < kCount; ++i) {
+        MYCV_EXPECT_EQ(downloaded.value().Data<float>()[i],
+                       host.Data<float>()[i] * 2.0f);
+      }
+    }
+  }
+  // Last reference released -> the adopted cudaFree deleter ran exactly once,
+  // and nothing the manager tracked leaked.
+  MYCV_EXPECT_EQ(*freed, 1);
+  MYCV_EXPECT_EQ(cuda->memory().Stats().allocation_count, allocations_before);
 }
 
 }  // namespace

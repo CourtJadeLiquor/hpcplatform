@@ -21,19 +21,14 @@ int main() {
 
   auto resized = Resize(op_context, input, 2, 2);
   if (!resized.ok()) return 1;
-  auto normalized = Normalize(op_context, resized.value(), {0, 0, 0}, {255, 255, 255});
-  if (!normalized.ok()) return 1;
-  auto chw = Transpose(op_context, normalized.value(), {2, 0, 1});
-  if (!chw.ok()) return 1;
-  auto half = Cast(op_context, chw.value(), DataType::kFloat16);
-  if (!half.ok()) return 1;
-  auto restored = Cast(op_context, half.value(), DataType::kFloat32);
-  if (!restored.ok()) return 1;
+  auto blurred = GaussianBlur(op_context, resized.value(), 3, 1.0);
+  if (!blurred.ok()) return 1;
 
-  std::cout << "pipeline: HWC u8 -> resize -> normalize -> CHW -> f16 -> f32\n";
-  std::cout << restored.value().ToString() << '\n' << std::fixed << std::setprecision(4);
-  for (int64_t i = 0; i < restored.value().Numel(); ++i) {
-    std::cout << restored.value().Data<float>()[i] << (i + 1 == restored.value().Numel() ? '\n' : ' ');
+  std::cout << "pipeline: HWC u8 -> resize -> gaussian_blur\n";
+  std::cout << blurred.value().ToString() << '\n' << std::fixed << std::setprecision(2);
+  for (int64_t i = 0; i < blurred.value().Numel(); ++i) {
+    std::cout << static_cast<int>(blurred.value().Data<uint8_t>()[i])
+              << (i + 1 == blurred.value().Numel() ? '\n' : ' ');
   }
   return 0;
 }

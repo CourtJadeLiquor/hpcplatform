@@ -1,6 +1,6 @@
 # Context::Copy：拷贝的是元素不是字节，怎么选路、何时同步
 
-> 相关代码：`src/backends/backend_copy.cpp`、`include/mycv/core/context.h`、`include/mycv/backends/backend.h`
+> 相关代码：`src/backends/backend_copy.cpp`、`include/mycv/core/context.h`、`src/backends/service.h`
 > 易混点：Copy 到底拷了什么、跨后端怎么决定谁来拷、拷完能不能立刻用。
 
 ---
@@ -28,7 +28,7 @@
 | host | 直接 memcpy / 逐元素 | H2D：目标后端的 `CopyBuffer`（CUDA 用 `cudaMemcpyAsync`） |
 | device | D2H：源后端的 `CopyBuffer` | D2D：同设备内拷贝 |
 
-后端的 `Backend::CopyBuffer`（[backend.h](../../include/mycv/backends/backend.h#L28-L33)）有一条硬规则：
+后端的 `Backend::CopyBuffer`（[service.h](../../src/backends/service.h)）有一条硬规则：
 
 > 实现碰不到某类内存时，**必须返回 `kUnsupported`，而不是在调用方背后经 host staging**。
 
@@ -45,7 +45,7 @@
 - CUDA 路径会 `cudaStreamSynchronize`，所以返回后 `dst` 的数据已经在目标内存里、立即可读；
 - CPU 路径本身同步。
 
-这是当前的公开契约。好处是生命周期简单：Copy 返回后你可以立即读 `dst`、可以立即让 `src` 析构。代价是 host 侧不能重叠 Copy 与计算（无异步流水）。若未来加异步 Copy，会是**新的显式入口**，不会偷偷改掉现有 `Copy` 的语义（[`../architecture/P0.md`](../architecture/P0.md) §7）。
+这是当前的公开契约。好处是生命周期简单：Copy 返回后你可以立即读 `dst`、可以立即让 `src` 析构。代价是 host 侧不能重叠 Copy 与计算（无异步流水）。若未来加异步 Copy，会是**新的显式入口**，不会偷偷改掉现有 `Copy` 的语义（[架构设计](../architecture.md) §1"显式优先于隐式"）。
 
 ---
 

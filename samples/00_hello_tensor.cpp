@@ -13,7 +13,7 @@ int main() {
   }
   auto context = context_result.value();
   std::cout << "mycv " << MYCV_VERSION_STRING << " | "
-            << context->backend().Describe() << "\n";
+            << context->Describe() << "\n";
 
   auto tensor_result = context->AllocateTensor(Shape{2, 3}, DataType::kFloat32);
   if (!tensor_result.ok()) {

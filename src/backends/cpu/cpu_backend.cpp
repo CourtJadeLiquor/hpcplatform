@@ -3,14 +3,15 @@
 #include <initializer_list>
 
 #include "backends/backends_internal.h"
-#include "ops/op_registry.h"
+#include "framework/op_registry.h"
 
 namespace mycv {
 
 bool CpuBackend::SupportsKernelLevel(CpuKernelLevel level) const {
   // Report capabilities from the kernels that are actually linked, rather than
-  // from compiler flags alone. Add is registered by every CPU kernel family.
-  return ops_internal::HasKernel(OpKind::kAdd, BackendType::kNativeCpu, level);
+  // from compiler flags alone. Scanning all ops (not one probe op) keeps this
+  // correct when an operator has no implementation for a given level.
+  return ops_internal::HasAnyKernel(BackendType::kNativeCpu, level);
 }
 
 std::string CpuBackend::Describe() const {

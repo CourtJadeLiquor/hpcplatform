@@ -1,5 +1,7 @@
 #include "mycv/core/context.h"
 
+#include "backends/service.h"
+
 #include <cstdint>
 #include <limits>
 #include <string>
@@ -8,6 +10,20 @@
 #include "mycv/core/dtype.h"
 
 namespace mycv {
+
+BackendType Context::backend_type() const { return backend_->type(); }
+
+Device Context::device() const { return backend_->device(); }
+
+std::string Context::Describe() const { return backend_->Describe(); }
+
+MemoryManager& Context::memory() { return backend_->memory(); }
+
+const MemoryManager& Context::memory() const { return backend_->memory(); }
+
+Stream& Context::stream() { return backend_->stream(); }
+
+Status Context::Synchronize() { return backend_->Synchronize(); }
 
 Result<std::shared_ptr<Context>> Context::Create(BackendType backend,
                                                  int device_index) {

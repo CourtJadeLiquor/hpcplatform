@@ -159,7 +159,7 @@ MYCV_EXPECT_EQ(std::memcmp(added.value().data(), reference_add.data(),
 见 [`test_cpu_kernels.cpp#L52-L53`](../../tests/consistency/test_cpu_kernels.cpp#L52-L53)。
 
 - 整数：当然位精确。
-- **浮点也要求位精确**——不是"误差很小就行"。这强制 SIMD/并行版本的计算顺序和 naive 完全一致。想放宽？先走 [`../architecture/P3.md`](../architecture/P3.md) 的决策流程，不能在测试里私自改容差。
+- **浮点也要求位精确**——不是"误差很小就行"。这强制 SIMD/并行版本的计算顺序和 naive 完全一致。想放宽？先按 [架构设计](../architecture.md) §6.5 的位精确纪律走评审决策，不能在测试里私自改容差。
 - 对拍会遍历所有"当前构建支持的 level"（[`AvailableLevels`](../../tests/consistency/test_cpu_kernels.cpp#L22-L30)，靠 `SupportsKernelLevel` 探测），所以新增 level 只要注册对了就自动被覆盖。
 
 ### 4.2 跨后端：有限容差
@@ -186,15 +186,22 @@ CPU ↔ CUDA / OpenCV 之间，因为浮点运算顺序、硬件融合乘加等�
 
 ## 5. 基准（benchmark）
 
-`MYCV_BUILD_BENCHMARKS=ON`（默认开，[`CMakeLists.txt#L10`](../../CMakeLists.txt#L10)）时会编两个基准程序，定义在 [`benchmarks/CMakeLists.txt`](../../benchmarks/CMakeLists.txt)：
+`MYCV_BUILD_BENCHMARKS=ON`（默认开，[`CMakeLists.txt#L10`](../../CMakeLists.txt#L10)）时，各算子文件夹内的 `benchmark/` 会编出各自的基准可执行：
 
-- `operator_benchmark`：单算子测速。
-- `image_pipeline_benchmark`：图像流水线端到端测速。
+- `src/ops/resize/benchmark/` → `resize_benchmark`
+- `src/ops/gaussian_blur/benchmark/` → `gaussian_blur_benchmark`
+- `src/ops/laplacian_pyramid/benchmark/` → `laplacian_pyramid_benchmark`
+- `src/ops/fourier/benchmark/` → `fourier_benchmark`
+- `src/ops/wavelet/benchmark/` → `wavelet_benchmark`
 
 跑完直接在构建目录执行即可：
 
 ```bash
-./build/benchmarks/operator_benchmark
+./build/src/ops/resize/resize_benchmark
+./build/src/ops/gaussian_blur/gaussian_blur_benchmark
+./build/src/ops/laplacian_pyramid/laplacian_pyramid_benchmark
+./build/src/ops/fourier/fourier_benchmark
+./build/src/ops/wavelet/wavelet_benchmark
 ```
 
-基准的解读纪律（怎么对比才算公平、怎么避免 `-march=native` 污染结论）见 [`../architecture/P3.md`](../architecture/P3.md)。
+基准的解读纪律（怎么对比才算公平、怎么避免 `-march=native` 污染结论）见 [架构设计](../architecture.md) §6.4 的剖析与基准约定。

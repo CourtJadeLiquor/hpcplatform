@@ -22,16 +22,15 @@ int main() {
   ops.stream = &cuda->stream();
   auto resized = Resize(ops, device, 2, 2);
   if (!resized.ok()) return 1;
-  auto normalized = Normalize(ops, resized.value(), {0, 0, 0}, {255, 255, 255});
-  if (!normalized.ok()) return 1;
-  auto chw = Transpose(ops, normalized.value(), {2, 0, 1});
-  if (!chw.ok()) return 1;
-  auto output = native->AllocateTensor(chw.value().shape(), chw.value().dtype()).value();
-  const Status download = native->Copy(&output, chw.value());
+  auto blurred = GaussianBlur(ops, resized.value(), 3, 1.0);
+  if (!blurred.ok()) return 1;
+  auto output = native->AllocateTensor(blurred.value().shape(), blurred.value().dtype()).value();
+  const Status download = native->Copy(&output, blurred.value());
   if (!download.ok()) return 1;
 
-  std::cout << cuda->backend().Describe() << '\n';
-  std::cout << "CUDA pipeline: H2D -> resize -> normalize -> HWC-to-CHW -> D2H\n";
-  std::cout << output.ToString() << ", first=" << output.Data<float>()[0] << '\n';
+  std::cout << cuda->Describe() << '\n';
+  std::cout << "CUDA pipeline: H2D -> resize -> gaussian_blur -> D2H\n";
+  std::cout << output.ToString() << ", first="
+            << static_cast<int>(output.Data<uint8_t>()[0]) << '\n';
   return 0;
 }

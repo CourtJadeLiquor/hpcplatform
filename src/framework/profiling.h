@@ -1,0 +1,114 @@
+#ifndef MYCV_SRC_FRAMEWORK_PROFILING_H_
+#define MYCV_SRC_FRAMEWORK_PROFILING_H_
+
+#include <chrono>
+#include <cstdint>
+#include <map>
+#include <mutex>
+#include <string>
+#include <utility>
+
+#include "mycv/core/device.h"
+#include "mycv/core/kernel_level.h"
+#include "mycv/ops/op.h"
+
+// Optional operator profiling (docs/architecture.md §6.4). Compile the target
+// with -DMYCV_ENABLE_PROFILING=1 to turn the macros below into real timers;
+// the default build expands them to no-op statements, so profiling costs
+// nothing when disabled. Results feed the per-operator benchmark/ programs and
+// the numbers recorded in each operator's README.md.
+
+#if defined(MYCV_ENABLE_PROFILING) && MYCV_ENABLE_PROFILING
+
+namespace mycv {
+namespace profiling {
+
+struct ProfileEntry {
+  uint64_t hit_count = 0;
+  int64_t total_nanoseconds = 0;
+};
+
+// Aggregation store shared across translation units (single instance via
+// C++17 inline-function static semantics).
+struct ProfileStore {
+  std::map<std::string, ProfileEntry> entries;
+  std::mutex mutex;
+};
+
+inline ProfileStore& Store() {
+  static ProfileStore store;
+  return store;
+}
+
+// Records one timing sample. Thread-safe: profiling may run inside OpenMP/TBB
+// parallel regions.
+inline void ProfileRecord(const std::string& label, int64_t nanoseconds) {
+  ProfileStore& store = Store();
+  std::lock_guard<std::mutex> lock(store.mutex);
+  ProfileEntry& entry = store.entries[label];
+  entry.hit_count += 1;
+  entry.total_nanoseconds += nanoseconds;
+}
+
+inline ProfileEntry ProfileReport(const std::string& label) {
+  ProfileStore& store = Store();
+  std::lock_guard<std::mutex> lock(store.mutex);
+  return store.entries[label];
+}
+
+inline void ProfileReset() {
+  ProfileStore& store = Store();
+  std::lock_guard<std::mutex> lock(store.mutex);
+  store.entries.clear();
+}
+
+// Label for the dispatch triple, e.g. "resize/native_cpu/avx2".
+inline std::string OpLabel(OpKind op, BackendType backend,
+                           CpuKernelLevel level) {
+  return std::string(OpKindName(op)) + "/" + BackendTypeName(backend) + "/" +
+         CpuKernelLevelName(level);
+}
+
+// RAII scope timer; records (label, elapsed) on destruction.
+class ScopeTimer {
+ public:
+  explicit ScopeTimer(std::string label)
+      : label_(std::move(label)), start_(Clock::now()) {}
+  ScopeTimer(const ScopeTimer&) = delete;
+  ScopeTimer& operator=(const ScopeTimer&) = delete;
+  ~ScopeTimer() {
+    const auto stop = Clock::now();
+    ProfileRecord(
+        label_,
+        std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start_)
+            .count());
+  }
+
+ private:
+  using Clock = std::chrono::steady_clock;
+  std::string label_;
+  Clock::time_point start_;
+};
+
+}  // namespace profiling
+}  // namespace mycv
+
+#define MYCV_PROFILE_CONCAT_(a, b) a##b
+#define MYCV_PROFILE_CONCAT(a, b) MYCV_PROFILE_CONCAT_(a, b)
+
+// Times the enclosing scope under `label`.
+#define MYCV_PROFILE_SCOPE(label) \
+  ::mycv::profiling::ScopeTimer MYCV_PROFILE_CONCAT(mycv_scope_, __LINE__)(label)
+
+// Times the enclosing scope, labeled by the dispatch triple.
+#define MYCV_PROFILE_OP(op_kind, backend, level) \
+  MYCV_PROFILE_SCOPE(::mycv::profiling::OpLabel(op_kind, backend, level))
+
+#else  // profiling disabled: zero cost
+
+#define MYCV_PROFILE_SCOPE(label) ((void)0)
+#define MYCV_PROFILE_OP(op_kind, backend, level) ((void)0)
+
+#endif  // MYCV_ENABLE_PROFILING
+
+#endif  // MYCV_SRC_FRAMEWORK_PROFILING_H_

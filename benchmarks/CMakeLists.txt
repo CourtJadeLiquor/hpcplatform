@@ -1,5 +1,0 @@
-add_executable(operator_benchmark operator_benchmark.cpp)
-target_link_libraries(operator_benchmark PRIVATE mycv)
-
-add_executable(image_pipeline_benchmark image_pipeline_benchmark.cpp)
-target_link_libraries(image_pipeline_benchmark PRIVATE mycv)

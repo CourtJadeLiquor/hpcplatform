@@ -2,8 +2,8 @@
 #define MYCV_CORE_CONTEXT_H_
 
 #include <memory>
+#include <string>
 
-#include "mycv/backends/backend.h"
 #include "mycv/core/device.h"
 #include "mycv/core/error.h"
 #include "mycv/core/memory.h"
@@ -12,6 +12,12 @@
 #include "mycv/core/tensor.h"
 
 namespace mycv {
+
+// The per-device provider interface behind every Context. Internal type: the
+// definition lives in src/backends/service.h and is never exposed through the
+// public API; Context::Create is the only construction path
+// (docs/architecture.md §6.2).
+class Backend;
 
 // Entry point of the library: binds a backend to a device and exposes the
 // unified memory manager / stream used to allocate and schedule tensors.
@@ -24,17 +30,19 @@ class Context {
   explicit Context(std::shared_ptr<Backend> backend)
       : backend_(std::move(backend)) {}
 
-  BackendType backend_type() const { return backend_->type(); }
-  Device device() const { return backend_->device(); }
-  Backend& backend() { return *backend_; }
-  const Backend& backend() const { return *backend_; }
+  BackendType backend_type() const;
+  Device device() const;
+  std::string Describe() const;
+
+  // Internal access to the owning backend. The Backend definition is internal
+  // (src/backends/service.h), so public callers cannot use the pointee.
   const std::shared_ptr<Backend>& backend_ptr() const { return backend_; }
 
-  MemoryManager& memory() { return backend_->memory(); }
-  const MemoryManager& memory() const { return backend_->memory(); }
-  Stream& stream() { return backend_->stream(); }
+  MemoryManager& memory();
+  const MemoryManager& memory() const;
+  Stream& stream();
 
-  Status Synchronize() { return backend_->Synchronize(); }
+  Status Synchronize();
 
   Result<Tensor> AllocateTensor(const Shape& shape, DataType dtype,
                                 size_t alignment = 64) {

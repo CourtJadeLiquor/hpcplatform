@@ -1,0 +1,20 @@
+// wavelet 的 CPU TBB 级别：用 WaveletTbbRunner 实例化共享骨架。
+// 与 naive/OpenMP 是同一套平面驱动，仅把行/列循环交给 oneTBB 的
+// parallel_for；每条线内部的累加顺序不变，因此输出位精确。
+//
+// 粒度：一条一维分析/合成就是一个任务，TBB 自动分块并用工作窃取均衡。
+
+#include "wavelet_cpu.h"
+
+namespace mycv {
+namespace ops_internal {
+
+// 与 naive 相同的驱动，只把行/列循环换成 tbb::parallel_for。
+Status WaveletCpuTbb(const OpContext&, const Tensor& input,
+                     const Tensor* /*other*/, const void* params,
+                     Tensor* output) {
+  return WaveletImpl<WaveletTbbRunner>(input, params, output);
+}
+
+}  // namespace ops_internal
+}  // namespace mycv

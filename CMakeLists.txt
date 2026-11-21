@@ -46,23 +46,8 @@ add_library(mycv STATIC
   src/backends/cpu/cpu_backend.cpp
   src/backends/cpu/cpu_memory_manager.cpp
   src/backends/npu/npu_backend.cpp
-  src/ops/op_registry.cpp
-  src/ops/add/add.cpp
-  src/ops/add/add_cpu_naive.cpp
-  src/ops/mul/mul.cpp
-  src/ops/mul/mul_cpu_naive.cpp
-  src/ops/cast/cast.cpp
-  src/ops/cast/cast_cpu_naive.cpp
-  src/ops/normalize/normalize.cpp
-  src/ops/normalize/normalize_cpu_naive.cpp
-  src/ops/resize/resize.cpp
-  src/ops/resize/resize_cpu_naive.cpp
-  src/ops/crop/crop.cpp
-  src/ops/crop/crop_cpu_naive.cpp
-  src/ops/transpose/transpose.cpp
-  src/ops/transpose/transpose_cpu_naive.cpp
-  src/ops/warp_affine/warp_affine.cpp
-  src/ops/warp_affine/warp_affine_cpu_naive.cpp
+  src/framework/op_registry.cpp
+  src/ops/registry.cpp
 )
 
 target_include_directories(mycv
@@ -95,52 +80,24 @@ if(MYCV_ENABLE_OPENMP)
   find_package(OpenMP REQUIRED COMPONENTS CXX)
   target_link_libraries(mycv PUBLIC OpenMP::OpenMP_CXX)
   target_compile_definitions(mycv PUBLIC MYCV_WITH_OPENMP=1)
-  target_sources(mycv PRIVATE
-    src/ops/add/add_cpu_omp.cpp
-    src/ops/mul/mul_cpu_omp.cpp
-    src/ops/normalize/normalize_cpu_omp.cpp
-    src/ops/resize/resize_cpu_omp.cpp
-    src/ops/transpose/transpose_cpu_omp.cpp)
 endif()
 
 if(MYCV_ENABLE_TBB)
   find_package(TBB REQUIRED)
   target_link_libraries(mycv PUBLIC TBB::tbb)
   target_compile_definitions(mycv PUBLIC MYCV_WITH_TBB=1)
-  target_sources(mycv PRIVATE
-    src/ops/add/add_cpu_tbb.cpp
-    src/ops/mul/mul_cpu_tbb.cpp
-    src/ops/normalize/normalize_cpu_tbb.cpp
-    src/ops/resize/resize_cpu_tbb.cpp
-    src/ops/transpose/transpose_cpu_tbb.cpp)
 endif()
 
 # --- SIMD capability ------------------------------------------------------
-# No -march=native: each SIMD kernel translation unit gets its own flag in P3 so
-# the resulting static library stays portable.
+# No -march=native: each SIMD kernel translation unit gets its own flag inside
+# its operator folder so the resulting static library stays portable.
 if(MYCV_ENABLE_SIMD)
   target_compile_definitions(mycv PRIVATE MYCV_WITH_SIMD_GENERIC=1)
-  target_sources(mycv PRIVATE
-    src/ops/add/add_cpu_simd.cpp
-    src/ops/mul/mul_cpu_simd.cpp
-    src/ops/cast/cast_cpu_simd.cpp
-    src/ops/normalize/normalize_cpu_simd.cpp)
+  # Capability probes only: operator folders gate their own -mavx2 object
+  # libraries on MYCV_COMPILER_HAS_AVX2 and define MYCV_ARCH_AVX2 themselves.
   if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|i[3-6]86")
     include(CheckCXXCompilerFlag)
     check_cxx_compiler_flag("-mavx2" MYCV_COMPILER_HAS_AVX2)
-    if(MYCV_COMPILER_HAS_AVX2)
-      target_compile_definitions(mycv PRIVATE MYCV_ARCH_AVX2=1)
-      set(MYCV_AVX2_SOURCES
-        src/ops/add/add_cpu_avx2.cpp
-        src/ops/mul/mul_cpu_avx2.cpp
-        src/ops/cast/cast_cpu_avx2.cpp
-        src/ops/normalize/normalize_cpu_avx2.cpp)
-      target_sources(mycv PRIVATE ${MYCV_AVX2_SOURCES})
-      set_source_files_properties(${MYCV_AVX2_SOURCES} PROPERTIES
-        COMPILE_OPTIONS "-mavx2")
-    endif()
-  elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|ARM64")
-    target_compile_definitions(mycv PRIVATE MYCV_ARCH_NEON=1)
   endif()
 endif()
 
@@ -150,8 +107,8 @@ if(MYCV_WITH_OPENCV)
   target_sources(mycv PRIVATE
     src/backends/opencv/opencv_backend.cpp
     src/backends/opencv/opencv_convert.cpp
-    src/backends/opencv/opencv_kernels.cpp
-    src/backends/opencv/opencv_memory_manager.cpp)
+    src/backends/opencv/opencv_memory_manager.cpp
+    src/backends/opencv/opencv_tensor_access.cpp)
   target_include_directories(mycv SYSTEM PUBLIC ${OpenCV_INCLUDE_DIRS})
   target_link_libraries(mycv PUBLIC ${OpenCV_LIBS})
   target_compile_definitions(mycv PUBLIC MYCV_WITH_OPENCV=1)
@@ -162,7 +119,6 @@ if(MYCV_WITH_CUDA)
   target_sources(mycv PRIVATE
     src/backends/cuda/cuda_backend.cpp
     src/backends/cuda/cuda_copy.cpp
-    src/backends/cuda/cuda_kernels.cu
     src/backends/cuda/cuda_memory_manager.cpp
     src/backends/cuda/cuda_stream.cpp)
   target_link_libraries(mycv PUBLIC CUDA::cudart)
@@ -170,6 +126,14 @@ if(MYCV_WITH_CUDA)
   target_compile_options(mycv PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
 endif()
+
+# Operator folders are self-contained (sources, optional-backend files,
+# per-op tests/benchmarks); each one is mounted with a single line.
+# enable_testing() must run before their add_test() calls register.
+if(MYCV_BUILD_TESTS)
+  enable_testing()
+endif()
+add_subdirectory(src/ops)
 
 include(GNUInstallDirs)
 install(TARGETS mycv EXPORT mycvTargets
@@ -189,8 +153,4 @@ endif()
 
 if(MYCV_BUILD_SAMPLES)
   add_subdirectory(samples)
-endif()
-
-if(MYCV_BUILD_BENCHMARKS)
-  add_subdirectory(benchmarks)
 endif()

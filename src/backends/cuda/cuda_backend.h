@@ -5,7 +5,7 @@
 
 #include "backends/cuda/cuda_memory_manager.h"
 #include "backends/cuda/cuda_stream.h"
-#include "mycv/backends/backend.h"
+#include "backends/service.h"
 
 namespace mycv {
 

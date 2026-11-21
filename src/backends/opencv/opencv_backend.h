@@ -3,7 +3,7 @@
 
 #include "backends/cpu/cpu_stream.h"
 #include "backends/opencv/opencv_memory_manager.h"
-#include "mycv/backends/backend.h"
+#include "backends/service.h"
 
 namespace mycv {
 

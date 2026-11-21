@@ -18,26 +18,20 @@ struct OpContext {
 
 // Stable op ids; new ops append and never renumber.
 enum class OpKind : uint16_t {
-  kAdd = 1,
-  kMul = 2,
-  kCast = 3,
-  kNormalize = 4,
-  kResize = 5,
-  kCrop = 6,
-  kTranspose = 7,
-  kWarpAffine = 8,
+  kResize = 1,
+  kGaussianBlur = 2,
+  kLaplacianPyramid = 3,
+  kFourierTransform = 4,
+  kWaveletTransform = 5,
 };
 
 inline const char* OpKindName(OpKind kind) {
   switch (kind) {
-    case OpKind::kAdd: return "add";
-    case OpKind::kMul: return "mul";
-    case OpKind::kCast: return "cast";
-    case OpKind::kNormalize: return "normalize";
     case OpKind::kResize: return "resize";
-    case OpKind::kCrop: return "crop";
-    case OpKind::kTranspose: return "transpose";
-    case OpKind::kWarpAffine: return "warp_affine";
+    case OpKind::kGaussianBlur: return "gaussian_blur";
+    case OpKind::kLaplacianPyramid: return "laplacian_pyramid";
+    case OpKind::kFourierTransform: return "fourier_transform";
+    case OpKind::kWaveletTransform: return "wavelet_transform";
   }
   return "unknown";
 }

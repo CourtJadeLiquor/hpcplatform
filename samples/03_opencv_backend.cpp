@@ -25,12 +25,12 @@ int main() {
   ops.stream = &context->stream();
   auto resized = Resize(ops, input.value(), 4, 4);
   if (!resized.ok()) return 1;
-  auto normalized = Normalize(ops, resized.value(), {0, 0, 0}, {255, 255, 255});
-  if (!normalized.ok()) return 1;
-  auto output = CopyToCvMat(normalized.value());
+  auto blurred = GaussianBlur(ops, resized.value(), 3, 1.0);
+  if (!blurred.ok()) return 1;
+  auto output = CopyToCvMat(blurred.value());
   if (!output.ok()) return 1;
 
-  std::cout << "OpenCV pipeline: cv::Mat -> Tensor -> resize -> normalize -> cv::Mat\n";
+  std::cout << "OpenCV pipeline: cv::Mat -> Tensor -> resize -> gaussian_blur -> cv::Mat\n";
   std::cout << "output: " << output.value().rows << 'x' << output.value().cols
             << "x" << output.value().channels() << ", first=";
   const cv::Vec3f first = output.value().at<cv::Vec3f>(0, 0);

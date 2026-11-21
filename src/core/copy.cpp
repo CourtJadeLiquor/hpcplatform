@@ -1,9 +1,14 @@
+// Core copy semantics: Backend::CopyBuffer default path, ResolveOwningBackend,
+// CopyTensor and Context::Copy. This is library implementation (not a test
+// helper): Context::Copy and Tensor::Clone are its two callers.
+
 #include "mycv/core/context.h"
 
 #include <cstring>
 #include <string>
 
-#include "backends/backends_internal.h"
+#include "core/backend.h"
+#include "core/copy_internal.h"
 #include "mycv/core/tensor_iterator.h"
 
 namespace mycv {
@@ -18,8 +23,10 @@ Status Backend::CopyBuffer(Buffer* dst, size_t dst_offset, const Buffer* src,
       src_offset > src->size() || bytes > src->size() - src_offset) {
     return Status::InvalidArgument("copy range exceeds its buffer");
   }
-  if (dst->kind() == MemoryKind::kDevice || src->kind() == MemoryKind::kDevice) {
-    return Status::Unsupported(std::string("backend ") + BackendTypeName(type()) +
+  if (dst->kind() == MemoryKind::kDevice ||
+      src->kind() == MemoryKind::kDevice) {
+    return Status::Unsupported(std::string("backend ") +
+                               BackendTypeName(type()) +
                                " cannot copy device memory");
   }
   std::memmove(static_cast<char*>(dst->data()) + dst_offset,
@@ -69,8 +76,8 @@ Status CopyTensor(Backend& backend, Tensor* dst, const Tensor& src,
   Stream* copy_stream = stream != nullptr ? stream : &executor->stream();
   if (dst->IsContiguous() && src.IsContiguous()) {
     return executor->CopyBuffer(dst->buffer().get(), dst->offset(),
-                                src.buffer().get(), src.offset(), src.ByteSize(),
-                                copy_stream);
+                                src.buffer().get(), src.offset(),
+                                src.ByteSize(), copy_stream);
   }
   if (src_device || dst_device) {
     return Status::Unsupported(

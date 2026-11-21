@@ -1,6 +1,8 @@
+// 测试接口用于验证后端工厂选型、CPU
+// 后端能力（dtype/拷贝/流）与算子上下文的执行级别约束。
 #include "test_framework.h"
 
-#include "backends/service.h"
+#include "core/backend.h"
 #include "mycv/core/context.h"
 #include "mycv/ops/op.h"
 
@@ -13,7 +15,8 @@ MYCV_TEST(CpuBackendIsExplicitlySelected) {
   MYCV_EXPECT_TRUE(backend.ok());
   MYCV_EXPECT_EQ(backend.value()->type(), BackendType::kNativeCpu);
   MYCV_EXPECT_EQ(backend.value()->device().type, DeviceType::kCPU);
-  MYCV_EXPECT_TRUE(backend.value()->SupportsKernelLevel(CpuKernelLevel::kNaive));
+  MYCV_EXPECT_TRUE(
+      backend.value()->SupportsKernelLevel(CpuKernelLevel::kNaive));
   if (backend.value()->SupportsKernelLevel(CpuKernelLevel::kSimdAvx2)) {
     MYCV_EXPECT_TRUE(backend.value()->Describe().find("simd_avx2") !=
                      std::string::npos);
@@ -44,8 +47,10 @@ MYCV_TEST(OpenCvBackendIsExplicitlySelected) {
   auto backend = CreateBackend(BackendType::kOpenCV, 0);
   MYCV_EXPECT_TRUE(backend.ok());
   MYCV_EXPECT_EQ(backend.value()->device().type, DeviceType::kCPU);
-  MYCV_EXPECT_TRUE(backend.value()->SupportsKernelLevel(CpuKernelLevel::kNaive));
-  MYCV_EXPECT_FALSE(backend.value()->SupportsKernelLevel(CpuKernelLevel::kOpenMP));
+  MYCV_EXPECT_TRUE(
+      backend.value()->SupportsKernelLevel(CpuKernelLevel::kNaive));
+  MYCV_EXPECT_FALSE(
+      backend.value()->SupportsKernelLevel(CpuKernelLevel::kOpenMP));
 }
 #endif
 

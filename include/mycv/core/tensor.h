@@ -21,7 +21,7 @@ class Context;
 
 // Tensor is a descriptor: shape + dtype + strides + a shared Buffer.
 // Metadata-only views (crop / reshape / transpose) reuse the same Buffer and
-// are introduced in P1.
+// never copy elements.
 class Tensor {
  public:
   Tensor() = default;
@@ -34,6 +34,16 @@ class Tensor {
   static Result<Tensor> Create(const std::shared_ptr<Backend>& backend,
                                const Shape& shape, DataType dtype,
                                size_t alignment = 64);
+
+  // Wraps externally owned memory without allocating or copying. `data` must
+  // hold at least shape.Numel() * DTypeSize(dtype) bytes. When `deleter` is
+  // empty the Tensor borrows the memory (caller keeps it alive); otherwise the
+  // deleter runs when the last reference dies, so memory from another runtime
+  // (cv::Mat, cudaMalloc, NPU, ...) can be adopted.
+  static Result<Tensor> Wrap(const std::shared_ptr<Backend>& backend,
+                             void* data, const Shape& shape, DataType dtype,
+                             MemoryKind kind = MemoryKind::kHost,
+                             Buffer::Deleter deleter = nullptr);
 
   bool defined() const { return static_cast<bool>(buffer_); }
 
@@ -78,8 +88,11 @@ class Tensor {
   // Type conversion lives in ops: use mycv::Cast(OpContext, tensor, dtype) so
   // the registered SIMD / OpenCV / CUDA kernels actually run.
 
-  // Backend that allocated this tensor's buffer. Expires with the Context, so
-  // Clone / copy can refuse instead of touching a dead allocator.
+  // Backend that allocated this tensor's buffer. Set only by the allocation
+  // and wrap factories above; there is deliberately no setter. weak_ptr keeps
+  // a tensor from extending its Context's lifetime; when the Context is gone,
+  // Clone / copy create a temporary backend via ResolveOwningBackend instead of
+  // touching a dead allocator.
   std::weak_ptr<Backend> owning_backend() const { return owner_; }
 
   // Stride in elements (not bytes).
@@ -89,8 +102,9 @@ class Tensor {
   std::string ToString() const;
 
  private:
-  friend class Context;
   std::shared_ptr<Buffer> buffer_;
+  // Non-owning reference to the allocating backend; written only by Create and
+  // Wrap, which are Tensor members, so no friend declaration is needed.
   std::weak_ptr<Backend> owner_;
   Shape shape_;
   DataType dtype_ = DataType::kFloat32;

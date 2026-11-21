@@ -7,8 +7,8 @@
 namespace mycv {
 
 // A backend is an implementation provider (native CPU kernels, OpenCV, CUDA,
-// future NPU SDK). A device is the hardware it executes on. Backend selection is
-// always explicit: there is no runtime auto-detection or silent fallback.
+// future NPU SDK). A device is the hardware it executes on. Backend selection
+// is always explicit: there is no runtime auto-detection or silent fallback.
 enum class BackendType : uint8_t {
   kNativeCpu = 0,
   kOpenCV = 1,
@@ -24,19 +24,26 @@ enum class DeviceType : uint8_t {
 
 inline const char* BackendTypeName(BackendType type) {
   switch (type) {
-    case BackendType::kNativeCpu: return "native_cpu";
-    case BackendType::kOpenCV: return "opencv";
-    case BackendType::kCUDA: return "cuda";
-    case BackendType::kNPU: return "npu";
+    case BackendType::kNativeCpu:
+      return "native_cpu";
+    case BackendType::kOpenCV:
+      return "opencv";
+    case BackendType::kCUDA:
+      return "cuda";
+    case BackendType::kNPU:
+      return "npu";
   }
   return "unknown";
 }
 
 inline const char* DeviceTypeName(DeviceType type) {
   switch (type) {
-    case DeviceType::kCPU: return "cpu";
-    case DeviceType::kGPU: return "gpu";
-    case DeviceType::kNPU: return "npu";
+    case DeviceType::kCPU:
+      return "cpu";
+    case DeviceType::kGPU:
+      return "gpu";
+    case DeviceType::kNPU:
+      return "npu";
   }
   return "unknown";
 }

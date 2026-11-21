@@ -52,10 +52,14 @@ inline void StoreBlurPixel(char* destination, DataType dtype, double value) {
 // 非法 dtype 会被入口校验拦下，这里返回 0。
 inline double LoadBlurPixel(const char* source, DataType dtype) {
   switch (dtype) {
-    case DataType::kUInt8: return *reinterpret_cast<const uint8_t*>(source);
-    case DataType::kFloat32: return *reinterpret_cast<const float*>(source);
-    case DataType::kFloat64: return *reinterpret_cast<const double*>(source);
-    default: return 0.0;
+    case DataType::kUInt8:
+      return *reinterpret_cast<const uint8_t*>(source);
+    case DataType::kFloat32:
+      return *reinterpret_cast<const float*>(source);
+    case DataType::kFloat64:
+      return *reinterpret_cast<const double*>(source);
+    default:
+      return 0.0;
   }
 }
 
@@ -103,8 +107,9 @@ inline void BlurHorizontalElement(const Tensor& input, const ImageInfo& info,
   double acc = 0.0;
   for (int i = 0; i < 2 * radius + 1; ++i) {
     const int64_t xx = ClampIndex(x + i - radius, info.w);
-    acc += kernel[i] * LoadBlurPixel(base + ImageByteOffset(input, info, n, y, xx, c),
-                                     input.dtype());
+    acc += kernel[i] *
+           LoadBlurPixel(base + ImageByteOffset(input, info, n, y, xx, c),
+                         input.dtype());
   }
   tmp[linear] = acc;
 }
@@ -132,8 +137,8 @@ inline void BlurVerticalElement(const double* tmp, const ImageInfo& info,
 }
 
 // 校验并按 options.layout 解析输入形状，填充 ImageInfo（n/h/w/c/layout）。
-inline Status PrepareBlur(const Tensor& input, const GaussianBlurParams& options,
-                          ImageInfo* info) {
+inline Status PrepareBlur(const Tensor& input,
+                          const GaussianBlurParams& options, ImageInfo* info) {
   auto parsed = ParseImage(input.shape(), options.layout);
   if (!parsed.ok()) return parsed.status();
   *info = parsed.value();
@@ -144,8 +149,8 @@ inline Status PrepareBlur(const Tensor& input, const GaussianBlurParams& options
 // 步骤：解析图像 -> 构造核 -> 为每个线性下标做水平 pass（写 double
 // 临时缓冲）-> 再做一遍垂直 pass 写入 output。
 // 每 pass O(H*W*K)，额外内存 O(H*W*C) 个 double。
-inline Status BlurNaiveImpl(const Tensor& input, const GaussianBlurParams& options,
-                            Tensor* output) {
+inline Status BlurNaiveImpl(const Tensor& input,
+                            const GaussianBlurParams& options, Tensor* output) {
   ImageInfo info;
   MYCV_RETURN_IF_ERROR(PrepareBlur(input, options, &info));
   const std::vector<double> kernel =
@@ -193,8 +198,8 @@ inline Status BlurOpenMPImpl(const Tensor& input,
 // auto_partitioner，粒度由运行时决定），两趟各调用一次；第二次调用返回
 // 时第一次已全部完成，保证垂直 pass 读到完整的水平结果。
 // 每个下标被唯一线程处理，tap 顺序不变，故与 naive 位精确一致。
-inline Status BlurTbbImpl(const Tensor& input, const GaussianBlurParams& options,
-                          Tensor* output) {
+inline Status BlurTbbImpl(const Tensor& input,
+                          const GaussianBlurParams& options, Tensor* output) {
   ImageInfo info;
   MYCV_RETURN_IF_ERROR(PrepareBlur(input, options, &info));
   const std::vector<double> kernel =

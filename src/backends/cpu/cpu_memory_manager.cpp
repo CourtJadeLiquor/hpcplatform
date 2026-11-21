@@ -86,9 +86,8 @@ Result<std::shared_ptr<Buffer>> CpuMemoryManager::Allocate(size_t bytes,
   const size_t current = state_->allocated_bytes.fetch_add(bytes) + bytes;
   state_->allocation_count.fetch_add(1);
   size_t peak = state_->peak_bytes.load(std::memory_order_relaxed);
-  while (current > peak &&
-         !state_->peak_bytes.compare_exchange_weak(peak, current,
-                                                   std::memory_order_relaxed)) {
+  while (current > peak && !state_->peak_bytes.compare_exchange_weak(
+                               peak, current, std::memory_order_relaxed)) {
   }
 
   auto state = state_;
@@ -97,10 +96,10 @@ Result<std::shared_ptr<Buffer>> CpuMemoryManager::Allocate(size_t bytes,
       [state](void* data, size_t size) { state->Release(data, size); });
 }
 
-Status CpuMemoryManager::Copy(Buffer* dst, size_t dst_offset,
-                              const Buffer* src, size_t src_offset,
-                              size_t bytes, Stream* stream) {
-  (void)stream;  // CPU copies are synchronous; the stream is accepted for API symmetry.
+Status CpuMemoryManager::Copy(Buffer* dst, size_t dst_offset, const Buffer* src,
+                              size_t src_offset, size_t bytes, Stream* stream) {
+  (void)stream;  // CPU copies are synchronous; the stream is accepted for API
+                 // symmetry.
   if (dst == nullptr || src == nullptr) {
     return Status::InvalidArgument("copy requires non-null buffers");
   }
@@ -113,7 +112,8 @@ Status CpuMemoryManager::Copy(Buffer* dst, size_t dst_offset,
   if (src_offset > src->size() || bytes > src->size() - src_offset) {
     return Status::InvalidArgument("source copy range out of bounds");
   }
-  if (dst->kind() == MemoryKind::kDevice || src->kind() == MemoryKind::kDevice) {
+  if (dst->kind() == MemoryKind::kDevice ||
+      src->kind() == MemoryKind::kDevice) {
     return Status::Unsupported(
         "CpuMemoryManager cannot copy device memory; use Context::Copy once "
         "cross-device support lands");

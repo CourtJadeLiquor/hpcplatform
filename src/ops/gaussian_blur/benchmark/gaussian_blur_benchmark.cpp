@@ -1,4 +1,5 @@
 // Per-operator benchmark for gaussian_blur (docs/architecture.md §6.1/§7.2).
+// 基准程序用于在本机构建可用的后端/内核级别上测量 gaussian_blur 的吞吐与延迟。
 //
 // Sweeps kernel size / sigma / channel count (c>=4 unlocks the AVX2 block),
 // dtype and every execution backend available in this build, emitting CSV for
@@ -16,7 +17,7 @@
 #include <iostream>
 #include <memory>
 
-#include "backends/service.h"
+#include "core/backend.h"
 #include "mycv/mycv.h"
 
 using namespace mycv;
@@ -60,13 +61,15 @@ Measurement Measure(const OpContext& context, const Tensor& input,
                     const Config& config, bool* ok) {
   *ok = false;
   for (int i = 0; i < kWarmup; ++i) {
-    auto warmup = GaussianBlur(context, input, config.kernel_size, config.sigma);
+    auto warmup =
+        GaussianBlur(context, input, config.kernel_size, config.sigma);
     if (!warmup.ok()) return {};
   }
   const auto start = std::chrono::steady_clock::now();
   double checksum = 0.0;
   for (int i = 0; i < kIterations; ++i) {
-    auto output = GaussianBlur(context, input, config.kernel_size, config.sigma);
+    auto output =
+        GaussianBlur(context, input, config.kernel_size, config.sigma);
     if (!output.ok()) return {};
     // Consume metadata only: accelerator outputs live in device memory and
     // must not be dereferenced from the host.
@@ -144,15 +147,18 @@ int main() {
             Measure(level_context, input.value(), config, &ok);
         if (!ok) continue;
         if (baseline == 0.0) baseline = run.ms_per_call;
-        PrintRow("cpu", CpuKernelLevelName(level), dtype, config, run, baseline);
+        PrintRow("cpu", CpuKernelLevelName(level), dtype, config, run,
+                 baseline);
       }
 
       if (opencv.ok()) {
         OpContext accelerated;
         accelerated.context = opencv.value().get();
         accelerated.stream = &opencv.value()->stream();
-        auto device = opencv.value()->AllocateTensor(input.value().shape(), dtype);
-        if (device.ok() && opencv.value()->Copy(&device.value(), input.value()).ok()) {
+        auto device =
+            opencv.value()->AllocateTensor(input.value().shape(), dtype);
+        if (device.ok() &&
+            opencv.value()->Copy(&device.value(), input.value()).ok()) {
           bool ok = false;
           const Measurement run =
               Measure(accelerated, device.value(), config, &ok);
@@ -163,8 +169,10 @@ int main() {
         OpContext accelerated;
         accelerated.context = cuda.value().get();
         accelerated.stream = &cuda.value()->stream();
-        auto device = cuda.value()->AllocateTensor(input.value().shape(), dtype);
-        if (device.ok() && cuda.value()->Copy(&device.value(), input.value()).ok()) {
+        auto device =
+            cuda.value()->AllocateTensor(input.value().shape(), dtype);
+        if (device.ok() &&
+            cuda.value()->Copy(&device.value(), input.value()).ok()) {
           bool ok = false;
           const Measurement run =
               Measure(accelerated, device.value(), config, &ok);

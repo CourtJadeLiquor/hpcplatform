@@ -1,4 +1,5 @@
 // Per-operator benchmark for wavelet (docs/architecture.md §6.1/§7.2).
+// 基准程序用于测量小波分解/重构在不同层数与后端上的耗时。
 //
 //   ./build-release-full/src/ops/wavelet/wavelet_benchmark
 //
@@ -23,7 +24,7 @@
 #include <utility>
 #include <vector>
 
-#include "backends/service.h"
+#include "core/backend.h"
 #include "mycv/mycv.h"
 
 using namespace mycv;
@@ -92,9 +93,8 @@ bool MeasureEntry(const OpContext& context, const Tensor& input,
   auto bands = WaveletTransform(context, input, kind);
   if (!bands.ok()) return false;
   double ms = 0.0;
-  if (MeasureMs(
-          [&] { return WaveletTransform(context, input, kind).ok(); }, passes,
-          &ms)) {
+  if (MeasureMs([&] { return WaveletTransform(context, input, kind).ok(); },
+                passes, &ms)) {
     entry->has_forward = true;
     entry->forward_ms = ms;
   }
@@ -116,8 +116,8 @@ void PrintRow(const Config& config, const std::string& backend,
       static_cast<double>(config.height * config.width) / 1e6;
   std::cout << "wavelet_transform," << backend << ',' << level << ",f32,"
             << WaveletKindName(kind) << ',' << direction << ',' << config.height
-            << ',' << config.width << ',' << config.channels << ',' << std::fixed
-            << std::setprecision(4) << ms << ','
+            << ',' << config.width << ',' << config.channels << ','
+            << std::fixed << std::setprecision(4) << ms << ','
             << (ms > 0.0 ? megapixels / (ms / 1e3) : 0.0) << ','
             << (baseline > 0.0 ? baseline / ms : 0.0) << '\n';
 }
@@ -132,7 +132,10 @@ int main() {
   }
 
   const Config configs[] = {
-      {512, 512, 1}, {512, 512, 3}, {1024, 1024, 1}, {1024, 1024, 3},
+      {512, 512, 1},
+      {512, 512, 3},
+      {1024, 1024, 1},
+      {1024, 1024, 3},
   };
   std::vector<ConfigResult> results;
   results.reserve(sizeof(configs) / sizeof(configs[0]));
@@ -156,13 +159,15 @@ int main() {
     if (!cuda.ok()) break;
     const Config& config = result.config;
     auto input = cpu.value()->AllocateTensor(
-        Shape{config.height, config.width, config.channels}, DataType::kFloat32);
+        Shape{config.height, config.width, config.channels},
+        DataType::kFloat32);
     if (!input.ok()) continue;
     FillInput(&input.value());
     auto device_input = cuda.value()->AllocateTensor(input.value().shape(),
                                                      input.value().dtype());
     if (!device_input.ok()) continue;
-    if (!cuda.value()->Copy(&device_input.value(), input.value()).ok()) continue;
+    if (!cuda.value()->Copy(&device_input.value(), input.value()).ok())
+      continue;
     OpContext context;
     context.context = cuda.value().get();
     context.stream = &cuda.value()->stream();
@@ -178,8 +183,8 @@ int main() {
   }
 
   // Phase 2: CPU levels, level-major so each level sees the same machine state.
-  for (CpuKernelLevel level :
-       {CpuKernelLevel::kNaive, CpuKernelLevel::kOpenMP, CpuKernelLevel::kTbb}) {
+  for (CpuKernelLevel level : {CpuKernelLevel::kNaive, CpuKernelLevel::kOpenMP,
+                               CpuKernelLevel::kTbb}) {
     if (!cpu.value()->backend_ptr()->SupportsKernelLevel(level)) continue;
     for (ConfigResult& result : results) {
       const Config& config = result.config;
@@ -204,8 +209,7 @@ int main() {
 
   // Phase 3: print per configuration with the naive CPU row as baseline.
   for (const ConfigResult& result : results) {
-    for (WaveletKind kind :
-         {WaveletKind::kHaar, WaveletKind::kDaubechies4}) {
+    for (WaveletKind kind : {WaveletKind::kHaar, WaveletKind::kDaubechies4}) {
       double forward_base = 0.0;
       double inverse_base = 0.0;
       for (const Entry& entry : result.cpu) {

@@ -10,7 +10,7 @@
 core 层明确**不抛异常**，错误用 `Status` / `Result<T>` 表达（[error.h](../../include/mycv/core/error.h#L21-L23) 注释写明动机）：
 
 1. 部分 NPU / 嵌入式工具链以 `-fno-exceptions` 编译，异常不可用；
-2. 异常让 C ABI 边界与跨语言绑定变复杂（P6 要做 Python 绑定）；
+2. 异常让 C ABI 边界与跨语言绑定变复杂（为后续 Python 绑定留出空间）；
 3. 异常会打断"错误码即契约"的可判定性——库希望每种失败都有确定的 `StatusCode`，调用方据此决策。
 
 代价是调用方必须**显式检查**返回值，不能靠 try/catch 偷懒。这是刻意的。
@@ -101,7 +101,7 @@ if (!kernel.ok()) return kernel.status();   // Result 没有宏，手动查
 
 ## 5. 错误信息要写什么
 
-错误信息应包含**足够定位的上下文**：op 名、后端名、level 名、具体哪个参数。例如分发表的未命中信息（[op_registry.cpp](../../src/ops/op_registry.cpp#L78-L85)）：
+错误信息应包含**足够定位的上下文**：op 名、后端名、level 名、具体哪个参数。例如分发表的未命中信息（[op_registry.cpp](../../src/framework/op_registry.cpp#L78-L85)）：
 
 - `cpu kernel 'add' is not built for level simd_avx2`
 - `op 'add' is not implemented for backend npu`

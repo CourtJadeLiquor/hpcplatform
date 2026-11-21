@@ -1,13 +1,13 @@
 # 算子分发：我的算子到底跑的是哪个实现
 
-> 相关代码：`src/ops/op_registry.{h,cpp}`、`src/ops/op_common.h`、`src/ops/add/add.cpp`
+> 相关代码：`src/framework/op_registry.{h,cpp}`、`src/ops/common/op_common.h`、`src/ops/register_ops.cpp`
 > 这是全库最容易"以为跑了 A 其实跑了 B"的地方，也是 mycv 最在意的地方。
 
 ---
 
 ## 1. 分发的键：三元组
 
-一次算子调用能精确命中哪个内核，由三个维度共同决定（[op_registry.cpp](../../src/ops/op_registry.cpp#L28)）：
+一次算子调用能精确命中哪个内核，由三个维度共同决定（[op_registry.cpp](../../src/framework/op_registry.cpp#L28)）：
 
 ```
 (OpKind, BackendType, CpuKernelLevel)  →  一个函数指针 OpKernelFn
@@ -41,7 +41,7 @@
 
 ## 3. 查不到时返回什么：三个错误码的精确边界
 
-`FindKernel`（[op_registry.cpp](../../src/ops/op_registry.cpp#L64-L86)）对未命中分三种情况，**绝不能混**：
+`FindKernel`（[op_registry.cpp](../../src/framework/op_registry.cpp#L64-L86)）对未命中分三种情况，**绝不能混**：
 
 ```
 请求 (op, backend, level)
@@ -81,7 +81,7 @@
 
 ## 5. 注册是延迟的、按编译宏守卫的
 
-内核表在第一次 `FindKernel` 时通过 `std::call_once` 填充（[op_registry.cpp](../../src/ops/op_registry.cpp#L35-L54)）。每个算子的 `Register*Kernels()` 里，每个版本都用 `#ifdef` 包住：
+内核表在第一次 `FindKernel` 时通过 `std::call_once` 填充（[op_registry.cpp](../../src/framework/op_registry.cpp#L35-L54)）。每个算子的 `Register*Kernels()` 里，每个版本都用 `#ifdef` 包住：
 
 ```cpp
 #ifdef MYCV_ARCH_AVX2

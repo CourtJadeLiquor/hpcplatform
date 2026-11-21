@@ -35,8 +35,10 @@ enum class WaveletKind : uint8_t {
 
 inline const char* WaveletKindName(WaveletKind kind) {
   switch (kind) {
-    case WaveletKind::kHaar: return "haar";
-    case WaveletKind::kDaubechies4: return "db4";
+    case WaveletKind::kHaar:
+      return "haar";
+    case WaveletKind::kDaubechies4:
+      return "db4";
   }
   return "unknown";
 }
@@ -50,17 +52,17 @@ struct WaveletBands {
 
 // `kind` selects the analysis filter pair; `layout` follows the image API
 // (rank-2 HW, rank-3 HWC/CHW, rank-4 NHWC/NCHW).
-Result<WaveletBands> WaveletTransform(
-    const OpContext& context, const Tensor& input,
-    WaveletKind kind = WaveletKind::kHaar,
-    ImageLayout layout = ImageLayout::kNHWC);
+Result<WaveletBands> WaveletTransform(const OpContext& context,
+                                      const Tensor& input,
+                                      WaveletKind kind = WaveletKind::kHaar,
+                                      ImageLayout layout = ImageLayout::kNHWC);
 
 // Rebuilds the H x W image from the four bands. All bands must share shape,
 // dtype, backend and device; `kind` must match the one used for the analysis.
-Result<Tensor> InverseWaveletTransform(
-    const OpContext& context, const WaveletBands& bands,
-    WaveletKind kind = WaveletKind::kHaar,
-    ImageLayout layout = ImageLayout::kNHWC);
+Result<Tensor> InverseWaveletTransform(const OpContext& context,
+                                       const WaveletBands& bands,
+                                       WaveletKind kind = WaveletKind::kHaar,
+                                       ImageLayout layout = ImageLayout::kNHWC);
 
 }  // namespace mycv
 

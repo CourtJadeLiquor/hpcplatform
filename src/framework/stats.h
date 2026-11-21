@@ -14,9 +14,10 @@ namespace ops_internal {
 // matches the manager's device type; host_pinned stays zero until a backend
 // exposes a dedicated pinned-host manager.
 struct MemorySnapshot {
-  MemoryStats host;         // pageable host allocations
-  MemoryStats host_pinned;  // page-locked host allocations (none reports it yet)
-  MemoryStats device;       // device (GPU/NPU) allocations, i.e. VRAM usage
+  MemoryStats host;  // pageable host allocations
+  MemoryStats
+      host_pinned;     // page-locked host allocations (none reports it yet)
+  MemoryStats device;  // device (GPU/NPU) allocations, i.e. VRAM usage
 };
 
 inline MemorySnapshot SnapshotMemory(Context& context) {

@@ -1,3 +1,4 @@
+// 测试接口用于验证小波分解/重构的可逆性与边界延拓策略。
 #include "test_framework.h"
 
 #include <cmath>
@@ -6,7 +7,7 @@
 #include <memory>
 #include <vector>
 
-#include "backends/service.h"
+#include "core/backend.h"
 #include "mycv/mycv.h"
 
 namespace {
@@ -53,12 +54,12 @@ Tensor MakeImage(int64_t n, int64_t h, int64_t w, int64_t c, ImageLayout layout,
     for (int64_t y = 0; y < h; ++y) {
       for (int64_t x = 0; x < w; ++x) {
         for (int64_t ci = 0; ci < c; ++ci) {
-          const double value = 0.01 * static_cast<double>(
-                                         (y * 31 + x * 17 + ci * 7 + ni * 5) % 97);
-          const int64_t index =
-              layout == ImageLayout::kNHWC
-                  ? ((ni * h + y) * w + x) * c + ci
-                  : ((ni * c + ci) * h + y) * w + x;
+          const double value =
+              0.01 *
+              static_cast<double>((y * 31 + x * 17 + ci * 7 + ni * 5) % 97);
+          const int64_t index = layout == ImageLayout::kNHWC
+                                    ? ((ni * h + y) * w + x) * c + ci
+                                    : ((ni * c + ci) * h + y) * w + x;
           WriteElement(&tensor.value(), index, value);
         }
       }
@@ -80,7 +81,8 @@ Tensor MakeConstant(int64_t n, int64_t h, int64_t w, int64_t c, double value) {
 }
 
 bool Near(const Tensor& actual, const Tensor& expected, double tolerance) {
-  if (actual.shape() != expected.shape() || actual.dtype() != expected.dtype()) {
+  if (actual.shape() != expected.shape() ||
+      actual.dtype() != expected.dtype()) {
     return false;
   }
   for (int64_t i = 0; i < actual.Numel(); ++i) {
@@ -99,8 +101,8 @@ bool BitExact(const Tensor& a, const Tensor& b) {
 }
 
 bool BandsBitExact(const WaveletBands& a, const WaveletBands& b) {
-  return BitExact(a.ll, b.ll) && BitExact(a.lh, b.lh) &&
-         BitExact(a.hl, b.hl) && BitExact(a.hh, b.hh);
+  return BitExact(a.ll, b.ll) && BitExact(a.lh, b.lh) && BitExact(a.hl, b.hl) &&
+         BitExact(a.hh, b.hh);
 }
 
 }  // namespace
@@ -127,9 +129,9 @@ MYCV_TEST(WaveletShapesAndBands) {
       shapes_ok = shapes_ok && band->dtype() == DataType::kFloat32 &&
                   band->backend() == BackendType::kNativeCpu &&
                   band->IsContiguous();
-      const Shape expected =
-          item.layout == ImageLayout::kNHWC ? Shape{item.n, 4, 3, item.c}
-                                            : Shape{item.n, item.c, 4, 3};
+      const Shape expected = item.layout == ImageLayout::kNHWC
+                                 ? Shape{item.n, 4, 3, item.c}
+                                 : Shape{item.n, item.c, 4, 3};
       shapes_ok = shapes_ok && band->shape() == expected;
     }
     MYCV_EXPECT_TRUE(shapes_ok);
@@ -143,7 +145,8 @@ MYCV_TEST(WaveletHaarHandComputedTwoByTwo) {
   MYCV_EXPECT_TRUE(input.ok());
   if (!input.ok()) return;
   const double values[4] = {1.0, 2.0, 3.0, 4.0};  // [[1, 2], [3, 4]]
-  for (int64_t i = 0; i < 4; ++i) WriteElement(&input.value(), i, values[i]);
+  for (int64_t i = 0; i < 4; ++i)
+    WriteElement(&input.value(), i, values[i]);
 
   auto result = WaveletTransform(CpuOpContext(*context), input.value());
   MYCV_EXPECT_TRUE(result.ok());
@@ -201,11 +204,12 @@ MYCV_TEST(WaveletRoundTripIsIdentity) {
   };
   auto input = MakeImage(1, 16, 12, 2, ImageLayout::kNHWC, DataType::kFloat64);
   for (const Case& item : cases) {
-    auto source = item.dtype == DataType::kFloat32
-                      ? MakeImage(1, 16, 12, 2, ImageLayout::kNHWC,
-                                  DataType::kFloat32)
-                      : input;
-    auto decomposed = WaveletTransform(CpuOpContext(*context), source, item.kind);
+    auto source =
+        item.dtype == DataType::kFloat32
+            ? MakeImage(1, 16, 12, 2, ImageLayout::kNHWC, DataType::kFloat32)
+            : input;
+    auto decomposed =
+        WaveletTransform(CpuOpContext(*context), source, item.kind);
     MYCV_EXPECT_TRUE(decomposed.ok());
     if (!decomposed.ok()) continue;
     auto rebuilt = InverseWaveletTransform(CpuOpContext(*context),
@@ -252,10 +256,9 @@ MYCV_TEST(WaveletCpuLevelsAreBitExact) {
       WaveletTransform(reference_context, input, WaveletKind::kDaubechies4);
   MYCV_EXPECT_TRUE(reference.ok());
   if (!reference.ok()) return;
-  for (CpuKernelLevel level : {CpuKernelLevel::kOpenMP,
-                               CpuKernelLevel::kSimdGeneric,
-                               CpuKernelLevel::kSimdAvx2,
-                               CpuKernelLevel::kTbb}) {
+  for (CpuKernelLevel level :
+       {CpuKernelLevel::kOpenMP, CpuKernelLevel::kSimdGeneric,
+        CpuKernelLevel::kSimdAvx2, CpuKernelLevel::kTbb}) {
     if (!context->backend_ptr()->SupportsKernelLevel(level)) continue;
     OpContext level_context = CpuOpContext(*context);
     level_context.cpu_level = level;
@@ -385,16 +388,16 @@ MYCV_TEST(WaveletCudaMatchesCpu) {
   MYCV_EXPECT_TRUE(device_input.ok());
   if (!device_input.ok()) return;
   for (WaveletKind kind : {WaveletKind::kHaar, WaveletKind::kDaubechies4}) {
-    auto reference =
-        WaveletTransform(CpuOpContext(*cpu_context), input, kind);
+    auto reference = WaveletTransform(CpuOpContext(*cpu_context), input, kind);
     MYCV_EXPECT_TRUE(reference.ok());
     if (!reference.ok()) continue;
-    auto actual =
-        WaveletTransform(CudaOpContext(*cuda_context), device_input.value(), kind);
+    auto actual = WaveletTransform(CudaOpContext(*cuda_context),
+                                   device_input.value(), kind);
     MYCV_EXPECT_TRUE(actual.ok());
     if (!actual.ok()) continue;
-    const Tensor* reference_bands[4] = {&reference.value().ll, &reference.value().lh,
-                                        &reference.value().hl, &reference.value().hh};
+    const Tensor* reference_bands[4] = {
+        &reference.value().ll, &reference.value().lh, &reference.value().hl,
+        &reference.value().hh};
     const Tensor* actual_bands[4] = {&actual.value().ll, &actual.value().lh,
                                      &actual.value().hl, &actual.value().hh};
     for (int i = 0; i < 4; ++i) {
@@ -419,8 +422,7 @@ MYCV_TEST(WaveletCudaRoundTripIsIdentity) {
     auto decomposed = WaveletTransform(cuda_op, device_input.value(), kind);
     MYCV_EXPECT_TRUE(decomposed.ok());
     if (!decomposed.ok()) continue;
-    auto rebuilt =
-        InverseWaveletTransform(cuda_op, decomposed.value(), kind);
+    auto rebuilt = InverseWaveletTransform(cuda_op, decomposed.value(), kind);
     MYCV_EXPECT_TRUE(rebuilt.ok());
     if (!rebuilt.ok()) continue;
     auto back = CopyTo(*cpu_context, rebuilt.value());

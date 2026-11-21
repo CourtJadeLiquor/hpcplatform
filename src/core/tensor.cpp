@@ -5,8 +5,8 @@
 #include <utility>
 #include <vector>
 
-#include "backends/backends_internal.h"
-#include "backends/service.h"
+#include "core/backend.h"
+#include "core/copy_internal.h"
 #include "mycv/core/context.h"
 #include "mycv/core/tensor_iterator.h"
 
@@ -71,6 +71,51 @@ Result<Tensor> Tensor::Create(const std::shared_ptr<Backend>& backend,
   return tensor;
 }
 
+Result<Tensor> Tensor::Wrap(const std::shared_ptr<Backend>& backend, void* data,
+                            const Shape& shape, DataType dtype, MemoryKind kind,
+                            Buffer::Deleter deleter) {
+  if (backend == nullptr) {
+    return Status::InvalidArgument("tensor wrap requires a live backend");
+  }
+  MYCV_RETURN_IF_ERROR(shape.Validate());
+  if (data == nullptr) {
+    return Status::InvalidArgument("Wrap requires non-null data");
+  }
+  const size_t element_size = DTypeSize(dtype);
+  if (element_size == 0 || !backend->SupportsDType(dtype)) {
+    return Status::Unsupported(std::string("backend ") +
+                               BackendTypeName(backend->type()) +
+                               " does not support dtype: " + DTypeName(dtype));
+  }
+  const int64_t numel = shape.Numel();
+  if (numel <= 0) {
+    return Status::InvalidArgument("Wrap requires a non-empty shape");
+  }
+  const uint64_t count = static_cast<uint64_t>(numel);
+  if (count > std::numeric_limits<size_t>::max() / element_size) {
+    return Status::InvalidArgument("Wrap byte size overflows size_t");
+  }
+  const size_t bytes = static_cast<size_t>(count) * element_size;
+
+  auto buffer = std::make_shared<Buffer>(data, bytes, backend->device(), kind,
+                                         std::move(deleter));
+  Tensor tensor;
+  tensor.buffer_ = std::move(buffer);
+  tensor.owner_ = backend;
+  tensor.shape_ = shape;
+  tensor.dtype_ = dtype;
+  tensor.offset_ = 0;
+  tensor.device_ = backend->device();
+  tensor.backend_ = backend->type();
+
+  int64_t stride = 1;
+  for (int i = shape.Rank() - 1; i >= 0; --i) {
+    tensor.strides_[static_cast<size_t>(i)] = stride;
+    stride *= shape.Dim(i);
+  }
+  return tensor;
+}
+
 Result<Tensor> Tensor::View(const Shape& shape) const {
   MYCV_RETURN_IF_ERROR(CheckDefined(*this));
   MYCV_RETURN_IF_ERROR(shape.Validate());
@@ -104,8 +149,8 @@ Result<Tensor> Tensor::Slice(int dim, int64_t begin, int64_t end) const {
   std::vector<int64_t> dims(shape_.data(), shape_.data() + shape_.Rank());
   dims[static_cast<size_t>(dim)] = end - begin;
   result.shape_ = Shape(dims);
-  result.offset_ = offset_ + static_cast<size_t>(begin * Stride(dim)) *
-                                ElementSize();
+  result.offset_ =
+      offset_ + static_cast<size_t>(begin * Stride(dim)) * ElementSize();
   return result;
 }
 
@@ -144,7 +189,8 @@ Result<Tensor> Tensor::Clone() const {
   if (!owner.ok()) return owner.status();
   auto result = Tensor::Create(owner.value(), shape_, dtype_);
   if (!result.ok()) return result.status();
-  MYCV_RETURN_IF_ERROR(CopyTensor(*owner.value(), &result.value(), *this, nullptr));
+  MYCV_RETURN_IF_ERROR(
+      CopyTensor(*owner.value(), &result.value(), *this, nullptr));
   return result;
 }
 

@@ -1,0 +1,16 @@
+# House style: close to Google style, but include groups are kept as authored.
+BasedOnStyle: Google
+Standard: c++17
+IndentWidth: 2
+ContinuationIndentWidth: 4
+ColumnLimit: 80
+PointerAlignment: Left
+ReferenceAlignment: Left
+DerivePointerAlignment: false
+BreakBeforeBraces: Attach
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortFunctionsOnASingleLine: InlineOnly
+AllowShortLoopsOnASingleLine: false
+SortIncludes: false
+IncludeBlocks: Preserve
+SpacesBeforeTrailingComments: 2

@@ -12,15 +12,19 @@ CudaStream::~CudaStream() {
 }
 
 Status CudaStream::Initialize() {
-  if (stream_ != nullptr) return Status::BadState("CUDA stream is already initialized");
-  MYCV_RETURN_IF_ERROR(CudaStatus(cudaSetDevice(device_.index), "cudaSetDevice"));
+  if (stream_ != nullptr)
+    return Status::BadState("CUDA stream is already initialized");
+  MYCV_RETURN_IF_ERROR(
+      CudaStatus(cudaSetDevice(device_.index), "cudaSetDevice"));
   return CudaStatus(cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking),
                     "cudaStreamCreateWithFlags");
 }
 
 Status CudaStream::Synchronize() {
-  if (stream_ == nullptr) return Status::BadState("CUDA stream is not initialized");
-  MYCV_RETURN_IF_ERROR(CudaStatus(cudaSetDevice(device_.index), "cudaSetDevice"));
+  if (stream_ == nullptr)
+    return Status::BadState("CUDA stream is not initialized");
+  MYCV_RETURN_IF_ERROR(
+      CudaStatus(cudaSetDevice(device_.index), "cudaSetDevice"));
   return CudaStatus(cudaStreamSynchronize(stream_), "cudaStreamSynchronize");
 }
 

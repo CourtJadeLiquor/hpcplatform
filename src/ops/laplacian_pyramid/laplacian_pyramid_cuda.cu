@@ -38,7 +38,8 @@ __global__ void SubtractBandsKernel(DeviceTensor fine, DeviceTensor up,
   const T* fine_data = static_cast<const T*>(fine.data);
   const T* up_data = static_cast<const T*>(up.data);
   for (int64_t index = ThreadIndex(); index < count; index += ThreadStride()) {
-    output[index] = fine_data[StridedElementOffset(fine, index)] - up_data[index];
+    output[index] =
+        fine_data[StridedElementOffset(fine, index)] - up_data[index];
   }
 }
 
@@ -97,8 +98,8 @@ Status LaplacianPyramidCudaStage(const OpContext& context, const Tensor& input,
                    InterpolationMode::kBilinear, options.layout);
   if (!up.ok()) return up.status();
   // 子算子输出 up 已对齐到当前层尺寸，这里只需逐元素相减。
-  MYCV_RETURN_IF_ERROR(
-      LaunchSubtract(input, up.value(), output, stream_result.value()->handle()));
+  MYCV_RETURN_IF_ERROR(LaunchSubtract(input, up.value(), output,
+                                      stream_result.value()->handle()));
 
   *options.next_gaussian = std::move(next.value());
   return Status::Ok();

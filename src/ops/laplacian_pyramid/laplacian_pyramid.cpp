@@ -105,8 +105,8 @@ Result<LaplacianPyramid> BuildLaplacianPyramid(const OpContext& context,
     Tensor next;
     const ops_internal::LaplacianPyramidParams params{kernel_size, sigma,
                                                       layout, &next};
-    MYCV_RETURN_IF_ERROR(kernel.value()(context, source, nullptr, &params,
-                                        &laplacian.value()));
+    MYCV_RETURN_IF_ERROR(
+        kernel.value()(context, source, nullptr, &params, &laplacian.value()));
     if (!next.defined()) {
       return Status::Internal(
           "LaplacianPyramid stage did not produce the next Gaussian level");

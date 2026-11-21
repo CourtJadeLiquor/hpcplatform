@@ -60,7 +60,8 @@ inline void ResizeElement(const Tensor& input, const ImageInfo& image,
   }
 
   // scale = 输入边长 / 输出边长（放大时 < 1，缩小时 > 1）。
-  const long double scale_y = static_cast<long double>(image.h) / options.height;
+  const long double scale_y =
+      static_cast<long double>(image.h) / options.height;
   const long double scale_x = static_cast<long double>(image.w) / options.width;
   int64_t y0 = 0;
   int64_t x0 = 0;

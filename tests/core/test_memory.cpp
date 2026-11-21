@@ -1,3 +1,5 @@
+// 测试接口用于验证 Buffer / MemoryManager 的分配、对齐、计数与释放（含自定义
+// deleter）。
 #include "test_framework.h"
 
 #include <cstring>
@@ -15,11 +17,11 @@ MYCV_TEST(CpuMemoryManagerCopiesBetweenBuffers) {
   auto dst = context->AllocateTensor(Shape{4}, DataType::kFloat32).value();
 
   float* src_data = src.Data<float>();
-  for (int i = 0; i < 4; ++i) src_data[i] = static_cast<float>(i) + 1.0f;
+  for (int i = 0; i < 4; ++i)
+    src_data[i] = static_cast<float>(i) + 1.0f;
 
-  MYCV_EXPECT_OK(context->memory().Copy(dst.buffer().get(), 0,
-                                        src.buffer().get(), 0,
-                                        src.ByteSize(), nullptr));
+  MYCV_EXPECT_OK(context->memory().Copy(
+      dst.buffer().get(), 0, src.buffer().get(), 0, src.ByteSize(), nullptr));
   MYCV_EXPECT_EQ(std::memcmp(src.data(), dst.data(), src.ByteSize()),
                  static_cast<int>(0));
   MYCV_EXPECT_EQ(dst.Data<float>()[3], 4.0f);
@@ -48,9 +50,8 @@ MYCV_TEST(CopyRejectsOutOfBoundsRange) {
   auto src = context->AllocateTensor(Shape{4}, DataType::kFloat32).value();
   auto dst = context->AllocateTensor(Shape{4}, DataType::kFloat32).value();
 
-  const Status status = context->memory().Copy(dst.buffer().get(), 8,
-                                               src.buffer().get(), 0,
-                                               src.ByteSize(), nullptr);
+  const Status status = context->memory().Copy(
+      dst.buffer().get(), 8, src.buffer().get(), 0, src.ByteSize(), nullptr);
   MYCV_EXPECT_FALSE(status.ok());
   MYCV_EXPECT_EQ(status.code(), StatusCode::kInvalidArgument);
 }

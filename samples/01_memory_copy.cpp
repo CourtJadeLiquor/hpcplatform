@@ -1,3 +1,5 @@
+// 样例用于演示 Context/Buffer 的分配、Host↔Device 拷贝与 Tensor::Clone
+// 的生命周期行为。
 #include <cstring>
 #include <iostream>
 
@@ -10,11 +12,11 @@ int main() {
   auto src = context->AllocateTensor(Shape{4}, DataType::kFloat32).value();
   auto dst = context->AllocateTensor(Shape{4}, DataType::kFloat32).value();
 
-  for (int i = 0; i < 4; ++i) src.Data<float>()[i] = static_cast<float>(i + 1);
+  for (int i = 0; i < 4; ++i)
+    src.Data<float>()[i] = static_cast<float>(i + 1);
 
-  Status status = context->memory().Copy(dst.buffer().get(), 0,
-                                         src.buffer().get(), 0,
-                                         src.ByteSize(), nullptr);
+  Status status = context->memory().Copy(
+      dst.buffer().get(), 0, src.buffer().get(), 0, src.ByteSize(), nullptr);
   if (!status.ok()) {
     std::cerr << "copy failed: " << status.ToString() << "\n";
     return 1;

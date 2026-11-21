@@ -11,10 +11,11 @@
 namespace mycv {
 
 // Bilinear uses align_corners=false and half-pixel centers.
-Result<Tensor> Resize(const OpContext& context, const Tensor& input,
-                      int64_t output_height, int64_t output_width,
-                      InterpolationMode interpolation = InterpolationMode::kBilinear,
-                      ImageLayout layout = ImageLayout::kNHWC);
+Result<Tensor> Resize(
+    const OpContext& context, const Tensor& input, int64_t output_height,
+    int64_t output_width,
+    InterpolationMode interpolation = InterpolationMode::kBilinear,
+    ImageLayout layout = ImageLayout::kNHWC);
 
 }  // namespace mycv
 

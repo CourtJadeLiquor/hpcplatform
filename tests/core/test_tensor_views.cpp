@@ -1,3 +1,5 @@
+// 测试接口用于验证 Slice / Reshape / Transpose 等零拷贝视图的元数据与共享
+// Buffer 语义。
 #include "test_framework.h"
 
 #include <cstdint>
@@ -12,8 +14,10 @@ using namespace mycv;
 
 MYCV_TEST(ViewSliceAndPermutePreserveLogicalElements) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
-  auto tensor = context->AllocateTensor(Shape{2, 3, 4}, DataType::kFloat32).value();
-  for (int i = 0; i < 24; ++i) tensor.Data<float>()[i] = static_cast<float>(i);
+  auto tensor =
+      context->AllocateTensor(Shape{2, 3, 4}, DataType::kFloat32).value();
+  for (int i = 0; i < 24; ++i)
+    tensor.Data<float>()[i] = static_cast<float>(i);
 
   auto view = tensor.View(Shape{6, 4}).value();
   MYCV_EXPECT_TRUE(view.IsContiguous());
@@ -35,7 +39,7 @@ MYCV_TEST(ViewSliceAndPermutePreserveLogicalElements) {
     actual.push_back(*static_cast<const float*>(iterator.data()));
     iterator.Next();
   }
-  const std::vector<float> expected{4, 5, 6, 7, 8, 9, 10, 11,
+  const std::vector<float> expected{4,  5,  6,  7,  8,  9,  10, 11,
                                     16, 17, 18, 19, 20, 21, 22, 23};
   MYCV_EXPECT_TRUE(actual == expected);
 
@@ -51,7 +55,8 @@ MYCV_TEST(ViewSliceAndPermutePreserveLogicalElements) {
 MYCV_TEST(ReshapeOfStridedViewClonesIntoLogicalOrder) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
   auto tensor = context->AllocateTensor(Shape{2, 4}, DataType::kInt32).value();
-  for (int i = 0; i < 8; ++i) tensor.Data<int32_t>()[i] = i;
+  for (int i = 0; i < 8; ++i)
+    tensor.Data<int32_t>()[i] = i;
   auto slice = tensor.Slice(1, 1, 3).value();
   auto reshaped = slice.Reshape(Shape{4}).value();
 

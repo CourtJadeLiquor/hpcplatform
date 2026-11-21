@@ -10,7 +10,8 @@ namespace ops_internal {
 // 复杂度 O(N*H_out*W_out*C)，由 TBB 任务并行分摊。
 Status ResizeCpuTbb(const OpContext&, const Tensor& input, const Tensor*,
                     const void* params, Tensor* output) {
-  return ResizeTbbImpl(input, *static_cast<const ResizeParams*>(params), output);
+  return ResizeTbbImpl(input, *static_cast<const ResizeParams*>(params),
+                       output);
 }
 }  // namespace ops_internal
 }  // namespace mycv

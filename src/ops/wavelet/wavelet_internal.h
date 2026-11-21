@@ -27,9 +27,9 @@ namespace mycv {
 namespace ops_internal {
 
 struct WaveletParams {
-  WaveletKind kind = WaveletKind::kHaar;     // 小波基：Haar 或 Db4
-  ImageLayout layout = ImageLayout::kNHWC;   // 输入/输出布局
-  bool inverse = false;                      // false 分析（分解），true 合成
+  WaveletKind kind = WaveletKind::kHaar;    // 小波基：Haar 或 Db4
+  ImageLayout layout = ImageLayout::kNHWC;  // 输入/输出布局
+  bool inverse = false;  // false 分析（分解），true 合成
   // 正向：LH/HL/HH 三个输出槽位；逆向：对应的三个输入子带。
   // LL 始终走 output（正向）或 input（逆向），因此不在这里重复。
   const Tensor* extra_in[3] = {nullptr, nullptr, nullptr};
@@ -48,10 +48,8 @@ inline std::vector<double> WaveletLowPass(WaveletKind kind) {
     return {1.0 / kSqrt2, 1.0 / kSqrt2};
   }
   const double kSqrt3 = std::sqrt(3.0);
-  return {(1.0 + kSqrt3) / (4.0 * kSqrt2),
-          (3.0 + kSqrt3) / (4.0 * kSqrt2),
-          (3.0 - kSqrt3) / (4.0 * kSqrt2),
-          (1.0 - kSqrt3) / (4.0 * kSqrt2)};
+  return {(1.0 + kSqrt3) / (4.0 * kSqrt2), (3.0 + kSqrt3) / (4.0 * kSqrt2),
+          (3.0 - kSqrt3) / (4.0 * kSqrt2), (1.0 - kSqrt3) / (4.0 * kSqrt2)};
 }
 
 // 由低通导出正交镜像高通：g[k] = (-1)^k * h[taps-1-k]，复杂度 O(taps)。

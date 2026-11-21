@@ -10,7 +10,8 @@ namespace ops_internal {
 // [0, Numel)，两趟各一个 parallel for；每像素内部仍按相同 tap 顺序
 // 以 double 累加，所以结果与 naive 位精确一致，不引入任何容差。
 Status GaussianBlurCpuOpenMP(const OpContext&, const Tensor& input,
-                             const Tensor*, const void* params, Tensor* output) {
+                             const Tensor*, const void* params,
+                             Tensor* output) {
   return BlurOpenMPImpl(input, *static_cast<const GaussianBlurParams*>(params),
                         output);
 }

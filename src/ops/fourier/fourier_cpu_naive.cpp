@@ -10,7 +10,8 @@ namespace ops_internal {
 // fourier_internal.h；复杂度同共享骨架：radix-2 为 O(H*W*log)，
 // 非 2 的幂回退为 O(H*W*(H+W))。
 Status FourierCpuNaive(const OpContext&, const Tensor& input,
-                       const Tensor* other, const void* params, Tensor* output) {
+                       const Tensor* other, const void* params,
+                       Tensor* output) {
   return FourierImpl<SequentialRunner>(
       input, other, *static_cast<const FourierParams*>(params), output);
 }

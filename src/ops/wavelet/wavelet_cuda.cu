@@ -87,9 +87,8 @@ __global__ void WaveletLoadPlaneKernel(DeviceTensor source, DeviceImage image,
   for (int64_t index = ThreadIndex(); index < count; index += ThreadStride()) {
     const int64_t y = index / image.w;
     const int64_t x = index - y * image.w;
-    plane[index] = LoadValue(source.data,
-                             ImageElementOffset(source, image, n, y, x, c),
-                             dtype);
+    plane[index] = LoadValue(
+        source.data, ImageElementOffset(source, image, n, y, x, c), dtype);
   }
 }
 
@@ -186,10 +185,12 @@ __global__ void WaveletLoadBandsKernel(
 // 只需迭代 taps 次，而不是 h/2 次。y-j 为负时先加 h 回绕。
 // 每个线程负责一个 (y, x)，各写 low_rows/high_rows 的一个元素，无需同步。
 // count = H*(W/2)，复杂度 O(H*(W/2)*taps)。
-__global__ void WaveletSynthesizeColsKernel(
-    const double* ll, const double* lh, const double* hl, const double* hh,
-    double* low_rows, double* high_rows, int64_t h, int64_t half_w,
-    WaveletFilter filter, int64_t count) {
+__global__ void WaveletSynthesizeColsKernel(const double* ll, const double* lh,
+                                            const double* hl, const double* hh,
+                                            double* low_rows, double* high_rows,
+                                            int64_t h, int64_t half_w,
+                                            WaveletFilter filter,
+                                            int64_t count) {
   for (int64_t index = ThreadIndex(); index < count; index += ThreadStride()) {
     const int64_t y = index / half_w;
     const int64_t x = index - y * half_w;
@@ -213,12 +214,9 @@ __global__ void WaveletSynthesizeColsKernel(
 // 时有效；每个线程独立写 plane 的一个样本，无需同步。
 // 复杂度 O(H*W*taps)。这里按 j 迭代，与 CPU 按 k 累加的顺序不同，属于
 // 文档允许的 1e-4 相对容差范围。
-__global__ void WaveletSynthesizeRowsKernel(const double* low_rows,
-                                            const double* high_rows,
-                                            double* plane, int64_t w,
-                                            int64_t half_w,
-                                            WaveletFilter filter,
-                                            int64_t count) {
+__global__ void WaveletSynthesizeRowsKernel(
+    const double* low_rows, const double* high_rows, double* plane, int64_t w,
+    int64_t half_w, WaveletFilter filter, int64_t count) {
   for (int64_t index = ThreadIndex(); index < count; index += ThreadStride()) {
     const int64_t y = index / w;
     const int64_t x = index - y * w;
@@ -259,8 +257,8 @@ __global__ void WaveletStorePlaneKernel(const double* plane, void* destination,
 //  4. 逐平面串行发射正向 3 个或逆向 4 个内核，全部进入同一 stream；
 //  5. 最后统一 FinishLaunch 检查错误并同步。
 // 逆向不使用入口的 `other`（四带走 extra_in），故该参数匿名。
-Status WaveletCuda(const OpContext& context, const Tensor& input,
-                   const Tensor*, const void* params, Tensor* output) {
+Status WaveletCuda(const OpContext& context, const Tensor& input, const Tensor*,
+                   const void* params, Tensor* output) {
   auto stream_result = GetCudaStream(context);
   if (!stream_result.ok()) return stream_result.status();
   cudaStream_t stream = stream_result.value()->handle();
@@ -314,8 +312,8 @@ Status WaveletCuda(const OpContext& context, const Tensor& input,
                                          n, c, plane, plane_size,
                                          input.dtype());
       WaveletAnalyzeRowsKernel<<<BlockCount(row_elems), kThreadsPerBlock, 0,
-                                 stream>>>(
-          plane, low_rows, high_rows, w, half_w, filter, row_elems);
+                                 stream>>>(plane, low_rows, high_rows, w,
+                                           half_w, filter, row_elems);
       WaveletAnalyzeColsKernel<<<BlockCount(band_elems), kThreadsPerBlock, 0,
                                  stream>>>(
           low_rows, high_rows, Describe(*output), Describe(band_info),
@@ -327,18 +325,18 @@ Status WaveletCuda(const OpContext& context, const Tensor& input,
                                stream>>>(
           Describe(input), Describe(band_info), input.data(),
           options.extra_in[0]->data(), options.extra_in[1]->data(),
-          options.extra_in[2]->data(), ll, lh, hl, hh, n, c, half_w,
-          band_elems, input.dtype());
+          options.extra_in[2]->data(), ll, lh, hl, hh, n, c, half_w, band_elems,
+          input.dtype());
       WaveletSynthesizeColsKernel<<<BlockCount(row_elems), kThreadsPerBlock, 0,
                                     stream>>>(
           ll, lh, hl, hh, low_rows, high_rows, h, half_w, filter, row_elems);
       WaveletSynthesizeRowsKernel<<<BlockCount(plane_size), kThreadsPerBlock, 0,
-                                    stream>>>(
-          low_rows, high_rows, plane, w, half_w, filter, plane_size);
+                                    stream>>>(low_rows, high_rows, plane, w,
+                                              half_w, filter, plane_size);
       WaveletStorePlaneKernel<<<BlockCount(plane_size), kThreadsPerBlock, 0,
-                                stream>>>(
-          plane, output->data(), Describe(image_info), n, c, plane_size,
-          output->dtype());
+                                stream>>>(plane, output->data(),
+                                          Describe(image_info), n, c,
+                                          plane_size, output->dtype());
     }
   }
   return FinishLaunch(stream, "Wavelet kernel launch");

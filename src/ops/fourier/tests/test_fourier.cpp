@@ -1,3 +1,4 @@
+// 测试接口用于验证 fourier 正逆变换的一致性、归一化与边界处理。
 #include "test_framework.h"
 
 #include <cmath>
@@ -6,7 +7,7 @@
 #include <memory>
 #include <vector>
 
-#include "backends/service.h"
+#include "core/backend.h"
 #include "mycv/mycv.h"
 
 namespace {
@@ -55,12 +56,12 @@ Tensor MakeImage(int64_t n, int64_t h, int64_t w, int64_t c, ImageLayout layout,
     for (int64_t y = 0; y < h; ++y) {
       for (int64_t x = 0; x < w; ++x) {
         for (int64_t ci = 0; ci < c; ++ci) {
-          const double value = 0.01 * static_cast<double>(
-                                         (y * 31 + x * 17 + ci * 7 + ni * 5) % 97);
-          const int64_t index =
-              layout == ImageLayout::kNHWC
-                  ? ((ni * h + y) * w + x) * c + ci
-                  : ((ni * c + ci) * h + y) * w + x;
+          const double value =
+              0.01 *
+              static_cast<double>((y * 31 + x * 17 + ci * 7 + ni * 5) % 97);
+          const int64_t index = layout == ImageLayout::kNHWC
+                                    ? ((ni * h + y) * w + x) * c + ci
+                                    : ((ni * c + ci) * h + y) * w + x;
           WriteElement(&tensor.value(), index, value);
         }
       }
@@ -82,7 +83,8 @@ Tensor MakeConstant(int64_t n, int64_t h, int64_t w, int64_t c, double value) {
 }
 
 bool Near(const Tensor& actual, const Tensor& expected, double tolerance) {
-  if (actual.shape() != expected.shape() || actual.dtype() != expected.dtype()) {
+  if (actual.shape() != expected.shape() ||
+      actual.dtype() != expected.dtype()) {
     return false;
   }
   for (int64_t i = 0; i < actual.Numel(); ++i) {
@@ -117,9 +119,9 @@ bool BitExact(const Tensor& a, const Tensor& b) {
 double LogicalElement(const Tensor& tensor, ImageLayout layout, int64_t n,
                       int64_t y, int64_t x, int64_t c, int64_t h, int64_t w,
                       int64_t channels) {
-  const int64_t index =
-      layout == ImageLayout::kNHWC ? ((n * h + y) * w + x) * channels + c
-                                   : ((n * channels + c) * h + y) * w + x;
+  const int64_t index = layout == ImageLayout::kNHWC
+                            ? ((n * h + y) * w + x) * channels + c
+                            : ((n * channels + c) * h + y) * w + x;
   return ReadElement(tensor, index);
 }
 
@@ -132,14 +134,16 @@ MYCV_TEST(FourierHandComputedFourPoint) {
   MYCV_EXPECT_TRUE(input.ok());
   if (!input.ok()) return;
   const double values[4] = {1.0, 2.0, 3.0, 4.0};
-  for (int64_t i = 0; i < 4; ++i) WriteElement(&input.value(), i, values[i]);
+  for (int64_t i = 0; i < 4; ++i)
+    WriteElement(&input.value(), i, values[i]);
 
   auto result = FourierTransform(CpuOpContext(*context), input.value());
   MYCV_EXPECT_TRUE(result.ok());
   if (!result.ok()) return;
-  MYCV_EXPECT_TRUE(NearValues(result.value().real,
-                               {10.0, -2.0, -2.0, -2.0}, 1e-6));
-  MYCV_EXPECT_TRUE(NearValues(result.value().imag, {0.0, 2.0, 0.0, -2.0}, 1e-6));
+  MYCV_EXPECT_TRUE(
+      NearValues(result.value().real, {10.0, -2.0, -2.0, -2.0}, 1e-6));
+  MYCV_EXPECT_TRUE(
+      NearValues(result.value().imag, {0.0, 2.0, 0.0, -2.0}, 1e-6));
 }
 
 MYCV_TEST(FourierConstantImageIsImpulse) {
@@ -220,7 +224,7 @@ MYCV_TEST(FourierRoundTripIsIdentity) {
     MYCV_EXPECT_TRUE(forward.ok());
     if (!forward.ok()) continue;
     auto inverse = InverseFourierTransform(op_context, forward.value().real,
-                                            forward.value().imag, item.layout);
+                                           forward.value().imag, item.layout);
     MYCV_EXPECT_TRUE(inverse.ok());
     if (!inverse.ok()) continue;
     MYCV_EXPECT_TRUE(Near(inverse.value(), input, item.tolerance));
@@ -245,14 +249,14 @@ MYCV_TEST(FourierLayoutsAgree) {
   for (int64_t y = 0; y < h && equal; ++y) {
     for (int64_t x = 0; x < w && equal; ++x) {
       for (int64_t ci = 0; ci < c && equal; ++ci) {
-        const double re_a = LogicalElement(from_nhwc.value().real,
-                                           ImageLayout::kNHWC, 0, y, x, ci, h, w, c);
-        const double re_b = LogicalElement(from_nchw.value().real,
-                                           ImageLayout::kNCHW, 0, y, x, ci, h, w, c);
-        const double im_a = LogicalElement(from_nhwc.value().imag,
-                                           ImageLayout::kNHWC, 0, y, x, ci, h, w, c);
-        const double im_b = LogicalElement(from_nchw.value().imag,
-                                           ImageLayout::kNCHW, 0, y, x, ci, h, w, c);
+        const double re_a = LogicalElement(
+            from_nhwc.value().real, ImageLayout::kNHWC, 0, y, x, ci, h, w, c);
+        const double re_b = LogicalElement(
+            from_nchw.value().real, ImageLayout::kNCHW, 0, y, x, ci, h, w, c);
+        const double im_a = LogicalElement(
+            from_nhwc.value().imag, ImageLayout::kNHWC, 0, y, x, ci, h, w, c);
+        const double im_b = LogicalElement(
+            from_nchw.value().imag, ImageLayout::kNCHW, 0, y, x, ci, h, w, c);
         equal = re_a == re_b && im_a == im_b;
       }
     }
@@ -268,10 +272,9 @@ MYCV_TEST(FourierCpuLevelsAreBitExact) {
   auto reference = FourierTransform(reference_context, input);
   MYCV_EXPECT_TRUE(reference.ok());
   if (!reference.ok()) return;
-  for (CpuKernelLevel level : {CpuKernelLevel::kOpenMP,
-                               CpuKernelLevel::kSimdGeneric,
-                               CpuKernelLevel::kSimdAvx2,
-                               CpuKernelLevel::kTbb}) {
+  for (CpuKernelLevel level :
+       {CpuKernelLevel::kOpenMP, CpuKernelLevel::kSimdGeneric,
+        CpuKernelLevel::kSimdAvx2, CpuKernelLevel::kTbb}) {
     if (!context->backend_ptr()->SupportsKernelLevel(level)) continue;
     OpContext level_context = CpuOpContext(*context);
     level_context.cpu_level = level;
@@ -314,24 +317,24 @@ MYCV_TEST(FourierRejectsInvalidParameters) {
   auto forward = FourierTransform(op_context, valid);
   MYCV_EXPECT_TRUE(forward.ok());
   if (forward.ok()) {
-    auto mismatch_shape = context->AllocateTensor(Shape{1, 8, 8, 1},
-                                                  DataType::kFloat32);
+    auto mismatch_shape =
+        context->AllocateTensor(Shape{1, 8, 8, 1}, DataType::kFloat32);
     MYCV_EXPECT_TRUE(mismatch_shape.ok());
     if (mismatch_shape.ok()) {
       auto bad = InverseFourierTransform(op_context, forward.value().real,
                                          mismatch_shape.value());
       MYCV_EXPECT_EQ(bad.status().code(), StatusCode::kInvalidArgument);
     }
-    auto double_imag = context->AllocateTensor(Shape{1, 8, 8, 3},
-                                               DataType::kFloat64);
+    auto double_imag =
+        context->AllocateTensor(Shape{1, 8, 8, 3}, DataType::kFloat64);
     MYCV_EXPECT_TRUE(double_imag.ok());
     if (double_imag.ok()) {
       auto bad_dtype = InverseFourierTransform(op_context, forward.value().real,
                                                double_imag.value());
       MYCV_EXPECT_EQ(bad_dtype.status().code(), StatusCode::kInvalidArgument);
     }
-    auto undefined = InverseFourierTransform(op_context, forward.value().real,
-                                             Tensor{});
+    auto undefined =
+        InverseFourierTransform(op_context, forward.value().real, Tensor{});
     MYCV_EXPECT_EQ(undefined.status().code(), StatusCode::kInvalidArgument);
   }
 }
@@ -404,8 +407,8 @@ MYCV_TEST(FourierCudaMatchesCpu) {
   };
   for (const Case& item : cases) {
     auto input = MakeImage(1, item.h, item.w, item.c, item.layout, item.dtype);
-    auto reference = FourierTransform(CpuOpContext(*cpu_context), input,
-                                      item.layout);
+    auto reference =
+        FourierTransform(CpuOpContext(*cpu_context), input, item.layout);
     MYCV_EXPECT_TRUE(reference.ok());
     if (!reference.ok()) continue;
     auto device_input = CopyTo(*cuda_context, input);

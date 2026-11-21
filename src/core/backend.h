@@ -1,5 +1,5 @@
-#ifndef MYCV_SRC_BACKENDS_SERVICE_H_
-#define MYCV_SRC_BACKENDS_SERVICE_H_
+#ifndef MYCV_SRC_CORE_BACKEND_H_
+#define MYCV_SRC_CORE_BACKEND_H_
 
 #include <memory>
 #include <string>
@@ -11,10 +11,12 @@
 #include "mycv/core/memory.h"
 #include "mycv/core/stream.h"
 
-// The per-device provider interface behind every Context. Internal header:
-// operators and tests that need backend capabilities include this file
-// directly; it is never exposed through the public API
-// (docs/architecture.md §6.2).
+// Core-internal contract: every Context is bound to one Backend, and the
+// backends layer supplies the implementations. Keeping the interface in core
+// (instead of src/backends) makes the dependency direction one-way:
+// backends depend on core, never the reverse. Operators and tests that need
+// backend capabilities include this header directly; it is never exposed
+// through the public API (docs/architecture.md §6.2).
 namespace mycv {
 
 // A Backend owns the per-device memory manager, the default stream and any
@@ -53,4 +55,4 @@ Result<std::shared_ptr<Backend>> CreateBackend(BackendType type,
 
 }  // namespace mycv
 
-#endif  // MYCV_SRC_BACKENDS_SERVICE_H_
+#endif  // MYCV_SRC_CORE_BACKEND_H_

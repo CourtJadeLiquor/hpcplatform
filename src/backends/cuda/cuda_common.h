@@ -11,8 +11,8 @@ namespace mycv {
 
 inline Status CudaStatus(cudaError_t error, const char* operation) {
   if (error == cudaSuccess) return Status::Ok();
-  const std::string message = std::string(operation) + ": " +
-                              cudaGetErrorString(error);
+  const std::string message =
+      std::string(operation) + ": " + cudaGetErrorString(error);
   if (error == cudaErrorMemoryAllocation) return Status::OutOfMemory(message);
   return Status::Internal(message);
 }

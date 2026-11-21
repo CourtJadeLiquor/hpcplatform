@@ -66,8 +66,7 @@ Status ValidateSpectrumDType(DataType dtype) {
 // 调用后端（input 读实部，params.imag 写虚部）-> 组装 ComplexImage。
 // 复杂度由后端决定：radix-2 为 O(H*W*log)，非 2 的幂回退为 O(H*W*(H+W))。
 Result<ComplexImage> FourierTransform(const OpContext& context,
-                                      const Tensor& input,
-                                      ImageLayout layout) {
+                                      const Tensor& input, ImageLayout layout) {
   MYCV_RETURN_IF_ERROR(ops_internal::ValidateInvocation(context, input));
   MYCV_RETURN_IF_ERROR(ValidateSpectrumDType(input.dtype()));
   auto image = ops_internal::ParseImage(input.shape(), layout);
@@ -76,9 +75,11 @@ Result<ComplexImage> FourierTransform(const OpContext& context,
                                          input.backend(), context.cpu_level);
   if (!kernel.ok()) return kernel.status();
 
-  auto real = ops_internal::AllocateOutput(context, input.shape(), input.dtype());
+  auto real =
+      ops_internal::AllocateOutput(context, input.shape(), input.dtype());
   if (!real.ok()) return real.status();
-  auto imag = ops_internal::AllocateOutput(context, input.shape(), input.dtype());
+  auto imag =
+      ops_internal::AllocateOutput(context, input.shape(), input.dtype());
   if (!imag.ok()) return imag.status();
   const ops_internal::FourierParams params{layout, false, &imag.value()};
   MYCV_RETURN_IF_ERROR(

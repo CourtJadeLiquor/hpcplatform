@@ -31,7 +31,8 @@ class Buffer {
  public:
   using Deleter = std::function<void(void* data, size_t bytes)>;
 
-  Buffer(void* data, size_t bytes, Device device, MemoryKind kind, Deleter deleter)
+  Buffer(void* data, size_t bytes, Device device, MemoryKind kind,
+         Deleter deleter)
       : data_(data),
         bytes_(bytes),
         device_(device),
@@ -69,7 +70,7 @@ class MemoryManager {
 
   // alignment must be a power of two and a multiple of sizeof(void*).
   virtual Result<std::shared_ptr<Buffer>> Allocate(size_t bytes,
-                                                    size_t alignment = 64) = 0;
+                                                   size_t alignment = 64) = 0;
 
   // Synchronous copy between two buffers owned by this manager.
   // Cross-device transfers are resolved by Context::Copy.

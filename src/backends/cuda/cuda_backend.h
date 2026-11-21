@@ -5,14 +5,16 @@
 
 #include "backends/cuda/cuda_memory_manager.h"
 #include "backends/cuda/cuda_stream.h"
-#include "backends/service.h"
+#include "core/backend.h"
 
 namespace mycv {
 
 class CudaBackend final : public Backend {
  public:
   explicit CudaBackend(int device_index)
-      : device_{DeviceType::kGPU, device_index}, memory_(device_), stream_(device_) {}
+      : device_{DeviceType::kGPU, device_index},
+        memory_(device_),
+        stream_(device_) {}
 
   Status Initialize();
   BackendType type() const override { return BackendType::kCUDA; }

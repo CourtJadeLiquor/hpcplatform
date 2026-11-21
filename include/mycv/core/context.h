@@ -14,7 +14,7 @@
 namespace mycv {
 
 // The per-device provider interface behind every Context. Internal type: the
-// definition lives in src/backends/service.h and is never exposed through the
+// definition lives in src/core/backend.h and is never exposed through the
 // public API; Context::Create is the only construction path
 // (docs/architecture.md §6.2).
 class Backend;
@@ -35,7 +35,7 @@ class Context {
   std::string Describe() const;
 
   // Internal access to the owning backend. The Backend definition is internal
-  // (src/backends/service.h), so public callers cannot use the pointee.
+  // (src/core/backend.h), so public callers cannot use the pointee.
   const std::shared_ptr<Backend>& backend_ptr() const { return backend_; }
 
   MemoryManager& memory();

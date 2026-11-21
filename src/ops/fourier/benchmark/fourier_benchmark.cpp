@@ -1,4 +1,5 @@
 // Per-operator benchmark for fourier (docs/architecture.md §6.1/§7.2).
+// 基准程序用于测量 fourier 正逆变换在不同尺寸与后端上的耗时。
 //
 //   ./build-release-full/src/ops/fourier/fourier_benchmark
 //
@@ -22,7 +23,7 @@
 #include <utility>
 #include <vector>
 
-#include "backends/service.h"
+#include "core/backend.h"
 #include "mycv/mycv.h"
 
 using namespace mycv;
@@ -130,8 +131,8 @@ int main() {
   }
 
   const Config configs[] = {
-      {256, 256, 1},   {256, 256, 3},   {512, 512, 1},
-      {512, 512, 3},   {1024, 1024, 1}, {1024, 1024, 3},
+      {256, 256, 1}, {256, 256, 3},   {512, 512, 1},
+      {512, 512, 3}, {1024, 1024, 1}, {1024, 1024, 3},
   };
   std::vector<ConfigResult> results;
   results.reserve(sizeof(configs) / sizeof(configs[0]));
@@ -155,13 +156,15 @@ int main() {
     if (!cuda.ok()) break;
     const Config& config = result.config;
     auto input = cpu.value()->AllocateTensor(
-        Shape{config.height, config.width, config.channels}, DataType::kFloat32);
+        Shape{config.height, config.width, config.channels},
+        DataType::kFloat32);
     if (!input.ok()) continue;
     FillInput(&input.value());
     auto device_input = cuda.value()->AllocateTensor(input.value().shape(),
                                                      input.value().dtype());
     if (!device_input.ok()) continue;
-    if (!cuda.value()->Copy(&device_input.value(), input.value()).ok()) continue;
+    if (!cuda.value()->Copy(&device_input.value(), input.value()).ok())
+      continue;
     OpContext context;
     context.context = cuda.value().get();
     context.stream = &cuda.value()->stream();
@@ -174,8 +177,8 @@ int main() {
   }
 
   // Phase 2: CPU levels, level-major so each level sees the same machine state.
-  for (CpuKernelLevel level :
-       {CpuKernelLevel::kNaive, CpuKernelLevel::kOpenMP, CpuKernelLevel::kTbb}) {
+  for (CpuKernelLevel level : {CpuKernelLevel::kNaive, CpuKernelLevel::kOpenMP,
+                               CpuKernelLevel::kTbb}) {
     if (!cpu.value()->backend_ptr()->SupportsKernelLevel(level)) continue;
     for (ConfigResult& result : results) {
       const Config& config = result.config;

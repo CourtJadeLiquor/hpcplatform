@@ -37,17 +37,17 @@ endif()
 
 add_library(mycv STATIC
   src/core/context.cpp
+  src/core/copy.cpp
   src/core/dtype.cpp
   src/core/error.cpp
   src/core/shape.cpp
   src/core/tensor.cpp
-  src/backends/backend_copy.cpp
-  src/backends/backend_factory.cpp
+  src/backends/factory.cpp
   src/backends/cpu/cpu_backend.cpp
   src/backends/cpu/cpu_memory_manager.cpp
   src/backends/npu/npu_backend.cpp
   src/framework/op_registry.cpp
-  src/ops/registry.cpp
+  src/ops/register_ops.cpp
 )
 
 target_include_directories(mycv
@@ -75,7 +75,8 @@ if(MYCV_ENABLE_SANITIZERS)
 endif()
 
 # --- OpenMP ---------------------------------------------------------------
-# Enabled explicitly at configure time; kernels that need it are compiled in P3.
+# Enabled explicitly at configure time; operator folders compile their own
+# OpenMP kernel translation units.
 if(MYCV_ENABLE_OPENMP)
   find_package(OpenMP REQUIRED COMPONENTS CXX)
   target_link_libraries(mycv PUBLIC OpenMP::OpenMP_CXX)

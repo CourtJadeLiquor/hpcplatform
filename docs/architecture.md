@@ -119,18 +119,20 @@ include/mycv/
   mycv.h                 # 伞形头：core + image/op/resize/gaussian_blur
 
 src/
-  core/                  # 基本不变（tensor_iterator 保留：Context::Copy 依赖）
+  core/                  # 数据结构 + 内部契约（tensor_iterator 保留：Copy 依赖）
+    backend.h            # 【移】Backend 接口（原 src/backends/service.h）
+    copy.cpp             # 【移】Backend::CopyBuffer / CopyTensor / Context::Copy
+    copy_internal.h      # CopyTensor / ResolveOwningBackend 的内部声明
   framework/             # 【新】框架工具层（§6.4）
     op_registry.{h,cpp}  # 【移】自 src/ops/，语义不变
     image_utils.h        # 【移】自 src/ops/（ImageInfo/ParseImage/MakeImageShape/ImageByteOffset）
     dtype_dispatch.h     # 【新】DispatchImageDType(u8/f32/f64) + MYCV_CPU_IVDEP
     compiler.h           # 【新】编译器暗示宏
-    profiling.h          # 【新】MYCV_PROFILE_SCOPE / MYCV_PROFILE_OP（默认零开销）
-    stats.h              # 【新】SnapshotMemory（按 MemoryKind 聚合）
+    profiling.h          # 可选的算子计时宏（默认零开销，按目标开启）
+    stats.h              # 按 MemoryKind 聚合的内存快照
   backends/              # 服务层：只提供能力，不含任何算子实现
-    service.h            # 【移】Backend 接口（原 include/mycv/backends/backend.h）
-    backend_factory.cpp  # 不变（Context::Create 仍走这里）
-    backend_copy.cpp     # 不变
+    backend_internal.h   # 【改】各后端创建函数 + CUDA 拷贝辅助
+    factory.cpp          # 【移】原 backend_factory.cpp：CreateBackend 唯一实现
     cpu/                 # 内存管理器、流不变
     cuda/
       cuda_common.h      # 不变（CudaStatus）
@@ -141,7 +143,7 @@ src/
                                     #      （自已删除的 opencv_kernels.cpp 抽出）
     npu/                 # 占位
   ops/
-    registry.cpp         # 【新】两行注册清单（§6.3）
+    register_ops.cpp     # 【新】两行注册清单（§6.3）
     CMakeLists.txt       # 【新】每算子一行 add_subdirectory
     common/
       op_common.h        # 【移】自 src/ops/；只剩 ValidateInvocation / AllocateOutput
@@ -248,7 +250,7 @@ src/ops/wavelet/              # 自包含算子：单层正交 2-D DWT（Haar / 
 
 **公共面收缩**【API 变更】：
 
-- `Backend` 接口（原 include/mycv/backends/backend.h）已整体移入 `src/backends/service.h`；公共头删除该文件。`Context` 公共头只前向声明 `Backend`，`Context::Create(BackendType, device_index)` 仍是唯一公开构造路径。
+- `Backend` 接口（原 include/mycv/backends/backend.h）是 core 的内部契约，定义在 `src/core/backend.h`；`src/backends/` 只提供实现。这样依赖方向保持单向（backends → core），`Context` 公共头只前向声明 `Backend`，`Context::Create(BackendType, device_index)` 仍是唯一公开构造路径。
 - `Context::backend()` 访问器从公共 API 移除（测试、算子作为内部消费者改用内部头访问）。
 - `BackendType`/`DeviceType`/`Device`（[device.h](../include/mycv/core/device.h#L12-L23)）保持公共——`Context::Create` 的参数需要它，但它只是枚举，不暴露能力。
 - [`interop/opencv.h`](../include/mycv/interop/opencv.h) 的 `CopyFromCvMat`/`CopyToCvMat` 保留公共：它们是对外数据适配器（把外部 `cv::Mat` 变成 mycv `Tensor`），不是后端能力服务。
@@ -259,10 +261,10 @@ src/ops/wavelet/              # 自包含算子：单层正交 2-D DWT（Haar / 
 
 **不变的部分**：三元组分发键 `(OpKind, BackendType, CpuKernelLevel) → OpKernelFn`、`RegisterKernel`/`FindKernel`/`HasKernel` 语义、三分类错误码——整套分发协议原样保留（[`qa/op_dispatch.md`](./qa/op_dispatch.md) 仍然准确）。注册表实现从 `src/ops/op_registry.{h,cpp}` 移到 `src/framework/`。
 
-**改变的部分**：注册的**调用点**从 v1 集中式的 `op_registry.cpp EnsureRegistered()`（已删除）改为 `src/ops/registry.cpp` 的唯一清单：
+**改变的部分**：注册的**调用点**从 v1 集中式的 `op_registry.cpp EnsureRegistered()`（已删除）改为 `src/ops/register_ops.cpp` 的唯一清单：
 
 ```cpp
-// src/ops/registry.cpp —— 当前全部内容
+// src/ops/register_ops.cpp —— 当前全部内容
 void RegisterAllKernels() {
   RegisterResizeKernels();
   RegisterGaussianBlurKernels();
@@ -281,24 +283,9 @@ void RegisterAllKernels() {
 - **一次性冷路径函数**（每算子调用至多一次，如 `ParseImage` 校验解析）：声明在 framework 头，定义落 `framework/*.cpp`，修改实现只重编一个 TU。当前 `image_utils.h` 仍整体 header-only（inline）；日后新增冷路径函数时按此规则落 .cpp。
 - 禁止"为了统一而统一"：不把热函数强行改成跨 TU 调用，那是可测量的性能回退。
 
-**剖析与统计设施**（`src/framework/`）：
+**剖析与统计**：`profiling.h` 提供 `MYCV_PROFILE_SCOPE` / `MYCV_PROFILE_OP`，默认展开为空语句；仅对需要剖析的目标定义 `MYCV_ENABLE_PROFILING=1`（例如 `tests/perf/test_operator_perf.cpp`）。`stats.h` 的 `SnapshotMemory` 按 MemoryKind 聚合同一 Context 的内存计数，用于检查峰值与泄漏。算子 `benchmark/` 直接使用 `std::chrono::steady_clock`，不强依赖剖析宏。
 
-```cpp
-// src/framework/profiling.h —— 编译期开关 MYCV_ENABLE_PROFILING（默认 OFF，零开销）
-MYCV_PROFILE_SCOPE("resize.bilinear");            // RAII 作用域计时
-MYCV_PROFILE_OP(OpKind::kResize, backend, level); // 自动以三元组为标签计时
-
-// src/framework/stats.h —— 基于 MemoryManager::Stats() 既有接口聚合
-struct MemorySnapshot {  // 按 MemoryKind 聚合：kHost / kHostPinned / kDevice
-  MemoryStats host;        // allocated_bytes / peak_bytes / allocation_count
-  MemoryStats host_pinned;
-  MemoryStats device;      // 即显存占用
-};
-MemorySnapshot SnapshotMemory(Context& context);
-```
-
-- `MemoryStats`（[memory.h](../include/mycv/core/memory.h#L21-L25)）已提供 `allocated_bytes`/`peak_bytes`/`allocation_count`，`SnapshotMemory` 只做跨 MemoryManager 聚合，不需要后端改动。
-- 算子 `benchmark/` 的标准输出格式：各版本耗时表 + 前后内存快照，结果记入该算子 `README.md`，形成"优化手册"的原始素材。
+- 算子 `benchmark/` 的标准输出格式：各版本耗时表 + 结果，记入该算子 `README.md`，形成"优化手册"的原始素材。
 - `dtype_dispatch.h` 提供 `DispatchImageDType`（u8/f32/f64 三分支，替代 v1 面向 8 种算术类型的 `DispatchArithmeticDType`——后者随元素级算子一起删除）。
 
 ### 6.5 不变的内核纪律
@@ -355,7 +342,7 @@ Result<Tensor> GaussianBlur(const OpContext& context, const Tensor& input,
 - 顶层基准：`benchmarks/operator_benchmark.cpp`、`benchmarks/image_pipeline_benchmark.cpp`（由各算子 `benchmark/` 取代）
 - 测试：`tests/unit/test_ops_elementwise.cpp`（全部算子已删）、`tests/consistency/test_cpu_kernels.cpp`（拆入两个算子各自的 `tests/`）；`test_copy_cast.cpp` 中 Cast 用例随算子删除，Copy 部分改名 `tests/core/test_copy.cpp` 保留
 - samples：`02_ops_pipeline` / `03_opencv_backend` / `04_cuda_pipeline` 改写为只用 resize + gaussian_blur
-- **明确保留**：`tensor_iterator.h`（`Context::Copy` 依赖，[backend_copy.cpp](../src/backends/backend_copy.cpp) 在用）、`value_cast.h`（resize/OpenCV 转换在用）、`image.h` 的 `InterpolationMode`/`ImageLayout`
+- **明确保留**：`tensor_iterator.h`（`Context::Copy` 依赖，[copy.cpp](../src/core/copy.cpp) 在用）、`value_cast.h`（resize/OpenCV 转换在用）、`image.h` 的 `InterpolationMode`/`ImageLayout`
 - **连带清理**：`src/ops/common/op_common.h` 只剩 `ValidateInvocation` / `AllocateOutput`（`ValidateBinaryInputs`、`IsSupportedArithmeticDType`、`StridedByteOffset` 已无调用方，一并删除）
 
 **OpKind 重编号声明**：`kResize=1, kGaussianBlur=2`。v1 的"append-only"规则服务于算子集合稳定时的兼容性；本次是声明过的大版本破坏性变更，保留 `kResize=5` 等空洞没有收益。此决定记录在案，v2 交付后恢复 append-only 纪律。
@@ -386,16 +373,16 @@ Result<Tensor> GaussianBlur(const OpContext& context, const Tensor& input,
 | `src/ops/image_utils.h` | `src/framework/image_utils.h` |
 | `src/ops/op_common.h` | `src/ops/common/op_common.h`（删 `ValidateBinaryInputs`/`IsSupportedArithmeticDType`/`StridedByteOffset`） |
 | `src/ops/cpu_resize.h` | `src/ops/resize/resize_cpu.h` |
-| `include/mycv/backends/backend.h`（`Backend` 接口） | `src/backends/service.h`（公共头删除） |
+| `include/mycv/backends/backend.h`（`Backend` 接口） | `src/core/backend.h`（公共头删除；backends 只留实现） |
 
 ### 8.3 新建
 
 | 路径 | 内容 |
 | --- | --- |
-| `src/framework/{profiling.h,stats.h,compiler.h,dtype_dispatch.h}` | §6.4 |
+| `src/framework/{compiler.h,dtype_dispatch.h}` | §6.4 |
 | `src/backends/cuda/cuda_device_utils.h` | DeviceTensor/launch 辅助抽取 |
 | `src/backends/opencv/opencv_tensor_access.{h,cpp}` | CvCall/ImageMat 等抽取 |
-| `src/ops/{registry.cpp,CMakeLists.txt}` | 一行式算子注册清单 + 算子子目录装载 |
+| `src/ops/{register_ops.cpp,CMakeLists.txt}` | 一行式算子注册清单 + 算子子目录装载 |
 | `src/ops/resize/*`、`src/ops/gaussian_blur/*` | 两个自治算子文件夹（§6.1/§7.2） |
 | `include/mycv/ops/gaussian_blur.h` | 新算子公共 API |
 | `tests/{core,backends}/` | 测试重组 |
@@ -454,12 +441,12 @@ Result<Tensor> GaussianBlur(const OpContext& context, const Tensor& input,
 1. `include/mycv/ops/x.h` —— 公共 API 声明（新文件）。
 2. `include/mycv/ops/op.h` —— `OpKind` 追加一枚举值（append-only，此后不得重编号）。
 3. `src/ops/x/` —— 自治文件夹：`x_internal.h`、`x.cpp`、各版本实现、`CMakeLists.txt`、`tests/`、`benchmark/`、`README.md`。
-4. `src/ops/registry.cpp` —— 加一行 `RegisterXKernels();`。
+4. `src/ops/register_ops.cpp` —— 加一行 `RegisterXKernels();`。
 5. `src/ops/CMakeLists.txt` —— 加一行 `add_subdirectory(x)`。
 6. `include/mycv/mycv.h` —— 加一行 include。
 
 **给已有算子加后端实现**：算子文件夹加 1 个实现文件 + 算子内 `RegisterXKernels()` 加 1 行宏门控注册 + 算子 `CMakeLists.txt` 加 1 行。core/backends/其他算子零改动。
 
-**新增后端 B**：`src/backends/b/`（服务头 + 内存管理器 + 流）+ [backend_factory.cpp](../src/backends/backend_factory.cpp) 加 1 个 `case` + CMake 选项。各算子**自愿**增量添加 `*_b.cpp`——不加也不破坏现有构建（查注册表返回 `kNotImplemented`，语义见 [`qa/op_dispatch.md`](./qa/op_dispatch.md) §3）。
+**新增后端 B**：`src/backends/b/`（内存管理器 + 流）+ [factory.cpp](../src/backends/factory.cpp) 加 1 个 `case` + CMake 选项。各算子**自愿**增量添加 `*_b.cpp`——不加也不破坏现有构建（查注册表返回 `kNotImplemented`，语义见 [`qa/op_dispatch.md`](./qa/op_dispatch.md) §3）。
 
-**合并冲突预期**：v1 加算子的冲突面是 4 个热点文件（§2.1）；v2 收敛为 4 个一行式登记点（op.h / registry.cpp / ops CMakeLists / mycv.h）——冲突概率趋近于零，即使冲突也是单行级解决。
+**合并冲突预期**：v1 加算子的冲突面是 4 个热点文件（§2.1）；v2 收敛为 4 个一行式登记点（op.h / register_ops.cpp / ops CMakeLists / mycv.h）——冲突概率趋近于零，即使冲突也是单行级解决。

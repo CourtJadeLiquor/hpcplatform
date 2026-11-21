@@ -40,7 +40,8 @@ Status ResizeOpenCv(const OpContext&, const Tensor& input, const Tensor*,
       auto source = ImageMat(input, image.value(), n);
       auto destination = ImageMat(*output, output_info, n);
       if (!source.ok() || !destination.ok()) {
-        throw cv::Exception(0, "invalid image tensor", __func__, __FILE__, __LINE__);
+        throw cv::Exception(0, "invalid image tensor", __func__, __FILE__,
+                            __LINE__);
       }
       cv::resize(source.value(), destination.value(),
                  cv::Size(static_cast<int>(options.width),

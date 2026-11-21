@@ -5,14 +5,15 @@
 #include <cstdint>
 #include <limits>
 
-#include "backends/backends_internal.h"
+#include "backends/backend_internal.h"
 #include "backends/cuda/cuda_common.h"
 
 namespace mycv {
 
 CudaAllocatorState::~CudaAllocatorState() {
   cudaSetDevice(device_index);
-  for (const CudaBlock& block : free_blocks) cudaFree(block.raw);
+  for (const CudaBlock& block : free_blocks)
+    cudaFree(block.raw);
 }
 
 void CudaAllocatorState::Release(void* raw, void* data, size_t bytes) {
@@ -26,21 +27,25 @@ void CudaAllocatorState::Release(void* raw, void* data, size_t bytes) {
 
 Result<std::shared_ptr<Buffer>> CudaMemoryManager::Allocate(size_t bytes,
                                                             size_t alignment) {
-  if (bytes == 0) return Status::InvalidArgument("CUDA allocation size must be positive");
+  if (bytes == 0)
+    return Status::InvalidArgument("CUDA allocation size must be positive");
   if (alignment == 0 || (alignment & (alignment - 1)) != 0 ||
       alignment % sizeof(void*) != 0) {
     return Status::InvalidArgument(
-        "CUDA allocation alignment must be a power of two and a multiple of sizeof(void*)");
+        "CUDA allocation alignment must be a power of two and a multiple of "
+        "sizeof(void*)");
   }
   if (bytes > std::numeric_limits<size_t>::max() - (alignment - 1)) {
-    return Status::InvalidArgument("CUDA allocation size overflows alignment padding");
+    return Status::InvalidArgument(
+        "CUDA allocation size overflows alignment padding");
   }
 
   CudaBlock block;
   bool found = false;
   {
     std::lock_guard<std::mutex> lock(state_->mutex);
-    for (auto it = state_->free_blocks.begin(); it != state_->free_blocks.end(); ++it) {
+    for (auto it = state_->free_blocks.begin(); it != state_->free_blocks.end();
+         ++it) {
       if (it->bytes == bytes &&
           reinterpret_cast<uintptr_t>(it->data) % alignment == 0) {
         block = *it;
@@ -52,11 +57,13 @@ Result<std::shared_ptr<Buffer>> CudaMemoryManager::Allocate(size_t bytes,
   }
 
   if (!found) {
-    MYCV_RETURN_IF_ERROR(CudaStatus(cudaSetDevice(device_.index), "cudaSetDevice"));
+    MYCV_RETURN_IF_ERROR(
+        CudaStatus(cudaSetDevice(device_.index), "cudaSetDevice"));
     MYCV_RETURN_IF_ERROR(CudaStatus(
         cudaMalloc(&block.raw, bytes + alignment - 1), "cudaMalloc"));
     const uintptr_t raw = reinterpret_cast<uintptr_t>(block.raw);
-    block.data = reinterpret_cast<void*>((raw + alignment - 1) & ~(alignment - 1));
+    block.data =
+        reinterpret_cast<void*>((raw + alignment - 1) & ~(alignment - 1));
     block.bytes = bytes;
   }
 

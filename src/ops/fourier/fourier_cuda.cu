@@ -28,7 +28,9 @@ namespace {
 constexpr double kTwoPi = 6.283185307179586476925286766559;
 
 // 是否为 2 的幂；只有这种长度才走 radix-2 内核。
-bool IsPowerOfTwo(int64_t n) { return n > 0 && (n & (n - 1)) == 0; }
+bool IsPowerOfTwo(int64_t n) {
+  return n > 0 && (n & (n - 1)) == 0;
+}
 
 // 每行/列一个 block：grid 大小取线数，但封顶到 kMaxBlocks；内核内部用
 // grid-stride 循环兜住超出上限的超高/超宽平面，避免超过最大 grid 维度。
@@ -71,24 +73,21 @@ __device__ inline int64_t ImageLinearOffset(const DeviceImage& image, int64_t n,
 // 视图；re[index] 存实部，has_imag 为 false（正向实值输入）时 im[index]
 // 直接填 0。每个线程通过 grid-stride 处理若干元素，元素之间没有依赖，
 // 因此不需要任何同步。复杂度 O(H*W)。
-__global__ void FourierLoadPlaneKernel(DeviceTensor real_source,
-                                       DeviceImage image,
-                                       DeviceTensor imag_source, bool has_imag,
-                                       double* re, double* im, int64_t n,
-                                       int64_t c, int64_t count,
-                                       DataType real_dtype,
-                                       DataType imag_dtype) {
+__global__ void FourierLoadPlaneKernel(
+    DeviceTensor real_source, DeviceImage image, DeviceTensor imag_source,
+    bool has_imag, double* re, double* im, int64_t n, int64_t c, int64_t count,
+    DataType real_dtype, DataType imag_dtype) {
   for (int64_t index = ThreadIndex(); index < count; index += ThreadStride()) {
     const int64_t y = index / image.w;
     const int64_t x = index - y * image.w;
-    re[index] = LoadValue(
-        real_source.data,
-        ImageElementOffset(real_source, image, n, y, x, c), real_dtype);
-    im[index] = has_imag
-                    ? LoadValue(imag_source.data,
-                                ImageElementOffset(imag_source, image, n, y, x, c),
-                                imag_dtype)
-                    : 0.0;
+    re[index] = LoadValue(real_source.data,
+                          ImageElementOffset(real_source, image, n, y, x, c),
+                          real_dtype);
+    im[index] =
+        has_imag ? LoadValue(imag_source.data,
+                             ImageElementOffset(imag_source, image, n, y, x, c),
+                             imag_dtype)
+                 : 0.0;
   }
 }
 
@@ -256,9 +255,8 @@ Status FourierCuda(const OpContext& context, const Tensor& input,
   if (cudaMalloc(&table, sizeof(double) * host_table.size()) != cudaSuccess) {
     return CudaStatus(cudaGetLastError(), "cudaMalloc for FFT twiddle table");
   }
-  cudaMemcpyAsync(table, host_table.data(),
-                  sizeof(double) * host_table.size(), cudaMemcpyHostToDevice,
-                  stream);
+  cudaMemcpyAsync(table, host_table.data(), sizeof(double) * host_table.size(),
+                  cudaMemcpyHostToDevice, stream);
   const double* cos_h = table;
   const double* sin_h = table + info.h;
   const double* cos_w = table + w_base;

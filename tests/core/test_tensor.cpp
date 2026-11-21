@@ -1,3 +1,5 @@
+// 测试接口用于验证 Tensor
+// 的创建、生命周期、元数据（shape/dtype/strides）与边界校验。
 #include "test_framework.h"
 
 #include <cstdint>
@@ -18,7 +20,8 @@ MYCV_TEST(CreateTensorAllocatesContiguousBuffer) {
   MYCV_EXPECT_TRUE(context_result.ok());
   auto context = context_result.value();
 
-  auto tensor_result = Tensor::Create(*context, Shape{2, 3}, DataType::kFloat32);
+  auto tensor_result =
+      Tensor::Create(*context, Shape{2, 3}, DataType::kFloat32);
   MYCV_EXPECT_TRUE(tensor_result.ok());
   const Tensor& tensor = tensor_result.value();
 
@@ -40,15 +43,19 @@ MYCV_TEST(CreateTensorRejectsInvalidShapeAndDtype) {
   auto context = MakeCpuContext().value();
   const Shape zero_dim{0, 3};
   const Shape negative{-1, 3};
-  MYCV_EXPECT_FALSE(Tensor::Create(*context, zero_dim, DataType::kFloat32).ok());
-  MYCV_EXPECT_FALSE(Tensor::Create(*context, negative, DataType::kFloat32).ok());
+  MYCV_EXPECT_FALSE(
+      Tensor::Create(*context, zero_dim, DataType::kFloat32).ok());
+  MYCV_EXPECT_FALSE(
+      Tensor::Create(*context, negative, DataType::kFloat32).ok());
 }
 
 MYCV_TEST(TensorWriteReadRoundTrip) {
   auto context = MakeCpuContext().value();
-  auto tensor = Tensor::Create(*context, Shape{2, 3}, DataType::kFloat32).value();
+  auto tensor =
+      Tensor::Create(*context, Shape{2, 3}, DataType::kFloat32).value();
   float* data = tensor.Data<float>();
-  for (int i = 0; i < 6; ++i) data[i] = static_cast<float>(i) * 0.5f;
+  for (int i = 0; i < 6; ++i)
+    data[i] = static_cast<float>(i) * 0.5f;
   MYCV_EXPECT_EQ(data[4], 2.0f);
   MYCV_EXPECT_TRUE(tensor.ToString().find("shape=2x3") != std::string::npos);
 }

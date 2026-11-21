@@ -64,7 +64,8 @@ class Status {
 template <typename T>
 class Result {
  public:
-  // NOLINTNEXTLINE(google-explicit-constructor): mirrors std::expected ergonomics.
+  // NOLINTNEXTLINE(google-explicit-constructor): mirrors std::expected
+  // ergonomics.
   Result(T value) : value_(std::move(value)), ok_(true) {}
   // NOLINTNEXTLINE(google-explicit-constructor)
   Result(Status status) : status_(std::move(status)), ok_(false) {}
@@ -84,10 +85,10 @@ class Result {
 }  // namespace mycv
 
 // Propagates a failed Status out of a function returning Status or Result<T>.
-#define MYCV_RETURN_IF_ERROR(expr)              \
-  do {                                          \
-    ::mycv::Status mycv_status = (expr);         \
-    if (!mycv_status.ok()) return mycv_status;   \
+#define MYCV_RETURN_IF_ERROR(expr)             \
+  do {                                         \
+    ::mycv::Status mycv_status = (expr);       \
+    if (!mycv_status.ok()) return mycv_status; \
   } while (0)
 
 #endif  // MYCV_CORE_ERROR_H_

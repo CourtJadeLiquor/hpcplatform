@@ -66,5 +66,4 @@ default Release 树，512×512，k=7，sigma=2.0（2026-11-21）：
 注：c=3 时 AVX2 的 4 通道块按设计不命中、回退标量骨架，故与 naive 同速；
 c=4 的 NHWC 输入下 AVX2 相对 naive 为 u8 8.5×、f32 12.4×。
 TBB/CUDA/OpenCV 行需在含对应后端的 Release 树复测后登记（`build` 为 Debug，数值不可比）。
-开启 `-DMYCV_ENABLE_PROFILING=1` 时 `MYCV_PROFILE_OP` 会按 `op/backend/level` 聚合耗时
-（`framework/profiling.h`），与上述墙钟基准互补。
+需要更细粒度剖析时使用 perf / Nsight；仓库内不再保留无调用方的 profiling 宏层。

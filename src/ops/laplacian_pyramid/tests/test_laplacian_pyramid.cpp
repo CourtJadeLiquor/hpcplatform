@@ -1,3 +1,5 @@
+// 测试接口用于验证拉普拉斯金字塔的层数、重构误差与 resize/gaussian_blur
+// 组合行为。
 #include "test_framework.h"
 
 #include <algorithm>
@@ -8,7 +10,7 @@
 #include <memory>
 #include <vector>
 
-#include "backends/service.h"
+#include "core/backend.h"
 #include "mycv/mycv.h"
 
 namespace {
@@ -30,9 +32,10 @@ std::shared_ptr<Context> GetCpuContext() {
   return context.ok() ? context.value() : nullptr;
 }
 
-Tensor MakeImage(int64_t n, int64_t h, int64_t w, int64_t c, ImageLayout layout) {
-  const Shape shape = layout == ImageLayout::kNHWC ? Shape{n, h, w, c}
-                                                   : Shape{n, c, h, w};
+Tensor MakeImage(int64_t n, int64_t h, int64_t w, int64_t c,
+                 ImageLayout layout) {
+  const Shape shape =
+      layout == ImageLayout::kNHWC ? Shape{n, h, w, c} : Shape{n, c, h, w};
   auto context = GetCpuContext();
   if (!context) return Tensor{};
   auto image = context->AllocateTensor(shape, DataType::kFloat32);
@@ -54,7 +57,8 @@ Tensor Subtract(const Tensor& fine, const Tensor& coarse) {
   const float* a = fine.Data<float>();
   const float* b = coarse.Data<float>();
   float* out = output.value().Data<float>();
-  for (int64_t i = 0; i < output.value().Numel(); ++i) out[i] = a[i] - b[i];
+  for (int64_t i = 0; i < output.value().Numel(); ++i)
+    out[i] = a[i] - b[i];
   return output.value();
 }
 
@@ -140,7 +144,8 @@ MYCV_TEST(LaplacianPyramidConstantImageHasZeroBands) {
   bool bands_zero = true;
   for (size_t i = 0; i + 1 < result.value().levels.size() && bands_zero; ++i) {
     const float* band = result.value().levels[i].Data<float>();
-    for (int64_t j = 0; j < result.value().levels[i].Numel() && bands_zero; ++j) {
+    for (int64_t j = 0; j < result.value().levels[i].Numel() && bands_zero;
+         ++j) {
       bands_zero = std::fabs(band[j]) <= 1e-6f;
     }
   }
@@ -157,8 +162,8 @@ MYCV_TEST(LaplacianPyramidMatchesReferenceComposition) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
   const OpContext op_context = CpuOpContext(*context);
   auto input = MakeImage(1, 8, 8, 2, ImageLayout::kNHWC);
-  auto result = BuildLaplacianPyramid(op_context, input, 3, kKernelSize,
-                                      kSigma, ImageLayout::kNHWC);
+  auto result = BuildLaplacianPyramid(op_context, input, 3, kKernelSize, kSigma,
+                                      ImageLayout::kNHWC);
   MYCV_EXPECT_TRUE(result.ok());
   if (!result.ok()) return;
 
@@ -199,8 +204,8 @@ MYCV_TEST(LaplacianPyramidCpuLevelsAreBitExact) {
     if (!context->backend_ptr()->SupportsKernelLevel(level)) continue;
     OpContext level_context = CpuOpContext(*context);
     level_context.cpu_level = level;
-    auto actual = BuildLaplacianPyramid(level_context, input, 2, kKernelSize,
-                                        kSigma);
+    auto actual =
+        BuildLaplacianPyramid(level_context, input, 2, kKernelSize, kSigma);
     // Backend-wide capability is broader than this operator's matrix (no SIMD
     // until resize grows one); an unavailable level is skipped.
     if (!actual.ok() && actual.status().code() == StatusCode::kUnsupported) {
@@ -212,8 +217,8 @@ MYCV_TEST(LaplacianPyramidCpuLevelsAreBitExact) {
                    reference.value().levels.size());
     bool identical = true;
     for (size_t i = 0; i < actual.value().levels.size() && identical; ++i) {
-      identical = BitExact(actual.value().levels[i],
-                           reference.value().levels[i]);
+      identical =
+          BitExact(actual.value().levels[i], reference.value().levels[i]);
     }
     MYCV_EXPECT_TRUE(identical);
   }
@@ -277,8 +282,8 @@ MYCV_TEST(LaplacianPyramidOpenCvMatchesCpuFloat) {
   auto opencv = GetOpenCvContext();
   if (!opencv) return;
   auto input = MakeImage(1, 24, 32, 3, ImageLayout::kNHWC);
-  auto reference = BuildLaplacianPyramid(CpuOpContext(*cpu), input, 2,
-                                         kKernelSize, kSigma);
+  auto reference =
+      BuildLaplacianPyramid(CpuOpContext(*cpu), input, 2, kKernelSize, kSigma);
   MYCV_EXPECT_TRUE(reference.ok());
   if (!reference.ok()) return;
   auto device = CopyTo(*opencv, input);
@@ -288,8 +293,7 @@ MYCV_TEST(LaplacianPyramidOpenCvMatchesCpuFloat) {
                                       kKernelSize, kSigma);
   MYCV_EXPECT_TRUE(actual.ok());
   if (!actual.ok()) return;
-  MYCV_EXPECT_EQ(actual.value().levels.size(),
-                 reference.value().levels.size());
+  MYCV_EXPECT_EQ(actual.value().levels.size(), reference.value().levels.size());
   bool equivalent = true;
   for (size_t i = 0; i < actual.value().levels.size() && equivalent; ++i) {
     auto back = CopyTo(*cpu, actual.value().levels[i]);
@@ -323,8 +327,8 @@ MYCV_TEST(LaplacianPyramidCudaMatchesCpuFloat) {
   auto cuda = GetCudaContext();
   if (!cuda) return;
   auto input = MakeImage(1, 24, 32, 3, ImageLayout::kNHWC);
-  auto reference = BuildLaplacianPyramid(CpuOpContext(*cpu), input, 2,
-                                         kKernelSize, kSigma);
+  auto reference =
+      BuildLaplacianPyramid(CpuOpContext(*cpu), input, 2, kKernelSize, kSigma);
   MYCV_EXPECT_TRUE(reference.ok());
   if (!reference.ok()) return;
   auto device = CopyTo(*cuda, input);
@@ -334,8 +338,7 @@ MYCV_TEST(LaplacianPyramidCudaMatchesCpuFloat) {
                                       kKernelSize, kSigma);
   MYCV_EXPECT_TRUE(actual.ok());
   if (!actual.ok()) return;
-  MYCV_EXPECT_EQ(actual.value().levels.size(),
-                 reference.value().levels.size());
+  MYCV_EXPECT_EQ(actual.value().levels.size(), reference.value().levels.size());
   bool equivalent = true;
   for (size_t i = 0; i < actual.value().levels.size() && equivalent; ++i) {
     auto back = CopyTo(*cpu, actual.value().levels[i]);

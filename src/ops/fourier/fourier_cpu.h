@@ -35,7 +35,8 @@ namespace ops_internal {
 struct SequentialRunner {
   template <typename Fn>
   static void For(int64_t begin, int64_t end, Fn&& fn) {
-    for (int64_t i = begin; i < end; ++i) fn(i);
+    for (int64_t i = begin; i < end; ++i)
+      fn(i);
   }
 };
 
@@ -45,7 +46,8 @@ struct OpenMPRunner {
   template <typename Fn>
   static void For(int64_t begin, int64_t end, Fn&& fn) {
 #pragma omp parallel for
-    for (int64_t i = begin; i < end; ++i) fn(i);
+    for (int64_t i = begin; i < end; ++i)
+      fn(i);
   }
 };
 #endif
@@ -71,7 +73,9 @@ struct FftPlan1D {
 };
 
 // 是否为 2 的幂；只有这种长度才走 O(n log n) 的 radix-2。
-inline bool IsPowerOfTwo(int64_t n) { return n > 0 && (n & (n - 1)) == 0; }
+inline bool IsPowerOfTwo(int64_t n) {
+  return n > 0 && (n & (n - 1)) == 0;
+}
 
 // 预计算长度为 n 的 twiddle 表，复杂度 O(n)。表只与 n 有关，每个平面
 // 构造一次后所有行/列复用，避免重复计算三角函数。
@@ -83,7 +87,8 @@ inline FftPlan1D MakeFftPlan(int64_t n) {
   plan.cos_table.resize(static_cast<size_t>(n));
   plan.sin_table.resize(static_cast<size_t>(n));
   for (int64_t k = 0; k < n; ++k) {
-    const double angle = -kTwoPi * static_cast<double>(k) / static_cast<double>(n);
+    const double angle =
+        -kTwoPi * static_cast<double>(k) / static_cast<double>(n);
     plan.cos_table[static_cast<size_t>(k)] = std::cos(angle);
     plan.sin_table[static_cast<size_t>(k)] = std::sin(angle);
   }
@@ -107,7 +112,8 @@ inline void Transform1D(double* re, double* im, int64_t stride,
     // bit-reversal 置换：把下标 i 与位序反转后的下标对调。
     for (int64_t i = 1, j = 0; i < n; ++i) {
       int64_t bit = n >> 1;
-      for (; (j & bit) != 0; bit >>= 1) j ^= bit;
+      for (; (j & bit) != 0; bit >>= 1)
+        j ^= bit;
       j ^= bit;
       if (i < j) {
         std::swap(re[i * stride], re[j * stride]);
@@ -121,7 +127,8 @@ inline void Transform1D(double* re, double* im, int64_t stride,
       for (int64_t base = 0; base < n; base += len) {
         for (int64_t j = 0; j < half; ++j) {
           const double wr = plan.cos_table[static_cast<size_t>(j * step)];
-          const double wi = sign * plan.sin_table[static_cast<size_t>(j * step)];
+          const double wi =
+              sign * plan.sin_table[static_cast<size_t>(j * step)];
           const int64_t a = (base + j) * stride;
           const int64_t b = (base + j + half) * stride;
           const double vr = re[b] * wr - im[b] * wi;
@@ -204,8 +211,9 @@ inline void LoadPlane(const Tensor& real_source, const Tensor* imag_source,
   re->resize(static_cast<size_t>(plane_size));
   im->resize(static_cast<size_t>(plane_size));
   const char* real_base = static_cast<const char*>(real_source.data());
-  const char* imag_base =
-      imag_source == nullptr ? nullptr : static_cast<const char*>(imag_source->data());
+  const char* imag_base = imag_source == nullptr
+                              ? nullptr
+                              : static_cast<const char*>(imag_source->data());
   const DataType real_dtype = real_source.dtype();
   const DataType imag_dtype =
       imag_source == nullptr ? DataType::kFloat32 : imag_source->dtype();
@@ -213,7 +221,8 @@ inline void LoadPlane(const Tensor& real_source, const Tensor* imag_source,
     for (int64_t x = 0; x < info.w; ++x) {
       const int64_t linear = y * info.w + x;
       (*re)[static_cast<size_t>(linear)] = LoadFourierValue(
-          real_base + ImageByteOffset(real_source, info, n, y, x, c), real_dtype);
+          real_base + ImageByteOffset(real_source, info, n, y, x, c),
+          real_dtype);
       if (imag_base != nullptr) {
         (*im)[static_cast<size_t>(linear)] = LoadFourierValue(
             imag_base + ImageByteOffset(*imag_source, info, n, y, x, c),
@@ -228,12 +237,14 @@ inline void LoadPlane(const Tensor& real_source, const Tensor* imag_source,
 // 把一个平面写回输出张量，复杂度 O(H*W)。`scale` 是逆向归一化因子
 // 1/(H*W)（正向为 1）；`imag_output` 为 nullptr 时跳过虚部。输出张量由
 // 入口分配，是连续内存。
-inline void StorePlane(const std::vector<double>& re, const std::vector<double>& im,
-                       const ImageInfo& info, int64_t n, int64_t c, double scale,
-                       Tensor* real_output, Tensor* imag_output) {
+inline void StorePlane(const std::vector<double>& re,
+                       const std::vector<double>& im, const ImageInfo& info,
+                       int64_t n, int64_t c, double scale, Tensor* real_output,
+                       Tensor* imag_output) {
   char* real_base = static_cast<char*>(real_output->data());
-  char* imag_base =
-      imag_output == nullptr ? nullptr : static_cast<char*>(imag_output->data());
+  char* imag_base = imag_output == nullptr
+                        ? nullptr
+                        : static_cast<char*>(imag_output->data());
   const DataType real_dtype = real_output->dtype();
   const DataType imag_dtype =
       imag_output == nullptr ? DataType::kFloat32 : imag_output->dtype();

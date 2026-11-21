@@ -2,3 +2,4 @@
 # here; operator suites live in their own folders under src/ops/.
 add_subdirectory(core)
 add_subdirectory(backends)
+add_subdirectory(perf)

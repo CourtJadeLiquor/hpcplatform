@@ -72,8 +72,8 @@ inline uint16_t FloatToFloat16Bits(float value) {
 
   uint32_t rounded = fraction >> 13U;
   const uint32_t remainder = fraction & 0x1fffU;
-  bool increment = remainder > 0x1000U ||
-                   (remainder == 0x1000U && (rounded & 1U) != 0);
+  bool increment =
+      remainder > 0x1000U || (remainder == 0x1000U && (rounded & 1U) != 0);
   uint32_t result_exponent = static_cast<uint32_t>(half_exponent);
   if (increment) {
     ++rounded;
@@ -92,8 +92,10 @@ T SaturatingCast(long double value) {
     return static_cast<T>(value);
   } else {
     if (std::isnan(value)) return static_cast<T>(0);
-    const long double low = static_cast<long double>(std::numeric_limits<T>::min());
-    const long double high = static_cast<long double>(std::numeric_limits<T>::max());
+    const long double low =
+        static_cast<long double>(std::numeric_limits<T>::min());
+    const long double high =
+        static_cast<long double>(std::numeric_limits<T>::max());
     value = std::max(low, std::min(high, value));
     return static_cast<T>(value);
   }
@@ -101,19 +103,27 @@ T SaturatingCast(long double value) {
 
 inline long double LoadAsLongDouble(const void* data, DataType dtype) {
   switch (dtype) {
-    case DataType::kUInt8: return *static_cast<const uint8_t*>(data);
-    case DataType::kInt8: return *static_cast<const int8_t*>(data);
-    case DataType::kUInt16: return *static_cast<const uint16_t*>(data);
-    case DataType::kInt16: return *static_cast<const int16_t*>(data);
+    case DataType::kUInt8:
+      return *static_cast<const uint8_t*>(data);
+    case DataType::kInt8:
+      return *static_cast<const int8_t*>(data);
+    case DataType::kUInt16:
+      return *static_cast<const uint16_t*>(data);
+    case DataType::kInt16:
+      return *static_cast<const int16_t*>(data);
     case DataType::kFloat16: {
       uint16_t bits = 0;
       std::memcpy(&bits, data, sizeof(bits));
       return Float16BitsToFloat(bits);
     }
-    case DataType::kFloat32: return *static_cast<const float*>(data);
-    case DataType::kFloat64: return *static_cast<const double*>(data);
-    case DataType::kInt32: return *static_cast<const int32_t*>(data);
-    case DataType::kInt64: return *static_cast<const int64_t*>(data);
+    case DataType::kFloat32:
+      return *static_cast<const float*>(data);
+    case DataType::kFloat64:
+      return *static_cast<const double*>(data);
+    case DataType::kInt32:
+      return *static_cast<const int32_t*>(data);
+    case DataType::kInt64:
+      return *static_cast<const int64_t*>(data);
   }
   return 0;
 }

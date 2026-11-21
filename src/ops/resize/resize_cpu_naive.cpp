@@ -10,7 +10,8 @@ namespace ops_internal {
 // 逐元素算子），故匿名忽略。复杂度 O(N*H_out*W_out*C)。
 Status ResizeCpuNaive(const OpContext&, const Tensor& input, const Tensor*,
                       const void* params, Tensor* output) {
-  return ResizeNaiveImpl(input, *static_cast<const ResizeParams*>(params), output);
+  return ResizeNaiveImpl(input, *static_cast<const ResizeParams*>(params),
+                         output);
 }
 }  // namespace ops_internal
 }  // namespace mycv

@@ -15,7 +15,8 @@ namespace mycv {
 //     X[u, v] = sum over y, x of x[y, x] * exp(-2*pi*i*(u*y/H + v*x/W))
 //
 // Inverse (unit-gain on a round trip):
-//     x[y, x] = (1 / (H*W)) * sum over u, v of X[u, v] * exp(+2*pi*i*(u*y/H + v*x/W))
+//     x[y, x] = (1 / (H*W)) * sum over u, v of X[u, v] * exp(+2*pi*i*(u*y/H +
+//     v*x/W))
 //
 // The spectrum is returned as two real tensors with the same shape, dtype,
 // backend and layout as the input, so the caller decides how to store or
@@ -32,16 +33,16 @@ struct ComplexImage {
   Tensor imag;
 };
 
-Result<ComplexImage> FourierTransform(
-    const OpContext& context, const Tensor& input,
-    ImageLayout layout = ImageLayout::kNHWC);
+Result<ComplexImage> FourierTransform(const OpContext& context,
+                                      const Tensor& input,
+                                      ImageLayout layout = ImageLayout::kNHWC);
 
 // `real` and `imag` must describe the same image (shape, dtype, backend and
 // device). Only the real part is returned: that is all an image-domain round
 // trip needs, and the inverse already scales by 1/(H*W).
-Result<Tensor> InverseFourierTransform(
-    const OpContext& context, const Tensor& real, const Tensor& imag,
-    ImageLayout layout = ImageLayout::kNHWC);
+Result<Tensor> InverseFourierTransform(const OpContext& context,
+                                       const Tensor& real, const Tensor& imag,
+                                       ImageLayout layout = ImageLayout::kNHWC);
 
 }  // namespace mycv
 

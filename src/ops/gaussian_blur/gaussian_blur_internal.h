@@ -48,7 +48,8 @@ inline std::vector<double> BuildGaussianKernel(int kernel_size, double sigma) {
     kernel[static_cast<size_t>(i)] = std::exp(-(d * d) / (2.0 * sigma * sigma));
     sum += kernel[static_cast<size_t>(i)];
   }
-  for (double& value : kernel) value /= sum;
+  for (double& value : kernel)
+    value /= sum;
   return kernel;
 }
 

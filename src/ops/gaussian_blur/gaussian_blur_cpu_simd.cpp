@@ -34,19 +34,20 @@ void BlurHorizontalTyped(const T* input, const ImageInfo& info,
   const int64_t width = info.w;
   const int64_t channel_stride =
       info.layout == ImageLayout::kNHWC ? 1 : info.h * info.w;
-  const int64_t x_stride =
-      info.layout == ImageLayout::kNHWC ? channels : 1;
+  const int64_t x_stride = info.layout == ImageLayout::kNHWC ? channels : 1;
   const int64_t row_stride =
       info.layout == ImageLayout::kNHWC ? info.w * channels : info.w;
-  const int64_t batch_stride =
-      info.layout == ImageLayout::kNHWC ? info.h * row_stride : channels * info.h * info.w;
+  const int64_t batch_stride = info.layout == ImageLayout::kNHWC
+                                   ? info.h * row_stride
+                                   : channels * info.h * info.w;
   const T* image = input + (n * batch_stride);
   double acc = 0.0;
   MYCV_CPU_IVDEP
   for (int i = 0; i < 2 * radius + 1; ++i) {
     const int64_t xx = ClampIndex(x + i - radius, width);
-    acc += kernel[i] * static_cast<double>(
-                            image[y * row_stride + xx * x_stride + c * channel_stride]);
+    acc += kernel[i] *
+           static_cast<double>(
+               image[y * row_stride + xx * x_stride + c * channel_stride]);
   }
   tmp[linear] = acc;
 }
@@ -85,7 +86,8 @@ Status BlurSimdTyped(const Tensor& input, const GaussianBlurParams& options,
   // typed 读取把张量当作连续数组，strided view 会读错像素，直接拒绝
   // （v1 约定）。
   if (!input.IsContiguous()) {
-    return Status::Unsupported("GaussianBlur SIMD level requires contiguous tensors");
+    return Status::Unsupported(
+        "GaussianBlur SIMD level requires contiguous tensors");
   }
   ImageInfo info;
   MYCV_RETURN_IF_ERROR(PrepareBlur(input, options, &info));
@@ -95,7 +97,8 @@ Status BlurSimdTyped(const Tensor& input, const GaussianBlurParams& options,
   std::vector<double> tmp(static_cast<size_t>(output->Numel()));
   const T* input_data = static_cast<const T*>(input.data());
   for (int64_t i = 0; i < output->Numel(); ++i) {
-    BlurHorizontalTyped<T>(input_data, info, kernel.data(), radius, i, tmp.data());
+    BlurHorizontalTyped<T>(input_data, info, kernel.data(), radius, i,
+                           tmp.data());
   }
   for (int64_t i = 0; i < output->Numel(); ++i) {
     BlurVerticalTyped<T>(tmp.data(), info, kernel.data(), radius, i, output);

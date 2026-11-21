@@ -84,9 +84,10 @@ __global__ void BlurHorizontalKernel(DeviceTensor input, DeviceImage image,
     for (int i = 0; i < tap_count; ++i) {
       int64_t xx = x + i - radius;
       xx = xx < 0 ? 0 : (xx >= image.w ? image.w - 1 : xx);
-      acc += kernel[i] * LoadPixelDouble(
-                             input.data, ImageElementOffset(input, image, n, y, xx, c),
-                             dtype);
+      acc +=
+          kernel[i] *
+          LoadPixelDouble(input.data,
+                          ImageElementOffset(input, image, n, y, xx, c), dtype);
     }
     tmp[index] = acc;
   }

@@ -78,10 +78,9 @@ class ScopeTimer {
   ScopeTimer& operator=(const ScopeTimer&) = delete;
   ~ScopeTimer() {
     const auto stop = Clock::now();
-    ProfileRecord(
-        label_,
-        std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start_)
-            .count());
+    ProfileRecord(label_, std::chrono::duration_cast<std::chrono::nanoseconds>(
+                              stop - start_)
+                              .count());
   }
 
  private:
@@ -97,8 +96,9 @@ class ScopeTimer {
 #define MYCV_PROFILE_CONCAT(a, b) MYCV_PROFILE_CONCAT_(a, b)
 
 // Times the enclosing scope under `label`.
-#define MYCV_PROFILE_SCOPE(label) \
-  ::mycv::profiling::ScopeTimer MYCV_PROFILE_CONCAT(mycv_scope_, __LINE__)(label)
+#define MYCV_PROFILE_SCOPE(label)                                \
+  ::mycv::profiling::ScopeTimer MYCV_PROFILE_CONCAT(mycv_scope_, \
+                                                    __LINE__)(label)
 
 // Times the enclosing scope, labeled by the dispatch triple.
 #define MYCV_PROFILE_OP(op_kind, backend, level) \

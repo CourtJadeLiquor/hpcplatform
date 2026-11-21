@@ -79,8 +79,8 @@ Result<Tensor> GaussianBlur(const OpContext& context, const Tensor& input,
       ops_internal::AllocateOutput(context, input.shape(), input.dtype());
   if (!output.ok()) return output.status();
   const ops_internal::GaussianBlurParams params{kernel_size, sigma, layout};
-  MYCV_RETURN_IF_ERROR(kernel.value()(context, input, nullptr, &params,
-                                      &output.value()));
+  MYCV_RETURN_IF_ERROR(
+      kernel.value()(context, input, nullptr, &params, &output.value()));
   return output;
 }
 

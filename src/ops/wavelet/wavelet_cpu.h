@@ -35,7 +35,8 @@ namespace ops_internal {
 struct WaveletSequentialRunner {
   template <typename Fn>
   static void For(int64_t begin, int64_t end, Fn&& fn) {
-    for (int64_t i = begin; i < end; ++i) fn(i);
+    for (int64_t i = begin; i < end; ++i)
+      fn(i);
   }
 };
 
@@ -45,7 +46,8 @@ struct WaveletOpenMPRunner {
   template <typename Fn>
   static void For(int64_t begin, int64_t end, Fn&& fn) {
 #pragma omp parallel for
-    for (int64_t i = begin; i < end; ++i) fn(i);
+    for (int64_t i = begin; i < end; ++i)
+      fn(i);
   }
 };
 #endif
@@ -71,8 +73,8 @@ struct WaveletTbbRunner {
 // 取模实现；k 与 j 都按升序累加，保证与线程无关。复杂度 O(n*taps)。
 inline void AnalyzeSequence(const double* src, int64_t src_stride, int64_t n,
                             const std::vector<double>& low_filter,
-                            const std::vector<double>& high_filter,
-                            double* low, int64_t low_stride, double* high,
+                            const std::vector<double>& high_filter, double* low,
+                            int64_t low_stride, double* high,
                             int64_t high_stride) {
   const int64_t half = n / 2;
   const int taps = static_cast<int>(low_filter.size());
@@ -96,11 +98,11 @@ inline void AnalyzeSequence(const double* src, int64_t src_stride, int64_t n,
 // 复杂度 O(n*taps)。
 inline void SynthesizeSequence(const double* low, int64_t low_stride,
                                const double* high, int64_t high_stride,
-                               int64_t n,
-                               const std::vector<double>& low_filter,
+                               int64_t n, const std::vector<double>& low_filter,
                                const std::vector<double>& high_filter,
                                double* output, int64_t output_stride) {
-  for (int64_t i = 0; i < n; ++i) output[i * output_stride] = 0.0;
+  for (int64_t i = 0; i < n; ++i)
+    output[i * output_stride] = 0.0;
   const int64_t half = n / 2;
   const int taps = static_cast<int>(low_filter.size());
   for (int64_t k = 0; k < half; ++k) {
@@ -150,8 +152,7 @@ inline void AnalyzePlane(const double* plane, int64_t h, int64_t w,
 template <typename Runner>
 inline void SynthesizePlane(const double* ll, const double* lh,
                             const double* hl, const double* hh, int64_t h,
-                            int64_t w,
-                            const std::vector<double>& low_filter,
+                            int64_t w, const std::vector<double>& low_filter,
                             const std::vector<double>& high_filter,
                             double* plane) {
   const int64_t half_w = w / 2;
@@ -210,9 +211,8 @@ inline void StoreWaveletPlane(const std::vector<double>& plane,
   const DataType dtype = destination->dtype();
   for (int64_t y = 0; y < info.h; ++y) {
     for (int64_t x = 0; x < info.w; ++x) {
-      StoreWaveletValue(
-          base + ImageByteOffset(*destination, info, n, y, x, c), dtype,
-          plane[static_cast<size_t>(y * info.w + x)]);
+      StoreWaveletValue(base + ImageByteOffset(*destination, info, n, y, x, c),
+                        dtype, plane[static_cast<size_t>(y * info.w + x)]);
     }
   }
 }

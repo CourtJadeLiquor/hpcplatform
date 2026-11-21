@@ -42,7 +42,8 @@ __m256d LoadFourPixels(const char* base, DataType dtype, int64_t first_linear) {
     return _mm256_cvtps_pd(
         _mm_loadu_ps(reinterpret_cast<const float*>(base + first_linear * 4)));
   }
-  return _mm256_loadu_pd(reinterpret_cast<const double*>(base + first_linear * 8));
+  return _mm256_loadu_pd(
+      reinterpret_cast<const double*>(base + first_linear * 8));
 }
 
 // 水平 pass 的一个 4 通道向量块：计算 (n,y,x) 处 channel_base 起的
@@ -99,13 +100,14 @@ void VerticalBlock(const double* tmp, const ImageInfo& info,
       bytes[first + j] = static_cast<uint8_t>(std::round(lanes[j]));
     }
   } else if (output->dtype() == DataType::kFloat32) {
-    _mm_storeu_ps(reinterpret_cast<float*>(base + ImageLinearIndex(info, n, y, x,
-                                                                  channel_base) * 4),
+    _mm_storeu_ps(reinterpret_cast<float*>(
+                      base + ImageLinearIndex(info, n, y, x, channel_base) * 4),
                   _mm256_cvtpd_ps(acc));
   } else {
-    _mm256_storeu_pd(reinterpret_cast<double*>(
-                         base + ImageLinearIndex(info, n, y, x, channel_base) * 8),
-                     acc);
+    _mm256_storeu_pd(
+        reinterpret_cast<double*>(
+            base + ImageLinearIndex(info, n, y, x, channel_base) * 8),
+        acc);
   }
 }
 
@@ -121,7 +123,8 @@ void VerticalBlock(const double* tmp, const ImageInfo& info,
 Status BlurAvx2Impl(const Tensor& input, const GaussianBlurParams& options,
                     Tensor* output) {
   if (!input.IsContiguous()) {
-    return Status::Unsupported("GaussianBlur AVX2 level requires contiguous tensors");
+    return Status::Unsupported(
+        "GaussianBlur AVX2 level requires contiguous tensors");
   }
   ImageInfo info;
   MYCV_RETURN_IF_ERROR(PrepareBlur(input, options, &info));
@@ -168,8 +171,8 @@ Status BlurAvx2Impl(const Tensor& input, const GaussianBlurParams& options,
 
 // 入口：把参数转成 GaussianBlurParams 并执行 AVX2 实现；
 // 不适用或非连续时由 BlurAvx2Impl 回退到 naive，语义不变。
-Status GaussianBlurCpuAvx2(const OpContext&, const Tensor& input,
-                           const Tensor*, const void* params, Tensor* output) {
+Status GaussianBlurCpuAvx2(const OpContext&, const Tensor& input, const Tensor*,
+                           const void* params, Tensor* output) {
   return BlurAvx2Impl(input, *static_cast<const GaussianBlurParams*>(params),
                       output);
 }

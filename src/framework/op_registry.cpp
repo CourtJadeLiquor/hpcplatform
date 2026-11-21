@@ -8,7 +8,7 @@
 namespace mycv {
 namespace ops_internal {
 
-// Defined in src/ops/registry.cpp: the single explicit list of operator
+// Defined in src/ops/register_ops.cpp: the single explicit list of operator
 // registration entry points. The framework itself never names individual
 // operators (docs/architecture.md §6.3).
 void RegisterAllKernels();
@@ -46,9 +46,9 @@ Result<OpKernelFn> FindKernel(OpKind op, BackendType backend,
   }
   EnsureRegistered();
   const auto& kernels = Kernels();
-  const auto it = kernels.find(KernelKey(static_cast<int>(op),
-                                         static_cast<int>(backend),
-                                         static_cast<int>(level)));
+  const auto it =
+      kernels.find(KernelKey(static_cast<int>(op), static_cast<int>(backend),
+                             static_cast<int>(level)));
   if (it != kernels.end()) return it->second;
   if (backend == BackendType::kNativeCpu) {
     return Status::Unsupported(std::string("cpu kernel '") + OpKindName(op) +

@@ -1,7 +1,9 @@
-#include "backends/backends_internal.h"
+// Backend factory: the only place that maps a BackendType to a concrete
+// backend implementation. Context::Create is the sole public entry point.
+
+#include "backends/backend_internal.h"
 
 #include <memory>
-#include <utility>
 
 namespace mycv {
 

@@ -27,11 +27,16 @@ enum class OpKind : uint16_t {
 
 inline const char* OpKindName(OpKind kind) {
   switch (kind) {
-    case OpKind::kResize: return "resize";
-    case OpKind::kGaussianBlur: return "gaussian_blur";
-    case OpKind::kLaplacianPyramid: return "laplacian_pyramid";
-    case OpKind::kFourierTransform: return "fourier_transform";
-    case OpKind::kWaveletTransform: return "wavelet_transform";
+    case OpKind::kResize:
+      return "resize";
+    case OpKind::kGaussianBlur:
+      return "gaussian_blur";
+    case OpKind::kLaplacianPyramid:
+      return "laplacian_pyramid";
+    case OpKind::kFourierTransform:
+      return "fourier_transform";
+    case OpKind::kWaveletTransform:
+      return "wavelet_transform";
   }
   return "unknown";
 }

@@ -1,3 +1,5 @@
+// 测试接口用于验证 Context::Copy / Tensor::Clone
+// 对连续与非连续视图、跨后端及生命周期场景的语义。
 #include "test_framework.h"
 
 #include <cmath>
@@ -16,9 +18,11 @@ using namespace mycv;
 MYCV_TEST(CopyHandlesNonContiguousSource) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
   auto source = context->AllocateTensor(Shape{2, 4}, DataType::kInt32).value();
-  for (int i = 0; i < 8; ++i) source.Data<int32_t>()[i] = i + 1;
+  for (int i = 0; i < 8; ++i)
+    source.Data<int32_t>()[i] = i + 1;
   auto slice = source.Slice(1, 1, 3).value();
-  auto destination = context->AllocateTensor(slice.shape(), DataType::kInt32).value();
+  auto destination =
+      context->AllocateTensor(slice.shape(), DataType::kInt32).value();
 
   MYCV_EXPECT_OK(context->Copy(&destination, slice));
   const int32_t expected[] = {2, 3, 6, 7};
@@ -30,8 +34,10 @@ MYCV_TEST(CopyHandlesNonContiguousSource) {
 MYCV_TEST(CopyRejectsMismatchedDestination) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
   auto source = context->AllocateTensor(Shape{2}, DataType::kFloat32).value();
-  auto wrong_shape = context->AllocateTensor(Shape{3}, DataType::kFloat32).value();
-  auto wrong_dtype = context->AllocateTensor(Shape{2}, DataType::kFloat64).value();
+  auto wrong_shape =
+      context->AllocateTensor(Shape{3}, DataType::kFloat32).value();
+  auto wrong_dtype =
+      context->AllocateTensor(Shape{2}, DataType::kFloat64).value();
   MYCV_EXPECT_EQ(context->Copy(&wrong_shape, source).code(),
                  StatusCode::kInvalidArgument);
   MYCV_EXPECT_EQ(context->Copy(&wrong_dtype, source).code(),
@@ -44,7 +50,8 @@ MYCV_TEST(WrapBorrowsExternalHostMemoryWithoutAllocating) {
 
   // External storage from another runtime (here: a plain std::vector).
   std::vector<float> external = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f};
-  auto wrapped = context->Wrap(external.data(), Shape{1, 5}, DataType::kFloat32);
+  auto wrapped =
+      context->Wrap(external.data(), Shape{1, 5}, DataType::kFloat32);
   MYCV_EXPECT_TRUE(wrapped.ok());
   if (!wrapped.ok()) return;
   const Tensor& t = wrapped.value();
@@ -60,7 +67,8 @@ MYCV_TEST(WrapBorrowsExternalHostMemoryWithoutAllocating) {
   // A borrowed tensor is a valid copy source.
   auto dst = context->AllocateTensor(Shape{1, 5}, DataType::kFloat32).value();
   MYCV_EXPECT_OK(context->Copy(&dst, t));
-  for (int i = 0; i < 5; ++i) MYCV_EXPECT_EQ(dst.Data<float>()[i], external[i]);
+  for (int i = 0; i < 5; ++i)
+    MYCV_EXPECT_EQ(dst.Data<float>()[i], external[i]);
 
   // And a valid op input: dispatch accepts it because backend/device match.
   // Identity resize (1:1) returns the borrowed pixels unchanged.
@@ -84,15 +92,15 @@ MYCV_TEST(WrapAdoptsMemoryAndRunsDeleterOnLastRelease) {
   MYCV_EXPECT_TRUE(raw != nullptr);
   if (raw == nullptr) return;
   float* pixels = static_cast<float*>(raw);
-  for (size_t i = 0; i < kCount; ++i) pixels[i] = static_cast<float>(i);
+  for (size_t i = 0; i < kCount; ++i)
+    pixels[i] = static_cast<float>(i);
 
   {
-    auto wrapped =
-        context->Wrap(raw, Shape{6}, DataType::kFloat32, MemoryKind::kHost,
-                      [deleted](void* p, size_t) {
-                        std::free(p);
-                        ++(*deleted);
-                      });
+    auto wrapped = context->Wrap(raw, Shape{6}, DataType::kFloat32,
+                                 MemoryKind::kHost, [deleted](void* p, size_t) {
+                                   std::free(p);
+                                   ++(*deleted);
+                                 });
     if (!wrapped.ok()) {
       std::free(raw);
       MYCV_EXPECT_TRUE(wrapped.ok());

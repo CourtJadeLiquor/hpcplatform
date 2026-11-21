@@ -5,7 +5,7 @@
 
 #include "backends/cpu/cpu_memory_manager.h"
 #include "backends/cpu/cpu_stream.h"
-#include "backends/service.h"
+#include "core/backend.h"
 
 namespace mycv {
 

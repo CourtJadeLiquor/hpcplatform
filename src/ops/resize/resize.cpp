@@ -20,7 +20,8 @@ void RegisterResizeKernels() {
   const BackendType cpu = BackendType::kNativeCpu;
   RegisterKernel(OpKind::kResize, cpu, CpuKernelLevel::kNaive, &ResizeCpuNaive);
 #ifdef MYCV_WITH_OPENMP
-  RegisterKernel(OpKind::kResize, cpu, CpuKernelLevel::kOpenMP, &ResizeCpuOpenMP);
+  RegisterKernel(OpKind::kResize, cpu, CpuKernelLevel::kOpenMP,
+                 &ResizeCpuOpenMP);
 #endif
 #ifdef MYCV_WITH_TBB
   RegisterKernel(OpKind::kResize, cpu, CpuKernelLevel::kTbb, &ResizeCpuTbb);
@@ -65,13 +66,14 @@ Result<Tensor> Resize(const OpContext& context, const Tensor& input,
   // 输出保持输入的 rank 与 layout，只替换 H/W。
   const Shape output_shape =
       ops_internal::MakeImageShape(image.value(), output_height, output_width);
-  auto output = ops_internal::AllocateOutput(context, output_shape, input.dtype());
+  auto output =
+      ops_internal::AllocateOutput(context, output_shape, input.dtype());
   if (!output.ok()) return output.status();
   const ops_internal::ResizeParams params{output_height, output_width,
                                           interpolation, layout};
   // 单输入算子：第二个张量传 nullptr。
-  MYCV_RETURN_IF_ERROR(kernel.value()(context, input, nullptr, &params,
-                                      &output.value()));
+  MYCV_RETURN_IF_ERROR(
+      kernel.value()(context, input, nullptr, &params, &output.value()));
   return output;
 }
 

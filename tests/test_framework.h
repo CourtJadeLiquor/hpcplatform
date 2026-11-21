@@ -1,3 +1,5 @@
+// 测试接口用于提供零依赖的断言与用例注册框架，供 core/backends/ops
+// 各层测试复用。
 #ifndef MYCV_TESTS_TEST_FRAMEWORK_H_
 #define MYCV_TESTS_TEST_FRAMEWORK_H_
 
@@ -34,15 +36,16 @@ struct Registrar {
   Registrar(const char* name, TestFn fn) { Registry().push_back({name, fn}); }
 };
 
-inline void ReportFailure(const char* file, int line, const std::string& message) {
+inline void ReportFailure(const char* file, int line,
+                          const std::string& message) {
   ++CurrentFailures();
   std::cerr << "  FAIL " << file << ":" << line << "  " << message << "\n";
 }
 
 // Printable fallback for enum class values (BackendType, StatusCode, ...).
 template <typename T>
-typename std::enable_if<std::is_enum<T>::value, std::ostream&>::type
-operator<<(std::ostream& os, T value) {
+typename std::enable_if<std::is_enum<T>::value, std::ostream&>::type operator<<(
+    std::ostream& os, T value) {
   return os << static_cast<long long>(value);
 }
 
@@ -79,35 +82,38 @@ inline int RunAll() {
 
 }  // namespace mycv_test
 
-#define MYCV_TEST(test_name)                                                 \
-  static void test_name();                                                   \
+#define MYCV_TEST(test_name)                                                  \
+  static void test_name();                                                    \
   static ::mycv_test::Registrar test_name##_registrar(#test_name, test_name); \
   static void test_name()
 
-#define MYCV_EXPECT_TRUE(cond)                                                \
-  do {                                                                        \
-    if (!(cond)) {                                                            \
-      ::mycv_test::ReportFailure(__FILE__, __LINE__, "EXPECT_TRUE(" #cond ")"); \
-    }                                                                         \
+#define MYCV_EXPECT_TRUE(cond)                              \
+  do {                                                      \
+    if (!(cond)) {                                          \
+      ::mycv_test::ReportFailure(__FILE__, __LINE__,        \
+                                 "EXPECT_TRUE(" #cond ")"); \
+    }                                                       \
   } while (0)
 
-#define MYCV_EXPECT_FALSE(cond)                                               \
-  do {                                                                        \
-    if (cond) {                                                               \
-      ::mycv_test::ReportFailure(__FILE__, __LINE__, "EXPECT_FALSE(" #cond ")"); \
-    }                                                                         \
+#define MYCV_EXPECT_FALSE(cond)                              \
+  do {                                                       \
+    if (cond) {                                              \
+      ::mycv_test::ReportFailure(__FILE__, __LINE__,         \
+                                 "EXPECT_FALSE(" #cond ")"); \
+    }                                                        \
   } while (0)
 
-#define MYCV_EXPECT_EQ(actual, expected) \
-  ::mycv_test::ExpectEq((actual), (expected), #actual, #expected, __FILE__, __LINE__)
+#define MYCV_EXPECT_EQ(actual, expected)                                    \
+  ::mycv_test::ExpectEq((actual), (expected), #actual, #expected, __FILE__, \
+                        __LINE__)
 
-#define MYCV_EXPECT_OK(expr)                                                  \
-  do {                                                                        \
-    ::mycv::Status mycv_status = (expr);                                      \
-    if (!mycv_status.ok()) {                                                  \
-      ::mycv_test::ReportFailure(__FILE__, __LINE__,                          \
-                                 "expected OK, got " + mycv_status.ToString()); \
-    }                                                                         \
+#define MYCV_EXPECT_OK(expr)                                                 \
+  do {                                                                       \
+    ::mycv::Status mycv_status = (expr);                                     \
+    if (!mycv_status.ok()) {                                                 \
+      ::mycv_test::ReportFailure(                                            \
+          __FILE__, __LINE__, "expected OK, got " + mycv_status.ToString()); \
+    }                                                                        \
   } while (0)
 
 #define MYCV_TEST_MAIN() \

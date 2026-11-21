@@ -90,7 +90,8 @@ inline size_t ImageByteOffset(const Tensor& tensor, const ImageInfo& info,
   size_t offset = 0;
   for (int dim = 0; dim < info.rank; ++dim) {
     offset += static_cast<size_t>(coordinates[static_cast<size_t>(dim)] *
-                                  tensor.Stride(dim)) * tensor.ElementSize();
+                                  tensor.Stride(dim)) *
+              tensor.ElementSize();
   }
   return offset;
 }

@@ -74,14 +74,14 @@ __global__ void ResizeKernel(DeviceTensor input, DeviceImage input_image,
       const int64_t x1 = x0 + 1 < input_image.w ? x0 + 1 : input_image.w - 1;
       const double wy = clamped_y - y0;
       const double wx = clamped_x - x0;
-      const double top_left = static_cast<double>(input_data[ImageElementOffset(
-          input, input_image, n, y0, x0, c)]);
-      const double top_right = static_cast<double>(input_data[ImageElementOffset(
-          input, input_image, n, y0, x1, c)]);
-      const double bottom_left = static_cast<double>(input_data[ImageElementOffset(
-          input, input_image, n, y1, x0, c)]);
-      const double bottom_right = static_cast<double>(input_data[ImageElementOffset(
-          input, input_image, n, y1, x1, c)]);
+      const double top_left = static_cast<double>(
+          input_data[ImageElementOffset(input, input_image, n, y0, x0, c)]);
+      const double top_right = static_cast<double>(
+          input_data[ImageElementOffset(input, input_image, n, y0, x1, c)]);
+      const double bottom_left = static_cast<double>(
+          input_data[ImageElementOffset(input, input_image, n, y1, x0, c)]);
+      const double bottom_right = static_cast<double>(
+          input_data[ImageElementOffset(input, input_image, n, y1, x1, c)]);
       // 先水平（上、下两行各按 wx），再垂直（按 wy 混合两行）。
       const double top = top_left + (top_right - top_left) * wx;
       const double bottom = bottom_left + (bottom_right - bottom_left) * wx;
@@ -104,8 +104,8 @@ Status LaunchResize(const DeviceTensor& input, const DeviceImage& input_image,
   switch (dtype) {
     case DataType::kUInt8:
       ResizeKernel<uint8_t><<<blocks, kThreadsPerBlock, 0, stream>>>(
-          input, input_image, output_image, static_cast<uint8_t*>(output), count,
-          interpolation);
+          input, input_image, output_image, static_cast<uint8_t*>(output),
+          count, interpolation);
       break;
     case DataType::kFloat32:
       ResizeKernel<float><<<blocks, kThreadsPerBlock, 0, stream>>>(

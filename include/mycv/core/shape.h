@@ -46,7 +46,8 @@ class Shape {
   // Scalar (rank 0) has exactly one element.
   int64_t Numel() const {
     int64_t numel = 1;
-    for (int i = 0; i < rank_; ++i) numel *= dims_[static_cast<size_t>(i)];
+    for (int i = 0; i < rank_; ++i)
+      numel *= dims_[static_cast<size_t>(i)];
     return numel;
   }
 
@@ -57,7 +58,8 @@ class Shape {
   Status Validate() const {
     for (int i = 0; i < rank_; ++i) {
       if (dims_[static_cast<size_t>(i)] <= 0) {
-        return Status::InvalidArgument("shape dims must be positive: " + ToString());
+        return Status::InvalidArgument("shape dims must be positive: " +
+                                       ToString());
       }
     }
     return Status::Ok();
@@ -66,7 +68,8 @@ class Shape {
   bool operator==(const Shape& other) const {
     if (rank_ != other.rank_) return false;
     for (int i = 0; i < rank_; ++i) {
-      if (dims_[static_cast<size_t>(i)] != other.dims_[static_cast<size_t>(i)]) {
+      if (dims_[static_cast<size_t>(i)] !=
+          other.dims_[static_cast<size_t>(i)]) {
         return false;
       }
     }

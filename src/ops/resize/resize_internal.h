@@ -31,18 +31,18 @@ Status ResizeCpuOpenMP(const OpContext&, const Tensor&, const Tensor*,
                        const void*, Tensor*);
 #endif
 #ifdef MYCV_WITH_TBB
-Status ResizeCpuTbb(const OpContext&, const Tensor&, const Tensor*,
-                    const void*, Tensor*);
+Status ResizeCpuTbb(const OpContext&, const Tensor&, const Tensor*, const void*,
+                    Tensor*);
 #endif
 // 可选后端入口：CUDA 与 OpenCV，签名与 CPU 入口一致，均只接受 kNaive
 // 级别（见 ValidateInvocation 对非 CPU 后端的限制）。
 #ifdef MYCV_WITH_CUDA
-Status ResizeCuda(const OpContext&, const Tensor&, const Tensor*,
-                  const void*, Tensor*);
+Status ResizeCuda(const OpContext&, const Tensor&, const Tensor*, const void*,
+                  Tensor*);
 #endif
 #ifdef MYCV_WITH_OPENCV
-Status ResizeOpenCv(const OpContext&, const Tensor&, const Tensor*,
-                    const void*, Tensor*);
+Status ResizeOpenCv(const OpContext&, const Tensor&, const Tensor*, const void*,
+                    Tensor*);
 #endif
 
 // 把本二进制内已编译的 resize 实现登记到内核表（docs/architecture.md

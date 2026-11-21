@@ -1,3 +1,4 @@
+// 样例用于演示 OpenCV 后端：cv::Mat 零拷贝接管与 resize/gaussian_blur 调用。
 #include <iostream>
 
 #include <opencv2/core.hpp>
@@ -30,7 +31,8 @@ int main() {
   auto output = CopyToCvMat(blurred.value());
   if (!output.ok()) return 1;
 
-  std::cout << "OpenCV pipeline: cv::Mat -> Tensor -> resize -> gaussian_blur -> cv::Mat\n";
+  std::cout << "OpenCV pipeline: cv::Mat -> Tensor -> resize -> gaussian_blur "
+               "-> cv::Mat\n";
   std::cout << "output: " << output.value().rows << 'x' << output.value().cols
             << "x" << output.value().channels() << ", first=";
   const cv::Vec3f first = output.value().at<cv::Vec3f>(0, 0);

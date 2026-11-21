@@ -12,8 +12,8 @@
 namespace mycv {
 
 // A released block is kept for exact-size reuse so repeated operator calls in a
-// pipeline do not hit malloc/free every iteration. Cached blocks are returned to
-// the OS when the last Buffer sharing this state is destroyed.
+// pipeline do not hit malloc/free every iteration. Cached blocks are returned
+// to the OS when the last Buffer sharing this state is destroyed.
 struct CpuBlock {
   void* data = nullptr;
   size_t bytes = 0;
@@ -49,7 +49,8 @@ class CpuMemoryManager final : public MemoryManager {
 
  private:
   Device device_;
-  std::shared_ptr<CpuAllocatorState> state_ = std::make_shared<CpuAllocatorState>();
+  std::shared_ptr<CpuAllocatorState> state_ =
+      std::make_shared<CpuAllocatorState>();
 };
 
 }  // namespace mycv

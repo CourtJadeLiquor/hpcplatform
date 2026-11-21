@@ -1,4 +1,5 @@
-// Per-operator benchmark for laplacian_pyramid (docs/architecture.md §6.1/§7.2).
+// Per-operator benchmark for laplacian_pyramid (docs/architecture.md
+// §6.1/§7.2). 基准程序用于测量拉普拉斯金字塔在不同深度与后端上的耗时。
 //
 // The pyramid is a composition of gaussian_blur and resize, so its "version"
 // is the CpuKernelLevel forwarded to those two ops. This sweep crosses input
@@ -24,7 +25,7 @@
 #include <utility>
 #include <vector>
 
-#include "backends/service.h"
+#include "core/backend.h"
 #include "mycv/mycv.h"
 
 using namespace mycv;
@@ -148,16 +149,14 @@ int main() {
   // Phase 1: accelerator rows first, while the GPU clock is untouched.
   for (ConfigResult& result : results) {
     const Config& config = result.config;
-    auto input =
-        cpu.value()->AllocateTensor(Shape{config.height, config.width,
-                                          config.channels},
-                                    DataType::kFloat32);
+    auto input = cpu.value()->AllocateTensor(
+        Shape{config.height, config.width, config.channels},
+        DataType::kFloat32);
     if (!input.ok()) continue;
     FillInput(&input.value());
 
-    const auto measure_backend =
-        [&](const std::shared_ptr<Context>& backend, int passes,
-            Measurement* out) -> bool {
+    const auto measure_backend = [&](const std::shared_ptr<Context>& backend,
+                                     int passes, Measurement* out) -> bool {
       if (!backend) return false;
       OpContext accelerated;
       accelerated.context = backend.get();
@@ -189,10 +188,9 @@ int main() {
     if (!cpu.value()->backend_ptr()->SupportsKernelLevel(level)) continue;
     for (ConfigResult& result : results) {
       const Config& config = result.config;
-      auto input =
-          cpu.value()->AllocateTensor(Shape{config.height, config.width,
-                                            config.channels},
-                                      DataType::kFloat32);
+      auto input = cpu.value()->AllocateTensor(
+          Shape{config.height, config.width, config.channels},
+          DataType::kFloat32);
       if (!input.ok()) continue;
       FillInput(&input.value());
       OpContext context;

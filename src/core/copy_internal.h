@@ -1,21 +1,15 @@
-#ifndef MYCV_SRC_BACKENDS_BACKENDS_INTERNAL_H_
-#define MYCV_SRC_BACKENDS_BACKENDS_INTERNAL_H_
+#ifndef MYCV_SRC_CORE_COPY_INTERNAL_H_
+#define MYCV_SRC_CORE_COPY_INTERNAL_H_
 
 #include <memory>
 
-#include "backends/service.h"
+#include "mycv/core/error.h"
 
 namespace mycv {
 
+class Backend;
+class Stream;
 class Tensor;
-
-Result<std::shared_ptr<Backend>> CreateCpuBackend(int device_index);
-Result<std::shared_ptr<Backend>> CreateOpenCvBackend(int device_index);
-Result<std::shared_ptr<Backend>> CreateCudaBackend(int device_index);
-Result<std::shared_ptr<Backend>> CreateNpuBackend(int device_index);
-
-Status CudaCopyBuffer(Buffer* dst, size_t dst_offset, const Buffer* src,
-                      size_t src_offset, size_t bytes, Stream* stream);
 
 // Element-wise copy used by Context::Copy and Tensor::Clone. The backend that
 // owns the device side drives the transfer; host-only copies use `backend`.
@@ -29,4 +23,4 @@ Result<std::shared_ptr<Backend>> ResolveOwningBackend(const Tensor& tensor);
 
 }  // namespace mycv
 
-#endif  // MYCV_SRC_BACKENDS_BACKENDS_INTERNAL_H_
+#endif  // MYCV_SRC_CORE_COPY_INTERNAL_H_

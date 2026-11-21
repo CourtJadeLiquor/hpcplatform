@@ -1,6 +1,6 @@
 # Context::Copy：拷贝的是元素不是字节，怎么选路、何时同步
 
-> 相关代码：`src/backends/backend_copy.cpp`、`include/mycv/core/context.h`、`src/backends/service.h`
+> 相关代码：`src/core/copy.cpp`、`include/mycv/core/context.h`、`src/core/backend.h`
 > 易混点：Copy 到底拷了什么、跨后端怎么决定谁来拷、拷完能不能立刻用。
 
 ---
@@ -28,7 +28,7 @@
 | host | 直接 memcpy / 逐元素 | H2D：目标后端的 `CopyBuffer`（CUDA 用 `cudaMemcpyAsync`） |
 | device | D2H：源后端的 `CopyBuffer` | D2D：同设备内拷贝 |
 
-后端的 `Backend::CopyBuffer`（[service.h](../../src/backends/service.h)）有一条硬规则：
+后端的 `Backend::CopyBuffer`（[backend.h](../../src/core/backend.h)）有一条硬规则：
 
 > 实现碰不到某类内存时，**必须返回 `kUnsupported`，而不是在调用方背后经 host staging**。
 

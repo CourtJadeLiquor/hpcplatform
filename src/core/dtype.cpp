@@ -23,15 +23,24 @@ size_t DTypeSize(DataType dtype) {
 
 const char* DTypeName(DataType dtype) {
   switch (dtype) {
-    case DataType::kUInt8: return "uint8";
-    case DataType::kInt8: return "int8";
-    case DataType::kUInt16: return "uint16";
-    case DataType::kInt16: return "int16";
-    case DataType::kFloat16: return "float16";
-    case DataType::kFloat32: return "float32";
-    case DataType::kFloat64: return "float64";
-    case DataType::kInt32: return "int32";
-    case DataType::kInt64: return "int64";
+    case DataType::kUInt8:
+      return "uint8";
+    case DataType::kInt8:
+      return "int8";
+    case DataType::kUInt16:
+      return "uint16";
+    case DataType::kInt16:
+      return "int16";
+    case DataType::kFloat16:
+      return "float16";
+    case DataType::kFloat32:
+      return "float32";
+    case DataType::kFloat64:
+      return "float64";
+    case DataType::kInt32:
+      return "int32";
+    case DataType::kInt64:
+      return "int64";
   }
   return "unknown";
 }

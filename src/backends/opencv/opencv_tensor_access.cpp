@@ -12,10 +12,14 @@ namespace ops_internal {
 
 int CvDepth(DataType dtype) {
   switch (dtype) {
-    case DataType::kUInt8: return CV_8U;
-    case DataType::kFloat32: return CV_32F;
-    case DataType::kFloat64: return CV_64F;
-    default: return -1;
+    case DataType::kUInt8:
+      return CV_8U;
+    case DataType::kFloat32:
+      return CV_32F;
+    case DataType::kFloat64:
+      return CV_64F;
+    default:
+      return -1;
   }
 }
 
@@ -37,7 +41,8 @@ Status CvCall(const std::function<void()>& fn) {
     fn();
     return Status::Ok();
   } catch (const cv::Exception& error) {
-    return Status::Internal(std::string("OpenCV kernel failed: ") + error.what());
+    return Status::Internal(std::string("OpenCV kernel failed: ") +
+                            error.what());
   }
 }
 
@@ -50,20 +55,24 @@ cv::Mat FlatMat(const Tensor& tensor) {
                  CvData(tensor));
 }
 
-Result<cv::Mat> ImageMat(const Tensor& tensor, const ImageInfo& info, int64_t n) {
+Result<cv::Mat> ImageMat(const Tensor& tensor, const ImageInfo& info,
+                         int64_t n) {
   MYCV_RETURN_IF_ERROR(CheckDType(tensor));
-  if (info.c > CV_CN_MAX) return Status::Unsupported("too many channels for cv::Mat");
+  if (info.c > CV_CN_MAX)
+    return Status::Unsupported("too many channels for cv::Mat");
   const int64_t first = ImageLinearIndex(info, n, 0, 0, 0);
   char* data = static_cast<char*>(CvData(tensor)) +
                static_cast<size_t>(first) * tensor.ElementSize();
   return cv::Mat(static_cast<int>(info.h), static_cast<int>(info.w),
-                 CV_MAKETYPE(CvDepth(tensor.dtype()), static_cast<int>(info.c)), data);
+                 CV_MAKETYPE(CvDepth(tensor.dtype()), static_cast<int>(info.c)),
+                 data);
 }
 
 Status RejectNchw(ImageLayout layout) {
   if (layout == ImageLayout::kNCHW) {
     return Status::InvalidArgument(
-        "OpenCV backend supports HW/HWC/NHWC only; NCHW needs an explicit Transpose");
+        "OpenCV backend supports HW/HWC/NHWC only; NCHW needs an explicit "
+        "Transpose");
   }
   return Status::Ok();
 }

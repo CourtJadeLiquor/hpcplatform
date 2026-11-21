@@ -1,4 +1,5 @@
 // Per-operator benchmark for resize (docs/architecture.md §6.1).
+// 基准程序用于在本机构建可用的后端/内核级别上测量 resize 的吞吐与延迟。
 //
 // Sweeps interpolation mode, scale direction, dtype and every execution
 // backend available in this build, and emits CSV for direct recording in
@@ -17,7 +18,7 @@
 #include <memory>
 #include <vector>
 
-#include "backends/service.h"
+#include "core/backend.h"
 #include "mycv/mycv.h"
 
 using namespace mycv;
@@ -44,9 +45,12 @@ struct Measurement {
 
 const char* DTypeLabel(DataType dtype) {
   switch (dtype) {
-    case DataType::kUInt8: return "u8";
-    case DataType::kFloat32: return "f32";
-    default: return "f64";
+    case DataType::kUInt8:
+      return "u8";
+    case DataType::kFloat32:
+      return "f32";
+    default:
+      return "f64";
   }
 }
 
@@ -98,9 +102,10 @@ Measurement Measure(const OpContext& context, const Tensor& input,
           .count() /
       kIterations;
   const double element_size = static_cast<double>(DTypeSize(input.dtype()));
-  const double bytes = element_size *
-                       static_cast<double>(input.Numel() +
-                                           config.out_h * config.out_w * config.c);
+  const double bytes =
+      element_size *
+      static_cast<double>(input.Numel() +
+                          config.out_h * config.out_w * config.c);
   if (checksum == -1.0) std::cerr << "";
   return {ms, bytes / (ms * 1e6)};
 }
@@ -162,7 +167,8 @@ int main() {
             Measure(level_context, input.value(), config, &ok);
         if (!ok) continue;
         if (baseline == 0.0) baseline = run.ms_per_call;
-        PrintRow("cpu", CpuKernelLevelName(level), dtype, config, run, baseline);
+        PrintRow("cpu", CpuKernelLevelName(level), dtype, config, run,
+                 baseline);
       }
 
       // Accelerated backends take only kNaive; cover the dtypes they expose.
@@ -171,8 +177,10 @@ int main() {
           OpContext accelerated;
           accelerated.context = opencv.value().get();
           accelerated.stream = &opencv.value()->stream();
-          auto device = opencv.value()->AllocateTensor(input.value().shape(), dtype);
-          if (device.ok() && opencv.value()->Copy(&device.value(), input.value()).ok()) {
+          auto device =
+              opencv.value()->AllocateTensor(input.value().shape(), dtype);
+          if (device.ok() &&
+              opencv.value()->Copy(&device.value(), input.value()).ok()) {
             bool ok = false;
             const Measurement run =
                 Measure(accelerated, device.value(), config, &ok);
@@ -183,8 +191,10 @@ int main() {
           OpContext accelerated;
           accelerated.context = cuda.value().get();
           accelerated.stream = &cuda.value()->stream();
-          auto device = cuda.value()->AllocateTensor(input.value().shape(), dtype);
-          if (device.ok() && cuda.value()->Copy(&device.value(), input.value()).ok()) {
+          auto device =
+              cuda.value()->AllocateTensor(input.value().shape(), dtype);
+          if (device.ok() &&
+              cuda.value()->Copy(&device.value(), input.value()).ok()) {
             bool ok = false;
             const Measurement run =
                 Measure(accelerated, device.value(), config, &ok);

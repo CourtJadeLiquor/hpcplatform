@@ -3,14 +3,16 @@
 
 #include "backends/cpu/cpu_stream.h"
 #include "backends/opencv/opencv_memory_manager.h"
-#include "backends/service.h"
+#include "core/backend.h"
 
 namespace mycv {
 
 class OpenCvBackend final : public Backend {
  public:
   explicit OpenCvBackend(int device_index)
-      : device_{DeviceType::kCPU, device_index}, memory_(device_), stream_(device_) {}
+      : device_{DeviceType::kCPU, device_index},
+        memory_(device_),
+        stream_(device_) {}
 
   BackendType type() const override { return BackendType::kOpenCV; }
   Device device() const override { return device_; }

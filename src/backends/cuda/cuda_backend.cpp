@@ -5,7 +5,7 @@
 #include <memory>
 #include <string>
 
-#include "backends/backends_internal.h"
+#include "backends/backend_internal.h"
 #include "backends/cuda/cuda_common.h"
 
 namespace mycv {
@@ -17,14 +17,17 @@ Status CudaBackend::Initialize() {
     return Status::Unsupported(std::string("CUDA is unavailable: ") +
                                cudaGetErrorString(count_status));
   }
-  if (device_count == 0) return Status::Unsupported("no CUDA device is available");
+  if (device_count == 0)
+    return Status::Unsupported("no CUDA device is available");
   if (device_.index < 0 || device_.index >= device_count) {
     return Status::InvalidArgument("CUDA device index is out of range");
   }
-  MYCV_RETURN_IF_ERROR(CudaStatus(cudaSetDevice(device_.index), "cudaSetDevice"));
+  MYCV_RETURN_IF_ERROR(
+      CudaStatus(cudaSetDevice(device_.index), "cudaSetDevice"));
   cudaDeviceProp properties{};
-  MYCV_RETURN_IF_ERROR(CudaStatus(cudaGetDeviceProperties(&properties, device_.index),
-                                  "cudaGetDeviceProperties"));
+  MYCV_RETURN_IF_ERROR(
+      CudaStatus(cudaGetDeviceProperties(&properties, device_.index),
+                 "cudaGetDeviceProperties"));
   device_name_ = properties.name;
   compute_major_ = properties.major;
   compute_minor_ = properties.minor;

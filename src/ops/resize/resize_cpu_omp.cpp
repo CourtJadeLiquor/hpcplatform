@@ -10,7 +10,8 @@ namespace ops_internal {
 // 复杂度 O(N*H_out*W_out*C)，由 OpenMP 线程分摊。
 Status ResizeCpuOpenMP(const OpContext&, const Tensor& input, const Tensor*,
                        const void* params, Tensor* output) {
-  return ResizeOpenMPImpl(input, *static_cast<const ResizeParams*>(params), output);
+  return ResizeOpenMPImpl(input, *static_cast<const ResizeParams*>(params),
+                          output);
 }
 }  // namespace ops_internal
 }  // namespace mycv

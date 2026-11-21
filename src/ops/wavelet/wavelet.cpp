@@ -87,8 +87,8 @@ Result<WaveletBands> WaveletTransform(const OpContext& context,
   if (!kernel.ok()) return kernel.status();
 
   const ops_internal::ImageInfo& info = image.value();
-  const Shape band_shape = ops_internal::MakeImageShape(info, info.h / 2,
-                                                        info.w / 2);
+  const Shape band_shape =
+      ops_internal::MakeImageShape(info, info.h / 2, info.w / 2);
   auto ll = ops_internal::AllocateOutput(context, band_shape, input.dtype());
   if (!ll.ok()) return ll.status();
   auto lh = ops_internal::AllocateOutput(context, band_shape, input.dtype());
@@ -132,7 +132,8 @@ Result<Tensor> InverseWaveletTransform(const OpContext& context,
       return Status::InvalidArgument(
           "InverseWaveletTransform requires all four bands");
     }
-    if (band->shape() != bands.ll.shape() || band->dtype() != bands.ll.dtype() ||
+    if (band->shape() != bands.ll.shape() ||
+        band->dtype() != bands.ll.dtype() ||
         band->backend() != bands.ll.backend() ||
         band->device() != bands.ll.device()) {
       return Status::InvalidArgument(
@@ -144,12 +145,11 @@ Result<Tensor> InverseWaveletTransform(const OpContext& context,
   if (!image.ok()) return image.status();
   const ops_internal::ImageInfo& band_info = image.value();
   auto kernel = ops_internal::FindKernel(OpKind::kWaveletTransform,
-                                         bands.ll.backend(),
-                                         context.cpu_level);
+                                         bands.ll.backend(), context.cpu_level);
   if (!kernel.ok()) return kernel.status();
 
-  const Shape image_shape = ops_internal::MakeImageShape(
-      band_info, band_info.h * 2, band_info.w * 2);
+  const Shape image_shape =
+      ops_internal::MakeImageShape(band_info, band_info.h * 2, band_info.w * 2);
   auto output =
       ops_internal::AllocateOutput(context, image_shape, bands.ll.dtype());
   if (!output.ok()) return output.status();

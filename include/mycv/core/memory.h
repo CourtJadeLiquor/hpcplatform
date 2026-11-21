@@ -12,16 +12,18 @@ namespace mycv {
 
 class Stream;
 
+// 内存类别，决定分配器与拷贝路径。
 enum class MemoryKind : uint8_t {
-  kHost = 0,        // ordinary pageable host memory
-  kHostPinned = 1,  // pinned / page-locked host memory (DMA friendly)
-  kDevice = 2,      // device memory (GPU / NPU)
+  kHost = 0,        // 普通可分页主机内存
+  kHostPinned = 1,  // 页锁定主机内存（适合 DMA）
+  kDevice = 2,      // 设备内存（GPU / NPU）
 };
 
+// 某一时刻的内存统计快照。
 struct MemoryStats {
-  size_t allocated_bytes = 0;
-  size_t peak_bytes = 0;
-  size_t allocation_count = 0;
+  size_t allocated_bytes = 0;   // 当前活动字节数
+  size_t peak_bytes = 0;        // 历史峰值字节数
+  size_t allocation_count = 0;  // 当前活动分配块数
 };
 
 // Opaque, device-agnostic allocation handle. Memory is released through the
@@ -46,10 +48,14 @@ class Buffer {
   Buffer(const Buffer&) = delete;
   Buffer& operator=(const Buffer&) = delete;
 
+  // 已分配内存的裸指针。
   void* data() { return data_; }
   const void* data() const { return data_; }
+  // 分配的字节数。
   size_t size() const { return bytes_; }
+  // 内存所属设备。
   Device device() const { return device_; }
+  // 内存类别。
   MemoryKind kind() const { return kind_; }
 
  private:
@@ -66,6 +72,7 @@ class MemoryManager {
  public:
   virtual ~MemoryManager() = default;
 
+  // 返回管理器所属设备。
   virtual Device device() const = 0;
 
   // alignment must be a power of two and a multiple of sizeof(void*).
@@ -78,6 +85,7 @@ class MemoryManager {
                       size_t src_offset, size_t bytes,
                       Stream* stream = nullptr) = 0;
 
+  // 返回当前活动内存、峰值与分配块数。
   virtual MemoryStats Stats() const = 0;
 };
 

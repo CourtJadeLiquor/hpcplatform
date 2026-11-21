@@ -24,10 +24,13 @@ namespace mycv {
 // Because the bands are signed differences, only f32/f64 inputs are accepted
 // (u8 cannot represent a negative residual without a separate signed dtype).
 // Padding inside GaussianBlur is REPLICATE; `layout` follows the image API.
+// 拉普拉斯金字塔结果：levels[0..N-1] 为各层带通，levels[N] 为最粗残差。
 struct LaplacianPyramid {
   std::vector<Tensor> levels;
 };
 
+// 基于 GaussianBlur + Resize 构建金字塔；仅接受 f32/f64 输入。
+//
 // `levels` must be >= 1 and small enough that every stage stays >= 2x2.
 // `kernel_size` must be an odd integer >= 3; `sigma` must be finite and > 0.
 Result<LaplacianPyramid> BuildLaplacianPyramid(

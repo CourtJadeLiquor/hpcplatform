@@ -25,27 +25,28 @@ class Backend {
  public:
   virtual ~Backend() = default;
 
+  // 返回后端类型、设备，以及该后端持有的内存管理器与默认流。
   virtual BackendType type() const = 0;
   virtual Device device() const = 0;
   virtual MemoryManager& memory() = 0;
   virtual Stream& stream() = 0;
+  // 等待该后端上的全部工作完成。
   virtual Status Synchronize() = 0;
 
-  // Transfers raw bytes into a buffer this backend owns (or can reach).
-  // Implementations that cannot touch device memory must return kUnsupported
-  // rather than staging through the host behind the caller's back, so that a
-  // new backend only needs to override this to participate in copies.
+  // 在后端可见范围内搬运原始字节；无法直接访问设备内存时返回 kUnsupported，
+  // 不允许暗中经由主机中转，避免调用方误判同步/性能语义。
   virtual Status CopyBuffer(Buffer* dst, size_t dst_offset, const Buffer* src,
                             size_t src_offset, size_t bytes, Stream* stream);
 
+  // 该后端是否支持指定 dtype。
   virtual bool SupportsDType(DataType dtype) const {
     return DTypeSize(dtype) != 0;
   }
 
-  // Whether this build/backend can execute a given CPU kernel level.
-  // Non-CPU backends return true for kNaive only.
+  // 该构建/后端能否执行指定 CPU 内核级别；非 CPU 后端只对 kNaive 返回 true。
   virtual bool SupportsKernelLevel(CpuKernelLevel level) const = 0;
 
+  // 返回后端与设备的人类可读描述，用于日志与错误信息。
   virtual std::string Describe() const = 0;
 };
 

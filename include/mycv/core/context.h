@@ -30,20 +30,28 @@ class Context {
   explicit Context(std::shared_ptr<Backend> backend)
       : backend_(std::move(backend)) {}
 
+  // 返回绑定的后端类型。
   BackendType backend_type() const;
+  // 返回当前设备（类型 + 序号）。
   Device device() const;
+  // 返回后端与设备的人类可读描述，用于日志。
   std::string Describe() const;
 
   // Internal access to the owning backend. The Backend definition is internal
   // (src/core/backend.h), so public callers cannot use the pointee.
   const std::shared_ptr<Backend>& backend_ptr() const { return backend_; }
 
+  // 返回该 Context 的内存管理器。
   MemoryManager& memory();
   const MemoryManager& memory() const;
+  // 返回该 Context 的执行流。
   Stream& stream();
 
+  // 等待该 Context 上所有已提交工作完成。
   Status Synchronize();
 
+  // 在当前 Context 上分配连续张量；alignment 需为 2 的幂且是 sizeof(void*)
+  // 的倍数。
   Result<Tensor> AllocateTensor(const Shape& shape, DataType dtype,
                                 size_t alignment = 64) {
     return Tensor::Create(*this, shape, dtype, alignment);

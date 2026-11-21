@@ -1,3 +1,5 @@
+// mycv 伞形头：一次引入全部公共 API；可选 OpenCV 互操作由 MYCV_WITH_OPENCV
+// 门控。
 #ifndef MYCV_MYCV_H_
 #define MYCV_MYCV_H_
 

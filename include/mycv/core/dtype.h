@@ -20,9 +20,11 @@ enum class DataType : uint8_t {
   kInt64 = 8,
 };
 
-// Returns 0 for unknown types.
+// 返回元素字节数；未知类型返回 0。
 size_t DTypeSize(DataType dtype);
+// 返回稳定的类型名（用于日志与错误信息）。
 const char* DTypeName(DataType dtype);
+// 浮点类型（f16/f32/f64）返回 true。
 bool IsFloatingPoint(DataType dtype);
 
 }  // namespace mycv

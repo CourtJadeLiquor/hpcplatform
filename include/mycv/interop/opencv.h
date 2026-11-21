@@ -9,10 +9,14 @@
 
 namespace mycv {
 
+// 将二维 cv::Mat 深拷贝为连续的 HW/HWC 主机 Tensor；不保留 Mat 存储。
+//
 // Deep-copy a 2D cv::Mat into a contiguous HW/HWC host Tensor. The Mat may be
 // a non-contiguous ROI; its storage is never retained by the Tensor.
 Result<Tensor> CopyFromCvMat(Context& context, const cv::Mat& mat);
 
+// 将连续的 HW/HWC 主机 Tensor 深拷贝为拥有自身内存的 cv::Mat。
+//
 // Deep-copy a contiguous or strided HW/HWC host Tensor into an owning cv::Mat.
 Result<cv::Mat> CopyToCvMat(const Tensor& tensor);
 

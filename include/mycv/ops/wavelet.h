@@ -28,11 +28,13 @@ namespace mycv {
 //
 // u8 is rejected (detail bands are signed). All four bands keep the input
 // dtype, layout and backend.
+// 小波基：Haar 或 Daubechies-4。
 enum class WaveletKind : uint8_t {
   kHaar = 0,
   kDaubechies4 = 1,
 };
 
+// 返回小波基的稳定短名。
 inline const char* WaveletKindName(WaveletKind kind) {
   switch (kind) {
     case WaveletKind::kHaar:
@@ -43,6 +45,7 @@ inline const char* WaveletKindName(WaveletKind kind) {
   return "unknown";
 }
 
+// 四个子带：LL 近似、LH 水平细节、HL 垂直细节、HH 对角细节。
 struct WaveletBands {
   Tensor ll;
   Tensor lh;
@@ -50,6 +53,7 @@ struct WaveletBands {
   Tensor hh;
 };
 
+// 单层二维离散小波分解；H/W 必须为偶数，拒绝 u8。
 // `kind` selects the analysis filter pair; `layout` follows the image API
 // (rank-2 HW, rank-3 HWC/CHW, rank-4 NHWC/NCHW).
 Result<WaveletBands> WaveletTransform(const OpContext& context,
@@ -57,8 +61,7 @@ Result<WaveletBands> WaveletTransform(const OpContext& context,
                                       WaveletKind kind = WaveletKind::kHaar,
                                       ImageLayout layout = ImageLayout::kNHWC);
 
-// Rebuilds the H x W image from the four bands. All bands must share shape,
-// dtype, backend and device; `kind` must match the one used for the analysis.
+// 由四个子带重建图像；所有子带必须同形状/类型/后端，kind 与分解时一致。
 Result<Tensor> InverseWaveletTransform(const OpContext& context,
                                        const WaveletBands& bands,
                                        WaveletKind kind = WaveletKind::kHaar,

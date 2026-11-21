@@ -6,16 +6,18 @@
 
 namespace mycv {
 
+// 错误分类：调用方据此决定是修正参数、换后端还是补实现。
 enum class StatusCode : int {
-  kOk = 0,
-  kInvalidArgument = 1,
-  kOutOfMemory = 2,
-  kUnsupported = 3,
-  kNotImplemented = 4,
-  kBadState = 5,
-  kInternal = 6,
+  kOk = 0,               // 成功
+  kInvalidArgument = 1,  // 参数不合法
+  kOutOfMemory = 2,      // 内存分配失败
+  kUnsupported = 3,      // 当前构建未启用该能力
+  kNotImplemented = 4,   // 能力可用但该组合没有内核
+  kBadState = 5,         // 对象状态不允许当前操作
+  kInternal = 6,         // 内部不变量被破坏
 };
 
+// 返回错误码的稳定名称。
 const char* StatusCodeName(StatusCode code);
 
 // Lightweight error object. The library core does not throw exceptions so that
@@ -48,10 +50,14 @@ class Status {
     return Status(StatusCode::kInternal, std::move(message));
   }
 
+  // 是否成功。
   bool ok() const { return code_ == StatusCode::kOk; }
+  // 错误码；成功时为 kOk。
   StatusCode code() const { return code_; }
+  // 人类可读的错误信息。
   const std::string& message() const { return message_; }
 
+  // 格式化为 "code: message"。
   std::string ToString() const;
 
  private:
@@ -70,10 +76,14 @@ class Result {
   // NOLINTNEXTLINE(google-explicit-constructor)
   Result(Status status) : status_(std::move(status)), ok_(false) {}
 
+  // 是否持有值；为 false 时只能读取 status()。
   bool ok() const { return ok_; }
+  // 失败时返回对应 Status；成功时为 kOk。
   const Status& status() const { return status_; }
+  // 返回值的引用；调用方必须先确认 ok()。
   T& value() { return value_; }
   const T& value() const { return value_; }
+  // 成功时返回值，失败时返回 fallback。
   T ValueOr(T fallback) const { return ok_ ? value_ : std::move(fallback); }
 
  private:

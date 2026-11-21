@@ -73,8 +73,9 @@ MYCV_TEST(ResizePerformanceAndMemorySnapshot) {
 
   std::cout << "  [ PERF ] resize " << kInputWidth << "x" << kInputHeight
             << " -> " << kInputWidth / 2 << "x" << kInputHeight / 2 << ": "
-            << elapsed_ms / kIterations
-            << " ms/iter, peak_host=" << after.host.peak_bytes << " B\n";
+            << elapsed_ms / kIterations << " ms/iter, peak_host="
+            << static_cast<double>(after.host.peak_bytes) / (1024.0 * 1024.0)
+            << " MB\n";
 
 #if defined(MYCV_ENABLE_PROFILING) && MYCV_ENABLE_PROFILING
   const profiling::ProfileEntry entry =

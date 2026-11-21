@@ -50,19 +50,21 @@ inline void ProfileRecord(const std::string& label, int64_t nanoseconds) {
   entry.total_nanoseconds += nanoseconds;
 }
 
+// 读取某个标签的聚合结果；未记录时返回零值。
 inline ProfileEntry ProfileReport(const std::string& label) {
   ProfileStore& store = Store();
   std::lock_guard<std::mutex> lock(store.mutex);
   return store.entries[label];
 }
 
+// 清空所有聚合，便于多次基准之间互不影响。
 inline void ProfileReset() {
   ProfileStore& store = Store();
   std::lock_guard<std::mutex> lock(store.mutex);
   store.entries.clear();
 }
 
-// Label for the dispatch triple, e.g. "resize/native_cpu/avx2".
+// 生成 "op/backend/level" 形式的分发三元组标签，例如 "resize/native_cpu/avx2"。
 inline std::string OpLabel(OpKind op, BackendType backend,
                            CpuKernelLevel level) {
   return std::string(OpKindName(op)) + "/" + BackendTypeName(backend) + "/" +

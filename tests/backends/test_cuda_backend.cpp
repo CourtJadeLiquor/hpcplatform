@@ -1,5 +1,5 @@
-// 测试接口用于验证 CUDA 后端的创建、能力查询与 H2D/D2H/D2D 拷贝路径，无 GPU
-// 时验证降级行为。
+// Tests for CUDA backend creation, capability queries, and H2D/D2H/D2D copy
+// paths, including fallback behavior when no GPU is available.
 #include "test_framework.h"
 
 #include <algorithm>

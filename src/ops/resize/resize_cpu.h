@@ -1,16 +1,18 @@
 #ifndef MYCV_SRC_OPS_RESIZE_RESIZE_CPU_H_
 #define MYCV_SRC_OPS_RESIZE_RESIZE_CPU_H_
 
-// resize 的共享 CPU 骨架：一个像素级核 ResizeElement，外加三种外层循环
-// 组织方式（naive 串行 / OpenMP / TBB）。所有 CPU level 都调用同一个核、
-// 按同一套逐元素独立的公式写输出，互不累加，因此彼此位精确一致。
+// Shared CPU skeleton for resize: the pixel kernel ResizeElement plus three
+// outer-loop organizations (serial naive / OpenMP / TBB). Every CPU level calls
+// the same kernel and writes each output element independently with the same
+// formulas and no accumulation, so all levels are bit-exact.
 //
-// 算法：
-//   最近邻：src = floor(dst * scale)，再截到 h-1/w-1；
-//   双线性：src = (dst + 0.5) * scale - 0.5，clamp 到 >= 0 后 floor 得左上
-//   角，右下角 y1/x1 越界时回退到 h-1/w-1，权重 wy/wx = src - floor(src)；
-//   插值顺序是先沿 x 做两次水平插值，再沿 y 做一次垂直插值。
-// 中间量用 long double 累加；u8 输出先 std::round 再饱和写回。
+// Algorithm:
+//   Nearest: src = floor(dst * scale), then clamp to h-1/w-1;
+//   Bilinear: src = (dst + 0.5) * scale - 0.5; clamp to >= 0 and floor for the
+//   top-left corner. Out-of-range y1/x1 fall back to h-1/w-1, with weights
+//   wy/wx = src - floor(src). Interpolate twice along x, then once along y.
+// Accumulate intermediates in long double; round u8 output with std::round
+// before saturating on store.
 
 #include <algorithm>
 #include <cmath>
@@ -27,17 +29,18 @@
 namespace mycv {
 namespace ops_internal {
 
-// 计算单个输出元素 output[output_linear]。
-// 输入：原图 input、输入/输出布局 image/output_info、缩放参数 options，
-// 以及按 output_info.layout 编码的输出扁平下标 output_linear。
-// 步骤：解码 (n,y,x,c) -> 算源坐标与权重 -> 取 1 或 4 个源像素 ->
-// 最近邻直接取值或双线性插值 -> 按 dtype 写回。
-// 复杂度 O(1)（至多 4 次访存）；整幅输出为 O(N*H_out*W_out*C)。
+// Compute one output element, output[output_linear].
+// Inputs: source image input, input/output layouts image/output_info, resize
+// parameters options, and flat output index output_linear encoded according to
+// output_info.layout. Steps: decode (n,y,x,c) -> compute source coordinates and
+// weights -> read 1 or 4 source pixels -> take the nearest value or interpolate
+// bilinearly -> store according to dtype. O(1) per element (at most 4 memory
+// accesses); O(N*H_out*W_out*C) for the full output.
 inline void ResizeElement(const Tensor& input, const ImageInfo& image,
                           const ImageInfo& output_info,
                           const ResizeParams& options, int64_t output_linear,
                           Tensor* output) {
-  // 按输出布局把扁平下标还原成 (n, y, x, c)。
+  // Decode the flat index to (n, y, x, c) according to the output layout.
   int64_t n = 0;
   int64_t y = 0;
   int64_t x = 0;
@@ -59,7 +62,7 @@ inline void ResizeElement(const Tensor& input, const ImageInfo& image,
     n = remaining / output_info.c;
   }
 
-  // scale = 输入边长 / 输出边长（放大时 < 1，缩小时 > 1）。
+  // scale = input extent / output extent (< 1 when enlarging, > 1 when shrinking).
   const long double scale_y =
       static_cast<long double>(image.h) / options.height;
   const long double scale_x = static_cast<long double>(image.w) / options.width;
@@ -70,25 +73,25 @@ inline void ResizeElement(const Tensor& input, const ImageInfo& image,
   long double wy = 0;
   long double wx = 0;
   if (options.interpolation == InterpolationMode::kNearest) {
-    // 最近邻：左上角对齐，floor(dst*scale) 后截到边界内。
+    // Nearest: align top-left corners, then clamp floor(dst*scale) to the bounds.
     y0 = std::min(image.h - 1, static_cast<int64_t>(y * scale_y));
     x0 = std::min(image.w - 1, static_cast<int64_t>(x * scale_x));
   } else {
-    // 双线性：半像素中心映射，clamp 下界到 0 后取 floor。
+    // Bilinear: half-pixel-center mapping; clamp the lower bound to 0, then floor.
     const long double source_y = (y + 0.5L) * scale_y - 0.5L;
     const long double source_x = (x + 0.5L) * scale_x - 0.5L;
     const long double clamped_y = std::max(0.0L, source_y);
     const long double clamped_x = std::max(0.0L, source_x);
     y0 = static_cast<int64_t>(std::floor(clamped_y));
     x0 = static_cast<int64_t>(std::floor(clamped_x));
-    // 右下邻点越界时回退到最后一个有效行/列（边界复制）。
+    // Fall back to the last valid row/column for out-of-range bottom/right neighbors (replicate).
     y1 = std::min(image.h - 1, y0 + 1);
     x1 = std::min(image.w - 1, x0 + 1);
     wy = clamped_y - y0;
     wx = clamped_x - x0;
   }
 
-  // 输入可能非连续，统一按步长寻址；数值统一提升到 long double。
+  // Address the potentially non-contiguous input by strides; promote values to long double.
   const char* source = static_cast<const char*>(input.data());
   long double value = 0;
   if (options.interpolation == InterpolationMode::kNearest) {
@@ -103,12 +106,12 @@ inline void ResizeElement(const Tensor& input, const ImageInfo& image,
         source + ImageByteOffset(input, image, n, y1, x0, c), input.dtype());
     const long double bottom_right = detail::LoadAsLongDouble(
         source + ImageByteOffset(input, image, n, y1, x1, c), input.dtype());
-    // 先水平：上下两行各按 wx 插值；再垂直：用 wy 混合两行结果。
+    // Interpolate the top and bottom rows by wx, then blend them by wy.
     const long double top = top_left + (top_right - top_left) * wx;
     const long double bottom = bottom_left + (bottom_right - bottom_left) * wx;
     value = top + (bottom - top) * wy;
   }
-  // u8 使用四舍五入（half away from zero），再经 Store 做饱和转换。
+  // Round u8 half away from zero, then convert with saturation in Store.
   if (input.dtype() == DataType::kUInt8) value = std::round(value);
   char* destination = static_cast<char*>(output->data());
   detail::StoreFromLongDouble(
@@ -116,9 +119,10 @@ inline void ResizeElement(const Tensor& input, const ImageInfo& image,
       output->dtype(), value);
 }
 
-// 由输入形状解析输入 ImageInfo，再复制一份把 h/w 换成目标尺寸得到输出
-// ImageInfo；两者 rank/n/c/layout 保持一致。
-// 形状与布局组合非法时返回 InvalidArgument。复杂度 O(rank)。
+// Parse the input ImageInfo from the input shape, then copy it and replace h/w
+// with the target dimensions to obtain the output ImageInfo. Both retain the
+// same rank/n/c/layout. Return InvalidArgument for an invalid shape/layout
+// combination. O(rank).
 inline Status PrepareResize(const Tensor& input, const ResizeParams& options,
                             ImageInfo* image, ImageInfo* output_info) {
   auto parsed = ParseImage(input.shape(), options.layout);
@@ -130,9 +134,9 @@ inline Status PrepareResize(const Tensor& input, const ResizeParams& options,
   return Status::Ok();
 }
 
-// naive 实现：单线程按输出扁平下标 [0, Numel()) 依次调用 ResizeElement。
-// 不依赖任何并行库，作为其余 CPU level 的参考实现。
-// 复杂度 O(N*H_out*W_out*C)。
+// Naive implementation: single-threaded ResizeElement calls over flat output
+// indices [0, Numel()). No parallel-library dependencies; serves as the
+// reference for other CPU levels. O(N*H_out*W_out*C).
 inline Status ResizeNaiveImpl(const Tensor& input, const ResizeParams& options,
                               Tensor* output) {
   ImageInfo image;
@@ -144,11 +148,12 @@ inline Status ResizeNaiveImpl(const Tensor& input, const ResizeParams& options,
   return Status::Ok();
 }
 
-// OpenMP 实现：parallel for 直接切分扁平输出下标，粒度为单元素，未写
-// schedule 子句，调度方式与线程数均由 OpenMP 运行时决定（通常为
-// static 均分，线程数受 OMP_NUM_THREADS 等影响）。每个 i 只写自己的
-// 输出元素、无跨迭代依赖，且与 naive 共用同一像素核，故两者逐位一致。
-// 复杂度 O(N*H_out*W_out*C)，由线程并行分摊。
+// OpenMP implementation: parallel for partitions flat output indices at
+// single-element granularity. With no schedule clause, the OpenMP runtime
+// determines scheduling and thread count (typically static partitioning, with
+// OMP_NUM_THREADS and similar controls). Each i writes only its own output
+// element with no cross-iteration dependencies and shares naive's pixel kernel,
+// so results are bit-exact. O(N*H_out*W_out*C), distributed across threads.
 inline Status ResizeOpenMPImpl(const Tensor& input, const ResizeParams& options,
                                Tensor* output) {
   ImageInfo image;
@@ -161,10 +166,11 @@ inline Status ResizeOpenMPImpl(const Tensor& input, const ResizeParams& options,
   return Status::Ok();
 }
 
-// TBB 实现：parallel_for(0, Numel(), body) 让 TBB 用默认 auto_partitioner
-// 把半开区间递归二分（配合 work stealing 动态调度），body 对每个下标调用
-// 同一像素核；迭代彼此独立且写法与 naive 相同，因此位精确一致。
-// 复杂度 O(N*H_out*W_out*C)。
+// TBB implementation: parallel_for(0, Numel(), body) uses the default
+// auto_partitioner to recursively bisect the half-open range with dynamic
+// work-stealing scheduling. body invokes the same pixel kernel for each index;
+// independent iterations and naive-identical computation ensure bit-exact
+// results. O(N*H_out*W_out*C).
 #ifdef MYCV_WITH_TBB
 inline Status ResizeTbbImpl(const Tensor& input, const ResizeParams& options,
                             Tensor* output) {

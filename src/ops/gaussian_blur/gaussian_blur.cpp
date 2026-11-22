@@ -6,19 +6,22 @@
 #include "ops/common/op_common.h"
 #include "gaussian_blur_internal.h"
 
-// gaussian_blur 的对外入口与后端注册。
+// Public entry point and backend registration for gaussian_blur.
 //
-// GaussianBlur() 只做参数/形状校验、按 (backend, cpu_level) 选内核、
-// 分配输出，真正计算交给后端。算法是可分离高斯卷积：先水平后垂直
-// 两趟一维卷积，每趟 O(H*W*K) 次乘加，比二维直接卷积的 O(H*W*K^2)
-// 省算；水平 pass 为 tmp[y,x] = sum_k in[y, x-r+k] * w[k]（边界
-// replicate），垂直 pass 对 tmp 做同样的一维加权。
+// GaussianBlur() only validates parameters/shape, selects a kernel by
+// (backend, cpu_level), and allocates output; backends perform the computation.
+// The algorithm is separable Gaussian convolution: horizontal then vertical 1D
+// passes, each with O(H*W*K) multiply-adds instead of O(H*W*K^2) for direct 2D
+// convolution. The horizontal pass computes
+// tmp[y,x] = sum_k in[y, x-r+k] * w[k] with replicate boundaries; the vertical
+// pass applies the same 1D weighting to tmp.
 namespace mycv {
 namespace ops_internal {
 
-// 注册所有编译进本二进制的 gaussian_blur 内核：所有已启用的 CPU 层
-// 走 BackendType::kNativeCpu，可选后端 CUDA/OpenCV 各占一个后端类型；
-// 可选后端统一登记在 CpuKernelLevel::kNaive 槽位，因为它们没有 CPU 分层。
+// Register every gaussian_blur kernel compiled into this binary: all enabled
+// CPU levels use BackendType::kNativeCpu, while optional CUDA/OpenCV backends
+// each have their own backend type. Optional backends are registered in the
+// CpuKernelLevel::kNaive slot because they have no CPU levels.
 void RegisterGaussianBlurKernels() {
   const BackendType cpu = BackendType::kNativeCpu;
   RegisterKernel(OpKind::kGaussianBlur, cpu, CpuKernelLevel::kNaive,
@@ -51,12 +54,12 @@ void RegisterGaussianBlurKernels() {
 
 }  // namespace ops_internal
 
-// 公开算子入口。步骤：
-// 1) 校验 invocation；要求 kernel_size 为 >= 3 的奇数、sigma 有限且 > 0；
-// 2) 按 layout 解析形状，确认 dtype 为 u8/f32/f64；
-// 3) 按 (input.backend(), context.cpu_level) 找到已注册内核；
-// 4) 分配同形状同 dtype 的输出，用 params 调用内核；
-//    内核内部完成两趟一维卷积，复杂度 O(H*W*K) 每 pass。
+// Public operator entry point. Steps:
+// 1) Validate the invocation; require odd kernel_size >= 3 and finite sigma > 0;
+// 2) Parse the shape according to layout and require u8/f32/f64 dtype;
+// 3) Find a registered kernel by (input.backend(), context.cpu_level);
+// 4) Allocate output with the same shape and dtype, then invoke the kernel with
+//    params. The kernel performs two 1D convolution passes, each O(H*W*K).
 Result<Tensor> GaussianBlur(const OpContext& context, const Tensor& input,
                             int kernel_size, double sigma, ImageLayout layout) {
   MYCV_RETURN_IF_ERROR(ops_internal::ValidateInvocation(context, input));

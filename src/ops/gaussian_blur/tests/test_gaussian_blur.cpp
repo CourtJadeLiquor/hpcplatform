@@ -1,5 +1,5 @@
-// 测试接口用于验证 gaussian_blur 的参数校验、各 CPU
-// 内核版本位精确一致性，以及与 naive 基准的对拍。
+// Tests gaussian_blur parameter validation, bit-exact agreement among CPU
+// kernel versions, and differential comparisons against the naive reference.
 #include <cmath>
 #include <cstdint>
 #include <cstring>

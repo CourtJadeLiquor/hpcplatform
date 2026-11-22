@@ -28,18 +28,21 @@ namespace mycv {
 // represent. Any H/W is valid. Power-of-two lengths use the radix-2
 // Cooley-Tukey algorithm; other lengths fall back to the O(n^2) DFT (see the
 // operator README for the complexity table).
-// 复数频谱：real 为实部、imag 为虚部，两者与输入同形状/类型/布局。
+// Complex spectrum: real and imag hold the real and imaginary parts, matching
+// the input shape, dtype, and layout.
 struct ComplexImage {
   Tensor real;
   Tensor imag;
 };
 
-// 对每个 (n, c) 平面做二维离散傅里叶变换；仅接受 f32/f64。
+// Computes the 2D discrete Fourier transform for each (n, c) plane; accepts only
+// f32/f64.
 Result<ComplexImage> FourierTransform(const OpContext& context,
                                       const Tensor& input,
                                       ImageLayout layout = ImageLayout::kNHWC);
 
-// 由实部/虚部重建图像；real 与 imag 必须描述同一张图。
+// Reconstructs an image from real and imaginary parts; real and imag must
+// describe the same image.
 //
 // `real` and `imag` must describe the same image (shape, dtype, backend and
 // device). Only the real part is returned: that is all an image-domain round

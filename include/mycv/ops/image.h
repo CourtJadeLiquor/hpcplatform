@@ -5,20 +5,20 @@
 
 namespace mycv {
 
-// 插值方式：最近邻或双线性。
+// Interpolation mode: nearest neighbor or bilinear.
 enum class InterpolationMode : uint8_t {
   kNearest = 0,
   kBilinear = 1,
 };
 
-// 图像布局：rank 2 为 HW；rank 3 为 HWC 或 CHW；rank 4 为 NHWC 或 NCHW。
-// 布局由调用方显式指定，不做隐式转置。
+// Image layouts: rank 2 is HW; rank 3 is HWC or CHW; rank 4 is NHWC or NCHW.
+// The caller specifies the layout explicitly; no implicit transposition occurs.
 enum class ImageLayout : uint8_t {
   kNHWC = 0,
   kNCHW = 1,
 };
 
-// 返回布局的稳定短名。
+// Returns the stable short name of a layout.
 inline const char* ImageLayoutName(ImageLayout layout) {
   return layout == ImageLayout::kNCHW ? "nchw" : "nhwc";
 }

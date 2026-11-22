@@ -1,12 +1,12 @@
-// 测试接口用于验证 Slice / Reshape / Transpose 等零拷贝视图的元数据与共享
-// Buffer 语义。
+// Tests for metadata and shared Buffer semantics of zero-copy views such as
+// Slice / Reshape / Transpose.
 #include "test_framework.h"
 
 #include <cstdint>
 #include <vector>
 
+#include "core/tensor_iterator.h"
 #include "mycv/core/context.h"
-#include "mycv/core/tensor_iterator.h"
 
 namespace {
 

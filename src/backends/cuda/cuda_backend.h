@@ -20,10 +20,13 @@ class CudaBackend final : public Backend {
   BackendType type() const override { return BackendType::kCUDA; }
   Device device() const override { return device_; }
   MemoryManager& memory() override { return memory_; }
-  Stream& stream() override { return stream_; }
+  // Grants mutable access to the owned stream; the backend itself is not
+  // modified, so the accessor is const and casts away the member's constness.
+  Stream& stream() const override { return const_cast<CudaStream&>(stream_); }
   Status Synchronize() override { return stream_.Synchronize(); }
   Status CopyBuffer(Buffer* dst, size_t dst_offset, const Buffer* src,
-                    size_t src_offset, size_t bytes, Stream* stream) override;
+                    size_t src_offset, size_t bytes,
+                    Stream* stream) const override;
   bool SupportsKernelLevel(CpuKernelLevel level) const override {
     return level == CpuKernelLevel::kNaive;
   }

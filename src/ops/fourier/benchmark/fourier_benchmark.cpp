@@ -1,5 +1,5 @@
 // Per-operator benchmark for fourier (docs/architecture.md §6.1/§7.2).
-// 基准程序用于测量 fourier 正逆变换在不同尺寸与后端上的耗时。
+// Measures forward and inverse fourier transforms across sizes and backends.
 //
 //   ./build-release-full/src/ops/fourier/fourier_benchmark
 //

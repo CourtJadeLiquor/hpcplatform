@@ -3,24 +3,24 @@
 #include "framework/compiler.h"
 #include "framework/dtype_dispatch.h"
 
-// 可移植 SIMD 层（generic SIMD）：可分离两趟一维卷积，
-// 每趟 O(H*W*K)，把每像素 O(K^2) 降到 O(2K)。
-// 与 naive 的差别只在实现细节：按真实 dtype 做模板化指针读取
-// （tap 循环内不再切换 dtype），并用 MYCV_CPU_IVDEP 提示编译器
-// 各次迭代之间没有依赖、可自动向量化。
-// 累加顺序与 naive 完全相同（i = 0..2r，double 累加），
-// 因此输出与 naive 位精确一致，没有整数/浮点容差。
-// 前提：输入必须连续（strided view 会被拒绝）。
+// Portable SIMD level (generic SIMD): two separable 1D convolution passes,
+// each O(H*W*K), reducing per-pixel cost from O(K^2) to O(2K). Differences from
+// naive are implementation details only: typed pointer reads based on the
+// actual dtype (no dtype switch inside the tap loop) and MYCV_CPU_IVDEP to tell
+// the compiler that iterations are independent and can be auto-vectorized.
+// Accumulation order exactly matches naive (i = 0..2r, double accumulation),
+// so output is bit-exact with no integer/floating-point tolerance.
+// Prerequisite: input must be contiguous; strided views are rejected.
 namespace mycv {
 namespace ops_internal {
 
 namespace {
 
-// 水平 pass 的单个输出像素（模板按 dtype 实例化）：
+// One output pixel of the horizontal pass (template instantiated by dtype):
 //   tmp[linear] = sum_i k[i] * in(n, y, clamp(x+i-r), c)
-// 先由线性下标解码 (n,y,x,c)，再按 layout 推出 channel/x/row/batch
-// 四个步长，指针直接寻址，避免每 tap 走 ImageByteOffset。
-// 单元素复杂度 O(K)；边界 replicate。
+// Decode (n,y,x,c) from the linear index, derive the channel/x/row/batch strides
+// from layout, and address pointers directly to avoid ImageByteOffset per tap.
+// O(K) per element; replicate boundaries.
 template <typename T>
 void BlurHorizontalTyped(const T* input, const ImageInfo& info,
                          const double* kernel, int radius, int64_t linear,
@@ -52,10 +52,11 @@ void BlurHorizontalTyped(const T* input, const ImageInfo& info,
   tmp[linear] = acc;
 }
 
-// 垂直 pass 的单个输出像素（模板按 dtype 实例化）：
+// One output pixel of the vertical pass (template instantiated by dtype):
 //   out(linear) = store(sum_i k[i] * tmp(n, clamp(y+i-r), x, c))
-// 从 double 中间缓冲按 ImageLinearIndex 取数，累加顺序与 naive
-// 一致；最后按输出 dtype 舍入/转换后写入 output。O(K) / 像素。
+// Read the double intermediate buffer through ImageLinearIndex, using the same
+// accumulation order as naive; then round/convert to the output dtype and write
+// to output. O(K) per pixel.
 template <typename T>
 void BlurVerticalTyped(const double* tmp, const ImageInfo& info,
                        const double* kernel, int radius, int64_t linear,
@@ -76,15 +77,16 @@ void BlurVerticalTyped(const double* tmp, const ImageInfo& info,
                  output->dtype(), acc);
 }
 
-// 类型分派后的两趟实现：解析图像、构造核、分配 double 中间缓冲，
-// 先对全部线性下标做水平 pass，再做垂直 pass 写入 output。
-// 每 pass O(H*W*K)，额外内存 O(H*W*C) 个 double。
-// 只接受连续张量，因为下面的 typed 指针按连续数组寻址。
+// Two-pass implementation after type dispatch: parse the image, build the
+// kernel, and allocate a double intermediate buffer. Run the horizontal pass
+// over all linear indices, then the vertical pass into output. Each pass is
+// O(H*W*K), with O(H*W*C) doubles of additional memory. Only contiguous tensors
+// are accepted because the typed pointers below address contiguous arrays.
 template <typename T>
 Status BlurSimdTyped(const Tensor& input, const GaussianBlurParams& options,
                      Tensor* output, T*) {
-  // typed 读取把张量当作连续数组，strided view 会读错像素，直接拒绝
-  // （v1 约定）。
+  // Typed reads treat the tensor as a contiguous array and would read incorrect
+  // pixels from a strided view, so reject it directly (v1 contract).
   if (!input.IsContiguous()) {
     return Status::Unsupported(
         "GaussianBlur SIMD level requires contiguous tensors");
@@ -108,8 +110,9 @@ Status BlurSimdTyped(const Tensor& input, const GaussianBlurParams& options,
 
 }  // namespace
 
-// 入口：按输入 dtype 分派到 u8/f32/f64 的模板实现。
-// 三者内部都把像素提升为 double 累加，故与 naive 位精确一致。
+// Entry point: dispatch by input dtype to the u8/f32/f64 template
+// implementations. All promote pixels to double for accumulation, ensuring
+// bit-exact agreement with naive.
 Status GaussianBlurCpuSimd(const OpContext&, const Tensor& input, const Tensor*,
                            const void* params, Tensor* output) {
   const auto& options = *static_cast<const GaussianBlurParams*>(params);

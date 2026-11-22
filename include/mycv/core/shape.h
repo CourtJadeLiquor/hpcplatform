@@ -19,7 +19,8 @@ class Shape {
 
   Shape() = default;
 
-  // 最多保留 kMaxDims 维；超出的维度会被截断，调用方应避免传入过长列表。
+  // Keeps at most kMaxDims dimensions and truncates the rest; callers should
+  // avoid longer lists.
   Shape(std::initializer_list<int64_t> dims) {
     rank_ = static_cast<int>(dims.size() < static_cast<size_t>(kMaxDims)
                                  ? dims.size()
@@ -31,7 +32,7 @@ class Shape {
     }
   }
 
-  // 从 vector 构造，同样最多保留 kMaxDims 维。
+  // Constructs from a vector, likewise keeping at most kMaxDims dimensions.
   explicit Shape(const std::vector<int64_t>& dims) {
     rank_ = static_cast<int>(dims.size() < static_cast<size_t>(kMaxDims)
                                  ? dims.size()
@@ -41,11 +42,12 @@ class Shape {
     }
   }
 
-  // 返回维度数。
+  // Returns the number of dimensions.
   int Rank() const { return rank_; }
-  // 返回第 index 维长度；调用方需保证 0 <= index < Rank()。
+  // Returns the length of dimension index; caller must ensure
+  // 0 <= index < Rank().
   int64_t Dim(int index) const { return dims_[static_cast<size_t>(index)]; }
-  // 返回连续存放的维度数组，长度等于 Rank()。
+  // Returns the contiguous dimension array, whose length is Rank().
   const int64_t* data() const { return dims_.data(); }
 
   // Scalar (rank 0) has exactly one element.
@@ -56,7 +58,7 @@ class Shape {
     return numel;
   }
 
-  // 标量（rank 0）返回 true。
+  // Returns true for scalars (rank 0).
   bool IsScalar() const { return rank_ == 0; }
 
   // Semantic validation (dims must be positive). Construction itself is
@@ -71,7 +73,7 @@ class Shape {
     return Status::Ok();
   }
 
-  // 逐维比较 rank 与每个维度长度。
+  // Compares rank and every dimension length.
   bool operator==(const Shape& other) const {
     if (rank_ != other.rank_) return false;
     for (int i = 0; i < rank_; ++i) {
@@ -84,7 +86,7 @@ class Shape {
   }
   bool operator!=(const Shape& other) const { return !(*this == other); }
 
-  // 格式化为 "[d0,d1,...]"，用于错误信息与日志。
+  // Formats as "[d0,d1,...]" for error messages and logs.
   std::string ToString() const;
 
  private:

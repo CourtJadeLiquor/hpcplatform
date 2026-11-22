@@ -17,7 +17,9 @@ class OpenCvBackend final : public Backend {
   BackendType type() const override { return BackendType::kOpenCV; }
   Device device() const override { return device_; }
   MemoryManager& memory() override { return memory_; }
-  Stream& stream() override { return stream_; }
+  // Grants mutable access to the owned stream; the backend itself is not
+  // modified, so the accessor is const and casts away the member's constness.
+  Stream& stream() const override { return const_cast<CpuStream&>(stream_); }
   Status Synchronize() override { return stream_.Synchronize(); }
   bool SupportsDType(DataType dtype) const override {
     return dtype == DataType::kUInt8 || dtype == DataType::kFloat32 ||

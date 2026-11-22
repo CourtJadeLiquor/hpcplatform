@@ -1,6 +1,6 @@
 # Tensor 视图：为什么零拷贝，stride/offset 怎么算
 
-> 相关代码：`include/mycv/core/tensor.h`、`src/core/tensor.cpp`、`include/mycv/core/tensor_iterator.h`
+> 相关代码：`include/mycv/core/tensor.h`、`src/core/tensor.cpp`、`src/core/tensor_iterator.h`
 
 ---
 
@@ -69,7 +69,7 @@ Tensor {
 视图常常产生**非连续**张量（如 `Slice` 后 stride 不等于连续值）。它们并非二等公民：
 
 - **`Context::Copy`**：拷贝的是**逻辑元素**，按 stride 逐元素搬运，非连续输入正确（见 [`context_copy.md`](./context_copy.md)）。
-- **元素级内核**：通过 `TensorIterator` 按 stride 遍历任意布局，`Add`/`Mul`/`Cast`/`Normalize` 都接受非连续输入。
+- **逐元素遍历**：内部工具 `TensorIterator`（`src/core/tensor_iterator.h`）按 stride 遍历任意布局，目前 `Context::Copy` 的非连续路径用它逐元素搬运；未来元素级内核可复用同一工具。
 - **要求连续的算子**：在校验层显式声明并拒绝（如某些后端的图像算子），不会静默给出错误结果。
 
 判断连续性用 `Tensor::IsContiguous()`。

@@ -1,5 +1,5 @@
 // Per-operator benchmark for resize (docs/architecture.md §6.1).
-// 基准程序用于在本机构建可用的后端/内核级别上测量 resize 的吞吐与延迟。
+// Measures resize throughput and latency for every backend/kernel level available in this build.
 //
 // Sweeps interpolation mode, scale direction, dtype and every execution
 // backend available in this build, and emits CSV for direct recording in

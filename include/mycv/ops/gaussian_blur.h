@@ -10,7 +10,8 @@
 
 namespace mycv {
 
-// 可分离高斯平滑：先水平后垂直两趟，输出与输入同形状，支持 u8/f32/f64。
+// Separable Gaussian smoothing: horizontal then vertical passes; output shape
+// matches the input shape; supports u8/f32/f64.
 //
 // Separable Gaussian smoothing (two passes: horizontal then vertical).
 //

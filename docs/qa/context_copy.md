@@ -62,7 +62,7 @@
 
 ## 5. 与 `Clone` 的关系
 
-`Tensor::Clone()` 内部就是"在 owning backend 上分配新张量 + `CopyTensor`"（[tensor.cpp](../../src/core/tensor.cpp#L141-L149)）。区别：
+`Tensor::Clone()` 内部就是"在 owning backend 上分配新张量 + `CopyTensorData`"（[tensor.cpp](../../src/core/tensor.cpp#L141-L149)）。区别：
 
 - `Clone()`：自动找归属后端（Context 死了会建临时后端兜底），总是深拷贝到同后端。
 - `Context::Copy`：你指定目标 Context，可跨后端。

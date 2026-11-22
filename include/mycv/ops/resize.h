@@ -10,11 +10,11 @@
 
 namespace mycv {
 
-// 缩放图像到 output_height x output_width。
+// Resizes an image to output_height x output_width.
 //
-// - 双线性使用 align_corners=false 与半像素中心；
-// - 输入支持 HW/HWC/CHW/NHWC/NCHW 与 u8/f32/f64；
-// - 成功时返回与输入同 dtype、同后端、同布局的新张量。
+// - Bilinear uses align_corners=false and half-pixel centers;
+// - Input supports HW/HWC/CHW/NHWC/NCHW layouts and u8/f32/f64;
+// - On success, returns a new tensor with the input's dtype, backend, and layout.
 //
 // Bilinear uses align_corners=false and half-pixel centers.
 Result<Tensor> Resize(

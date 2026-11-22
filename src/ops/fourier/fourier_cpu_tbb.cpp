@@ -1,15 +1,17 @@
-// fourier 的 CPU TBB 级别：用 TbbRunner 实例化共享骨架。
-// 与 naive/OpenMP 是同一套平面驱动，仅把行/列循环交给 oneTBB 的
-// parallel_for；每条线内部的运算顺序不变，因此输出位精确。
+// CPU TBB level for fourier: instantiates the shared skeleton with TbbRunner.
+// It uses the same plane driver as naive/OpenMP, delegating only row/column
+// loops to oneTBB parallel_for. Operation order within each line is unchanged,
+// so output is bit-exact.
 //
-// 粒度：一条 1-D 变换就是一个任务，TBB 自动分块并用工作窃取均衡负载。
+// Granularity: one 1-D transform per task. TBB automatically partitions work
+// and balances load through work stealing.
 
 #include "fourier_cpu.h"
 
 namespace mycv {
 namespace ops_internal {
 
-// 与 naive 相同的驱动，只把行/列循环换成 tbb::parallel_for。
+// Same driver as naive, with row/column loops replaced by tbb::parallel_for.
 Status FourierCpuTbb(const OpContext&, const Tensor& input, const Tensor* other,
                      const void* params, Tensor* output) {
   return FourierImpl<TbbRunner>(

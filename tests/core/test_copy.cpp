@@ -1,5 +1,5 @@
-// 测试接口用于验证 Context::Copy / Tensor::Clone
-// 对连续与非连续视图、跨后端及生命周期场景的语义。
+// Tests for Context::Copy / Tensor::Clone semantics for contiguous and
+// non-contiguous views, cross-backend copies, and lifetime scenarios.
 #include "test_framework.h"
 
 #include <cmath>

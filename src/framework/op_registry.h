@@ -10,23 +10,25 @@
 namespace mycv {
 namespace ops_internal {
 
-// 内核函数签名：other 供二元算子使用；params 指向本次调用的算子参数结构体，
-// 生命周期仅限同步调用期间。
+// Kernel function signature: other is for binary operators; params points to the
+// operator parameter structure for this call, with a lifetime limited to the
+// synchronous call.
 using OpKernelFn = Status (*)(const OpContext&, const Tensor& input,
                               const Tensor* other, const void* params,
                               Tensor* output);
 
-// 注册一个 (op, backend, level) 内核；重复注册同一键会被拒绝。
+// Registers a kernel for (op, backend, level); duplicate keys are rejected.
 void RegisterKernel(OpKind op, BackendType backend, CpuKernelLevel level,
                     OpKernelFn kernel);
-// 查找内核：未编译返回 kUnsupported，已编译但未实现返回 kNotImplemented。
+// Finds a kernel: returns kUnsupported if not compiled, or kNotImplemented if
+// compiled but not implemented.
 Result<OpKernelFn> FindKernel(OpKind op, BackendType backend,
                               CpuKernelLevel level);
-// 是否存在精确匹配的内核。
+// Returns whether an exactly matching kernel exists.
 bool HasKernel(OpKind op, BackendType backend, CpuKernelLevel level);
 
-// 该 (backend, level) 下是否至少注册了一个算子；用于后端能力查询，
-// 不依赖任何单个算子。
+// Returns whether at least one operator is registered for (backend, level); used
+// for backend capability queries without depending on any individual operator.
 bool HasAnyKernel(BackendType backend, CpuKernelLevel level);
 
 }  // namespace ops_internal

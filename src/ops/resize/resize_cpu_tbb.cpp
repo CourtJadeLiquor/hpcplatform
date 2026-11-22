@@ -1,13 +1,14 @@
-// resize 的 CPU TBB 后端适配层：本文件只做参数还原与转交，并行策略
-// （parallel_for 递归二分输出下标区间、work stealing 调度）在
-// resize_cpu.h 的 ResizeTbbImpl 中实现，与 naive 使用同一像素核，位精确一致。
+// CPU TBB backend adapter for resize: this file only restores and forwards
+// parameters. ResizeTbbImpl in resize_cpu.h implements the parallel strategy
+// (parallel_for recursively bisects output index ranges with work-stealing
+// scheduling) and uses the same pixel kernel as naive for bit-exact results.
 
 #include "resize_cpu.h"
 
 namespace mycv {
 namespace ops_internal {
-// 入口签名由内核表约定；OpContext 与第二个输入张量未使用。
-// 复杂度 O(N*H_out*W_out*C)，由 TBB 任务并行分摊。
+// The kernel table defines the entry signature; OpContext and the second input
+// tensor are unused. Complexity is O(N*H_out*W_out*C), shared across TBB tasks.
 Status ResizeCpuTbb(const OpContext&, const Tensor& input, const Tensor*,
                     const void* params, Tensor* output) {
   return ResizeTbbImpl(input, *static_cast<const ResizeParams*>(params),

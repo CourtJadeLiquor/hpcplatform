@@ -12,11 +12,11 @@ class Stream {
  public:
   virtual ~Stream() = default;
 
-  // 返回流所属设备。
+  // Returns the device that owns the stream.
   virtual Device device() const = 0;
-  // 等待该流上的工作完成。
+  // Waits for work on this stream to complete.
   virtual Status Synchronize() = 0;
-  // CPU 等同步后端返回 true。
+  // Returns true for synchronous backends such as CPU.
   virtual bool synchronous() const { return true; }
 };
 

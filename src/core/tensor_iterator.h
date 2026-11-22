@@ -6,6 +6,9 @@
 
 #include "mycv/core/tensor.h"
 
+// Core-internal utility: walks the logical row-major elements of any strided
+// Tensor. Lives in src/core (not include/mycv) because it is an implementation
+// detail of the copy path and future element-wise kernels, not public API.
 namespace mycv {
 
 // Iterates logical row-major elements of any strided Tensor. ByteOffset() is
@@ -14,16 +17,17 @@ class TensorIterator {
  public:
   explicit TensorIterator(const Tensor& tensor) : tensor_(tensor) {}
 
-  // 线性下标是否仍指向有效元素。
+  // Returns whether the linear index still refers to a valid element.
   bool valid() const { return linear_index_ < tensor_.Numel(); }
-  // 当前逻辑元素的行主序线性下标。
+  // Row-major linear index of the current logical element.
   int64_t linear_index() const { return linear_index_; }
-  // 回到第一个元素。
+  // Rewinds to the first element.
   void Reset() { linear_index_ = 0; }
-  // 前进到下一个逻辑元素。
+  // Advances to the next logical element.
   void Next() { ++linear_index_; }
 
-  // 当前元素相对 Tensor::data() 的字节偏移，支持非连续视图。
+  // Byte offset of the current element relative to Tensor::data(); supports
+  // non-contiguous views.
   size_t ByteOffset() const {
     int64_t remaining = linear_index_;
     size_t offset = 0;
@@ -37,7 +41,7 @@ class TensorIterator {
     return offset;
   }
 
-  // 当前元素的只读裸指针。
+  // Read-only raw pointer to the current element.
   const void* data() const {
     return static_cast<const char*>(tensor_.data()) + ByteOffset();
   }

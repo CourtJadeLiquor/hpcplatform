@@ -1,4 +1,4 @@
-// 测试接口用于验证 Shape 的构造、Numel/Strides 计算与非法维度校验。
+// Tests for Shape construction, Numel/Strides computation, and invalid-dimension validation.
 #include "test_framework.h"
 
 #include "mycv/core/shape.h"

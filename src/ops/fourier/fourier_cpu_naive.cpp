@@ -1,14 +1,16 @@
-// fourier 的 CPU naive 级别：只用 SequentialRunner 实例化共享骨架，
-// 不引入任何并行。它是其他级别的正确性基线（docs/architecture.md §7.2）。
+// CPU naive level for fourier: instantiates the shared skeleton with only
+// SequentialRunner and introduces no parallelism. It is the correctness
+// baseline for the other levels (docs/architecture.md §7.2).
 
 #include "fourier_cpu.h"
 
 namespace mycv {
 namespace ops_internal {
 
-// 顺序执行每个 (n, c) 平面的行/列一维变换。输入/输出契约见
-// fourier_internal.h；复杂度同共享骨架：radix-2 为 O(H*W*log)，
-// 非 2 的幂回退为 O(H*W*(H+W))。
+// Sequentially executes the row and column 1-D transforms of every (n, c)
+// plane. See fourier_internal.h for the input/output contract. Complexity
+// matches the shared skeleton: O(H*W*log) for radix-2, with an
+// O(H*W*(H+W)) fallback for non-power-of-two sizes.
 Status FourierCpuNaive(const OpContext&, const Tensor& input,
                        const Tensor* other, const void* params,
                        Tensor* output) {

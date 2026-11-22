@@ -1,4 +1,4 @@
-// 样例用于演示 resize + gaussian_blur 的算子流水线、参数传递与错误处理。
+// Demonstrates a resize + gaussian_blur operator pipeline, parameter passing, and error handling.
 #include <iomanip>
 #include <iostream>
 

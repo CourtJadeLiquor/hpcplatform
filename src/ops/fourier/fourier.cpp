@@ -1,12 +1,16 @@
-// fourier 算子的入口：负责注册、参数校验、内核查找与输出分配，然后分派
-// 给某个后端实现。所有后端共享 fourier_internal.h 中的参数契约。
+// Entry point for the fourier operator: handles registration, parameter
+// validation, kernel lookup, and output allocation before dispatching to a
+// backend. All backends share the parameter contract in fourier_internal.h.
 //
-// 正向流程：校验 dtype/rank/layout -> ParseImage -> FindKernel -> 分配
-// Re/Im -> 以实部作为 input 调用后端（虚部写入 params.imag）。
-// 逆向流程：额外校验 real/imag 的 shape/dtype/backend/device 一致 ->
-// 分配输出 -> 把 imag 作为 other 传入，后端写回时乘 1/(H*W)。
+// Forward flow: validate dtype/rank/layout -> ParseImage -> FindKernel ->
+// allocate Re/Im -> invoke the backend with the real part as input (the
+// imaginary part is written to params.imag).
+// Inverse flow: additionally verify matching real/imag
+// shape/dtype/backend/device -> allocate output -> pass imag as other;
+// backends multiply by 1/(H*W) during write-back.
 //
-// 本文件不做任何逐元素计算，只做编排，因此各后端看到的参数完全一致。
+// This file performs no element-wise computation, only orchestration, so every
+// backend receives identical parameters.
 
 #include "mycv/ops/fourier.h"
 
@@ -19,9 +23,10 @@
 namespace mycv {
 namespace ops_internal {
 
-// 把编译进本二进制的实现登记到算子注册表：CPU 的 naive/OpenMP/TBB 三个
-// 级别与可选的 CUDA 后端。GPU 实现按 CpuKernelLevel::kNaive 这一槽位登记，
-// 实际分派只看 BackendType；未编译的级别在注册阶段即缺席。
+// Registers implementations compiled into this binary: CPU naive/OpenMP/TBB
+// levels and the optional CUDA backend. The GPU implementation is registered
+// in the CpuKernelLevel::kNaive slot; actual dispatch considers only
+// BackendType. Levels not compiled are absent at registration time.
 void RegisterFourierKernels() {
   const BackendType cpu = BackendType::kNativeCpu;
   RegisterKernel(OpKind::kFourierTransform, cpu, CpuKernelLevel::kNaive,
@@ -38,16 +43,16 @@ void RegisterFourierKernels() {
   RegisterKernel(OpKind::kFourierTransform, BackendType::kCUDA,
                  CpuKernelLevel::kNaive, &FourierCuda);
 #endif
-  // 不注册 OpenCV 版本：查找该后端时返回 kNotImplemented，而不是悄悄
-  // 用主机内核去跑设备内存。
+  // No OpenCV version is registered: lookup for that backend returns
+  // kNotImplemented rather than silently running a host kernel on device memory.
 }
 
 }  // namespace ops_internal
 
 namespace {
 
-// 频谱必须能表示有符号值，因此只接受 f32/f64；u8 会丢失负数与小数，
-// 在这里直接返回 kUnsupported。
+// The spectrum must represent signed values, so only f32/f64 are accepted;
+// u8 would lose negative and fractional values. Return kUnsupported here.
 Status ValidateSpectrumDType(DataType dtype) {
   if (dtype != DataType::kFloat32 && dtype != DataType::kFloat64) {
     return Status::Unsupported(
@@ -59,12 +64,15 @@ Status ValidateSpectrumDType(DataType dtype) {
 
 }  // namespace
 
-// 正向二维 DFT。输入为 H x W 的实值图像（可为非连续视图），输出为与输入
-// 同 shape/dtype 的 Re(X) 与 Im(X) 两个连续张量。
+// Forward 2-D DFT. The input is an H x W real-valued image (possibly a
+// non-contiguous view); outputs are contiguous Re(X) and Im(X) tensors with the
+// same shape/dtype as the input.
 //
-// 步骤：校验调用与 dtype -> 解析布局 -> 查找后端 -> 分配两个输出 ->
-// 调用后端（input 读实部，params.imag 写虚部）-> 组装 ComplexImage。
-// 复杂度由后端决定：radix-2 为 O(H*W*log)，非 2 的幂回退为 O(H*W*(H+W))。
+// Steps: validate invocation and dtype -> parse layout -> find backend ->
+// allocate two outputs -> invoke backend (input supplies the real part and
+// params.imag receives the imaginary part) -> assemble ComplexImage.
+// Backend-dependent complexity: O(H*W*log) for radix-2, with an
+// O(H*W*(H+W)) fallback for non-power-of-two sizes.
 Result<ComplexImage> FourierTransform(const OpContext& context,
                                       const Tensor& input, ImageLayout layout) {
   MYCV_RETURN_IF_ERROR(ops_internal::ValidateInvocation(context, input));
@@ -91,13 +99,15 @@ Result<ComplexImage> FourierTransform(const OpContext& context,
   return result;
 }
 
-// 逆向二维 DFT：从 Re(X)/Im(X) 重建图像，返回 x 的实部。
-// 名字里的“实部”是约定：输入按实值图像处理，后端只写回实部并在写回时
-// 统一乘 1/(H*W)，保证“正向 -> 逆向”是单位增益。
+// Inverse 2-D DFT: reconstructs an image from Re(X)/Im(X) and returns the real
+// part of x. Returning the real part is by convention: the input is treated as
+// a real-valued image, and backends write only the real part, multiplying it by
+// 1/(H*W) during write-back so forward -> inverse has unit gain.
 //
-// 步骤：校验调用、dtype、real/imag 的 shape/dtype/backend/device 一致 ->
-// 解析布局 -> 查找后端 -> 分配输出 -> 以 real 为 input、imag 为 other
-// 调用后端（params.imag 为 nullptr，不写频谱虚部）。
+// Steps: validate invocation, dtype, and matching real/imag
+// shape/dtype/backend/device -> parse layout -> find backend -> allocate output
+// -> invoke backend with real as input and imag as other (params.imag is
+// nullptr; no spectral imaginary output is written).
 Result<Tensor> InverseFourierTransform(const OpContext& context,
                                        const Tensor& real, const Tensor& imag,
                                        ImageLayout layout) {

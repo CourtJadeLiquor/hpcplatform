@@ -9,28 +9,31 @@ namespace ops_internal {
 
 namespace {
 
-// AVX2 后端：可分离两趟一维卷积（水平后垂直），每趟 O(H*W*K)，
-// 把每像素 O(K^2) 降到 O(2K)。优化点是把「通道」方向装进 256 位
-// 寄存器：以 __m256d 为累加器，每轮同时处理同一像素的 4 个连续
-// 通道（256 位按 double 计 4 lane，按 float 计相当于 8 lane）。
-// 前提：输入连续、layout 为 NHWC（HWC 解析后同为 NHWC）且 c >= 4；
-// 其余情况（HW/CHW/c < 4）整体回退到共享标量骨架，结果同字节。
-// tap 顺序与 naive 相同，且乘加写成独立的 mul + add、不生成 FMA，
-// 因此与 naive 位精确一致；c % 4 的通道尾部走标量路径。
-constexpr int kLanes = 4;  // 一个 __m256d 覆盖的通道数（4 个 double）
+// AVX2 backend: two separable 1D convolution passes (horizontal, then
+// vertical), each O(H*W*K), reducing per-pixel cost from O(K^2) to O(2K).
+// Packs the channel dimension into 256-bit registers: a __m256d accumulator
+// processes 4 consecutive channels of the same pixel per iteration (256 bits =
+// 4 double lanes, equivalent to 8 float lanes). Prerequisites: contiguous input,
+// NHWC layout (HWC also parses as NHWC), and c >= 4. Other cases (HW/CHW/c < 4)
+// fall back wholesale to the shared scalar skeleton with byte-identical results.
+// Tap order matches naive, and separate mul + add operations avoid FMA,
+// ensuring bit-exact agreement with naive; the c % 4 channel tail uses scalars.
+constexpr int kLanes = 4;  // Channels covered by one __m256d (4 doubles)
 
-// 判断能否走向量路径：至少三维、NHWC 排布且通道数够填满一个寄存器。
+// Check whether the vector path applies: rank >= 3, NHWC layout, and enough channels to fill a register.
 bool Avx2Applicable(const ImageInfo& info) {
   return info.rank >= 3 && info.layout == ImageLayout::kNHWC &&
          info.c >= kLanes;
 }
 
-// 从 base 的 first_linear 处取 4 个连续通道，统一转成 4 个 double lane。
-// u8：memcpy 4 字节 -> _mm_cvtepu8_epi32 零扩展成 4 个 int32
-//     -> _mm256_cvtepi32_pd；零扩展即 0..255 直接转 double，无符号问题。
-// f32：_mm_loadu_ps 读 4 个 float -> _mm256_cvtps_pd。
-// f64：_mm256_loadu_pd 直接读 4 个 double。
-// 输入输出：返回一个 __m256d，不修改内存；O(1)。
+// Load 4 consecutive channels from base at first_linear and convert them to
+// 4 double lanes.
+// u8: memcpy 4 bytes -> _mm_cvtepu8_epi32 zero-extends to 4 int32 values
+//     -> _mm256_cvtepi32_pd; zero extension converts 0..255 directly to double
+//     without sign issues.
+// f32: _mm_loadu_ps loads 4 floats -> _mm256_cvtps_pd.
+// f64: _mm256_loadu_pd loads 4 doubles directly.
+// Returns a __m256d without modifying memory; O(1).
 __m256d LoadFourPixels(const char* base, DataType dtype, int64_t first_linear) {
   if (dtype == DataType::kUInt8) {
     uint32_t four_bytes = 0;
@@ -46,14 +49,14 @@ __m256d LoadFourPixels(const char* base, DataType dtype, int64_t first_linear) {
       reinterpret_cast<const double*>(base + first_linear * 8));
 }
 
-// 水平 pass 的一个 4 通道向量块：计算 (n,y,x) 处 channel_base 起的
-// 4 个通道，写入 tmp 的对应位置。步骤：
-// 1) acc = 0（__m256d，4 个 double lane 对应 4 个通道）；
-// 2) 对每个 tap i：x 偏移按 replicate 夹取得到 xx，用
-//    _mm256_broadcast_sd 把核系数 k[i] 复制到 4 lane，加载 4 个像素
-//    后做 mul 再 add（顺序与 naive 相同，不收缩成 FMA）；
-// 3) _mm256_storeu_pd 把 4 个结果写回 tmp。
-// 单块 O(K)；整个水平 pass O(H*W*K)。
+// One 4-channel vector block of the horizontal pass: compute 4 channels
+// starting at channel_base for (n,y,x) and write them to tmp. Steps:
+// 1) acc = 0 (__m256d; 4 double lanes correspond to 4 channels);
+// 2) For each tap i, clamp the x offset with replicate to obtain xx, broadcast
+//    coefficient k[i] to 4 lanes with _mm256_broadcast_sd, load 4 pixels, then
+//    mul and add (same order as naive; no FMA contraction);
+// 3) Store the 4 results to tmp with _mm256_storeu_pd.
+// O(K) per block; O(H*W*K) for the full horizontal pass.
 void HorizontalBlock(const Tensor& input, const ImageInfo& info,
                      const double* kernel, int radius, int64_t n, int64_t y,
                      int64_t x, int64_t channel_base, double* tmp) {
@@ -71,14 +74,15 @@ void HorizontalBlock(const Tensor& input, const ImageInfo& info,
   _mm256_storeu_pd(tmp + block_base, acc);
 }
 
-// 垂直 pass 的一个 4 通道向量块：对 (n,y,x) 处 4 个通道沿 y 累加。
-// 步骤与水平块相同，只是夹取方向换成 y，数据源换成 double 的 tmp；
-// 累加结束后按输出 dtype 写出：
-// - u8：先把 4 个 lane 存到栈上，逐个 std::round 再窄化为 uint8。
-//   系数为正且已归一化，结果天然在 [0,255]，无需硬件饱和。
-// - f32：_mm256_cvtpd_ps 压成 4 个 float，_mm_storeu_ps 写出。
-// - f64：_mm256_storeu_pd 直接写 4 个 double。
-// 单块 O(K)；整个垂直 pass O(H*W*K)。
+// One 4-channel vector block of the vertical pass: accumulate 4 channels at
+// (n,y,x) along y. Steps match the horizontal block, except clamping is along
+// y and the source is the double tmp buffer. Store according to output dtype:
+// - u8: store 4 lanes on the stack, then std::round and narrow each to uint8.
+//   Positive normalized coefficients keep results within [0,255], so no
+//   hardware saturation is needed.
+// - f32: _mm256_cvtpd_ps converts to 4 floats; _mm_storeu_ps stores them.
+// - f64: _mm256_storeu_pd directly stores 4 doubles.
+// O(K) per block; O(H*W*K) for the full vertical pass.
 void VerticalBlock(const double* tmp, const ImageInfo& info,
                    const double* kernel, int radius, int64_t n, int64_t y,
                    int64_t x, int64_t channel_base, Tensor* output) {
@@ -111,15 +115,17 @@ void VerticalBlock(const double* tmp, const ImageInfo& info,
   }
 }
 
-// AVX2 两趟实现。步骤：
-// 1) 拒绝非连续张量；解析图像；不满足 Avx2Applicable 时整体回退到
-//    BlurNaiveImpl（累加顺序相同，输出逐字节一致）；
-// 2) vectorized = c - c % 4，即按 4 通道对齐的部分；
-// 3) 水平 pass：遍历 (n,y,x)，每个位置先按 cb 以 4 通道为步长调用
-//    HorizontalBlock，再把 [vectorized, c) 的尾部通道交给标量
-//    BlurHorizontalElement；结果写入 double 的 tmp；
-// 4) 垂直 pass：同样的遍历顺序与尾部分工，从 tmp 累加后写 output。
-// 每 pass 复杂度 O(H*W*K)，额外内存 O(H*W*C) 个 double。
+// Two-pass AVX2 implementation. Steps:
+// 1) Reject non-contiguous tensors and parse the image; if Avx2Applicable is
+//    false, fall back wholesale to BlurNaiveImpl (same accumulation order and
+//    byte-identical output);
+// 2) vectorized = c - c % 4, the portion aligned to 4 channels;
+// 3) Horizontal pass: traverse (n,y,x), call HorizontalBlock at each position
+//    with cb stepping by 4 channels, then send tail channels [vectorized, c) to
+//    scalar BlurHorizontalElement; write results to the double tmp buffer;
+// 4) Vertical pass: use the same traversal and tail split, accumulate from tmp,
+//    and write output.
+// Each pass is O(H*W*K), with O(H*W*C) doubles of additional memory.
 Status BlurAvx2Impl(const Tensor& input, const GaussianBlurParams& options,
                     Tensor* output) {
   if (!input.IsContiguous()) {
@@ -169,8 +175,9 @@ Status BlurAvx2Impl(const Tensor& input, const GaussianBlurParams& options,
 
 }  // namespace
 
-// 入口：把参数转成 GaussianBlurParams 并执行 AVX2 实现；
-// 不适用或非连续时由 BlurAvx2Impl 回退到 naive，语义不变。
+// Entry point: convert parameters to GaussianBlurParams and run the AVX2
+// implementation; BlurAvx2Impl falls back to naive for inapplicable or
+// non-contiguous cases without changing semantics.
 Status GaussianBlurCpuAvx2(const OpContext&, const Tensor& input, const Tensor*,
                            const void* params, Tensor* output) {
   return BlurAvx2Impl(input, *static_cast<const GaussianBlurParams*>(params),

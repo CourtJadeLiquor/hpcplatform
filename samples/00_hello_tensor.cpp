@@ -1,4 +1,4 @@
-// 样例用于演示 Tensor 的创建、填充、视图与打印，是理解公共 API 的最小入口。
+// Minimal public API example demonstrating Tensor creation, filling, views, and printing.
 #include <iostream>
 
 #include "mycv/mycv.h"

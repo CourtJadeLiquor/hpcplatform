@@ -13,16 +13,16 @@ namespace ops_internal {
 // MemoryManager, so the snapshot reports its aggregate under the bucket that
 // matches the manager's device type; host_pinned stays zero until a backend
 // exposes a dedicated pinned-host manager.
-// 按 MemoryKind 分桶的内存快照。每个 Context 只持有一个 MemoryManager，
-// 因此统计值会落在其设备类型对应的桶中；host_pinned 目前恒为零，直到某个
-// 后端提供独立的页锁定主机分配器。
+// Memory snapshot grouped by MemoryKind. Each Context owns one MemoryManager,
+// so its statistics go into the bucket matching its device type; host_pinned
+// stays zero until a backend provides a dedicated pinned-host allocator.
 struct MemorySnapshot {
-  MemoryStats host;         // 可分页主机内存
-  MemoryStats host_pinned;  // 页锁定主机内存（暂无后端上报）
-  MemoryStats device;       // 设备内存（GPU/NPU），即显存占用
+  MemoryStats host;         // Pageable host memory
+  MemoryStats host_pinned;  // Pinned host memory (no backend reports it yet)
+  MemoryStats device;       // Device memory (GPU/NPU) usage
 };
 
-// 读取 Context 当前内存统计并归入对应桶。
+// Reads the Context's current memory statistics into the corresponding bucket.
 inline MemorySnapshot SnapshotMemory(Context& context) {
   MemorySnapshot snapshot;
   const MemoryStats stats = context.memory().Stats();

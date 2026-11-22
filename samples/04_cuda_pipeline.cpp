@@ -1,5 +1,5 @@
-// 样例用于演示 CUDA 后端：显存张量、Host↔Device 拷贝与算子执行（无 CUDA
-// 构建时安全跳过）。
+// Demonstrates the CUDA backend: device-memory tensors, Host↔Device copies,
+// and operator execution (safely skipped in non-CUDA builds).
 #include <iostream>
 
 #include "mycv/mycv.h"

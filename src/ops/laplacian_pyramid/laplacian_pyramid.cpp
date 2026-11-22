@@ -1,15 +1,17 @@
-// laplacian_pyramid 的公共入口与版本注册。
+// Public entry point and version registration for laplacian_pyramid.
 //
-// 本文件负责两件事：
-//   1. BuildLaplacianPyramid：参数校验、查注册表、逐级调用 stage 组合；
-//   2. RegisterLaplacianPyramidKernels：登记各 (backend, level) 组合。
-// 入口本身不含像素级计算，数值工作由 host/CUDA stage 完成。
+// This file handles two tasks:
+//   1. BuildLaplacianPyramid: validate parameters, query the registry, and invoke
+//      the composed stage for each level;
+//   2. RegisterLaplacianPyramidKernels: register each (backend, level) combination.
+// The entry point contains no pixel-level computation; host/CUDA stages perform
+// the numerical work.
 //
-// 逐级语义（纯文本）：
-//   G_{i+1} = ResizeNearest(GaussianBlur(G_i))   尺寸 ceil(H/2) x ceil(W/2)
-//   L_i     = G_i - upsample(G_{i+1})            与 G_i 同尺寸
-//   最顶层  L_n = G_n
-// 重建：G_i = L_i + upsample(G_{i+1})。
+// Per-level semantics (plain text):
+//   G_{i+1} = ResizeNearest(GaussianBlur(G_i))   size ceil(H/2) x ceil(W/2)
+//   L_i     = G_i - upsample(G_{i+1})            same size as G_i
+//   Top level L_n = G_n
+// Reconstruction: G_i = L_i + upsample(G_{i+1}).
 
 #include "mycv/ops/laplacian_pyramid.h"
 
@@ -23,9 +25,10 @@
 namespace mycv {
 namespace ops_internal {
 
-// 登记 CPU naive（以及构建启用的 OpenMP/TBB）、CUDA 与 OpenCV 版本。
-// CPU 各级别共用同一个 host 组合 stage，级别由 OpContext 原样透传给子算子。
-// 复杂度 O(1)，仅登记函数指针。
+// Register CPU naive (plus OpenMP/TBB when enabled in the build), CUDA, and
+// OpenCV versions. All CPU levels share the same composed host stage, and
+// OpContext forwards the level unchanged to the suboperators.
+// Complexity: O(1); only registers function pointers.
 void RegisterLaplacianPyramidKernels() {
   const BackendType cpu = BackendType::kNativeCpu;
   RegisterKernel(OpKind::kLaplacianPyramid, cpu, CpuKernelLevel::kNaive,
@@ -43,7 +46,8 @@ void RegisterLaplacianPyramidKernels() {
                  CpuKernelLevel::kNaive, &LaplacianPyramidCudaStage);
 #endif
 #ifdef MYCV_WITH_OPENCV
-  // OpenCV 张量位于主机内存，因此 host 组合（含逐元素相减）对该后端同样成立。
+  // OpenCV tensors reside in host memory, so the host composition (including
+  // element-wise subtraction) also works for this backend.
   RegisterKernel(OpKind::kLaplacianPyramid, BackendType::kOpenCV,
                  CpuKernelLevel::kNaive, &LaplacianPyramidHostStage);
 #endif
@@ -51,15 +55,19 @@ void RegisterLaplacianPyramidKernels() {
 
 }  // namespace ops_internal
 
-// 构建拉普拉斯金字塔，返回 levels + 1 个张量：
-//   levels[0..levels-1]：带通 L_i，由细到粗，与 G_i 同尺寸；
-//   levels[levels]     ：最粗高斯层 G_levels，作为低频残差（L_n = G_n）。
+// Build a Laplacian pyramid and return levels + 1 tensors:
+//   levels[0..levels-1]: band-pass L_i from fine to coarse, same size as G_i;
+//   levels[levels]:      coarsest Gaussian G_levels as the low-frequency residual
+//                        (L_n = G_n).
 //
-// 校验：levels >= 1；kernel_size 为 >= 3 的奇数；sigma 有限且 > 0；
-//       dtype 仅 f32/f64（带通是有符号差值，u8 无法表示）；rank 2/3/4。
-// 步骤：每级分配 L_i，令 params.next_gaussian 指向局部槽，调用查表内核；
-//       内核写 L_i 与 G_{i+1}，随后 H/W 按 (h+1)/2 收缩（ceil 处理奇数）。
-// 复杂度：每级 O(N_i * kernel_size)，合计 O(N * kernel_size)，N 为原图元素数。
+// Validation: levels >= 1; kernel_size is odd and >= 3; sigma is finite and > 0;
+//             dtype is f32/f64 only (signed band differences cannot fit in u8);
+//             rank is 2/3/4.
+// Steps: allocate L_i for each level, point params.next_gaussian to a local slot,
+//        and invoke the registered kernel; the kernel writes L_i and G_{i+1},
+//        then H/W shrink to (h+1)/2 (ceil handles odd dimensions).
+// Complexity: O(N_i * kernel_size) per level and O(N * kernel_size) overall,
+// where N is the original image element count.
 Result<LaplacianPyramid> BuildLaplacianPyramid(const OpContext& context,
                                                const Tensor& input, int levels,
                                                int kernel_size, double sigma,
@@ -93,7 +101,8 @@ Result<LaplacianPyramid> BuildLaplacianPyramid(const OpContext& context,
   ops_internal::ImageInfo current = image.value();
   Tensor source = input;
   for (int level = 0; level < levels; ++level) {
-    // 每级降采样的输入必须至少 2x2；最粗层本身可以小到 1x1。
+    // Each downsampling input must be at least 2x2; the coarsest level itself may
+    // be as small as 1x1.
     if (current.h < 2 || current.w < 2) {
       return Status::InvalidArgument(
           "LaplacianPyramid levels exceed what the input resolution allows");
@@ -116,7 +125,8 @@ Result<LaplacianPyramid> BuildLaplacianPyramid(const OpContext& context,
     current.h = (current.h + 1) / 2;
     current.w = (current.w + 1) / 2;
   }
-  // 最粗高斯层同时充当最后一个拉普拉斯残差（L_n = G_n）。
+  // The coarsest Gaussian level also serves as the final Laplacian residual
+  // (L_n = G_n).
   pyramid.levels.push_back(std::move(source));
   return pyramid;
 }

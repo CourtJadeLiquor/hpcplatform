@@ -35,7 +35,7 @@ inline const char* CpuKernelLevelName(CpuKernelLevel level) {
   return "unknown";
 }
 
-// SIMD 级别（generic / AVX2 / NEON）返回 true。
+// Returns true for SIMD levels (generic / AVX2 / NEON).
 inline bool IsSimdKernelLevel(CpuKernelLevel level) {
   return level == CpuKernelLevel::kSimdGeneric ||
          level == CpuKernelLevel::kSimdAvx2 ||

@@ -1,19 +1,22 @@
 #ifndef MYCV_SRC_OPS_WAVELET_WAVELET_CPU_H_
 #define MYCV_SRC_OPS_WAVELET_WAVELET_CPU_H_
 
-// wavelet 算子的共享 CPU 骨架（docs/architecture.md §6.1/§7.2）。
-// 单层是可分离的两趟滤波器组，边界为周期（wrap-around）：
+// Shared CPU skeleton for the wavelet operator (docs/architecture.md §6.1/§7.2).
+// A single level uses a separable two-pass filter bank with periodic
+// (wrap-around) boundaries:
 //   rows:   x[y, :]         -> low_rows[y, :], high_rows[y, :]  (W -> W/2)
 //   cols:   low_rows[:, x]  -> LL[:, x], LH[:, x]
 //           high_rows[:, x] -> HL[:, x], HH[:, x]              (H -> H/2)
-// 一维分析：low[k]  = sum_j h[j] * x[(2k+j) mod N]
-//           high[k] = sum_j g[j] * x[(2k+j) mod N]
-// 一维合成：out[(2k+j) mod N] += h[j]*low[k] + g[j]*high[k]
-// 其中 h 为低通（Haar 或 Db4），g[k] = (-1)^k * h[taps-1-k]。
+// 1D analysis: low[k]  = sum_j h[j] * x[(2k+j) mod N]
+//              high[k] = sum_j g[j] * x[(2k+j) mod N]
+// 1D synthesis: out[(2k+j) mod N] += h[j]*low[k] + g[j]*high[k]
+// Here h is the low-pass filter (Haar or Db4), and
+// g[k] = (-1)^k * h[taps-1-k].
 //
-// Runner 策略模板把互相独立的行/列分给不同并行后端；每条线内部按
-// “k 升序、j 升序”固定累加，与线程无关，因此三级 CPU 输出位精确。
-// 所有累加在 double 中完成，只在写回时窄化到张量 dtype。
+// The Runner policy template distributes independent rows/columns across
+// parallel backends. Each line accumulates in fixed ascending k and j order,
+// independent of threads, so all three CPU levels produce bit-exact output.
+// All accumulation uses double and narrows to the tensor dtype only on writeback.
 
 #include <algorithm>
 #include <cmath>
@@ -30,8 +33,10 @@
 namespace mycv {
 namespace ops_internal {
 
-// 执行策略：每个翻译单元只选用一个，共享的平面驱动因此保持单一模板。
-// For(begin, end, fn) 的每个下标代表一条独立的行或列，fn 不修改共享状态。
+// Execution policy: each translation unit selects exactly one, keeping the
+// shared plane driver as a single template. Each index passed to
+// For(begin, end, fn) represents an independent row or column; fn does not
+// modify shared state.
 struct WaveletSequentialRunner {
   template <typename Fn>
   static void For(int64_t begin, int64_t end, Fn&& fn) {
@@ -41,7 +46,8 @@ struct WaveletSequentialRunner {
 };
 
 #ifdef MYCV_WITH_OPENMP
-// OpenMP 策略：把独立行/列摊给 omp parallel for，默认静态划分。
+// OpenMP policy: distributes independent rows/columns with omp parallel for,
+// using the default static scheduling.
 struct WaveletOpenMPRunner {
   template <typename Fn>
   static void For(int64_t begin, int64_t end, Fn&& fn) {
@@ -53,7 +59,7 @@ struct WaveletOpenMPRunner {
 #endif
 
 #ifdef MYCV_WITH_TBB
-// TBB 策略：parallel_for 自动分块并做负载均衡。
+// TBB policy: parallel_for automatically partitions work and balances load.
 struct WaveletTbbRunner {
   template <typename Fn>
   static void For(int64_t begin, int64_t end, Fn&& fn) {
@@ -62,15 +68,18 @@ struct WaveletTbbRunner {
 };
 #endif
 
-// 分析低通/高通系数由 wavelet_internal.h 的 WaveletLowPass /
-// WaveletHighPass 提供，CUDA 翻译单元复用同一份定义，保证系数一致。
+// Analysis low-pass/high-pass coefficients come from WaveletLowPass and
+// WaveletHighPass in wavelet_internal.h. The CUDA translation unit reuses the
+// same definitions to ensure identical coefficients.
 
-// 对 `n` 个样本做一次一维分析（分解），输出 n/2 个低通与高通系数：
+// Perform 1D analysis (decomposition) on `n` samples, producing n/2 low-pass and
+// high-pass coefficients:
 //   low[k]  = sum_j h[j] * x[(2k+j) mod n]
 //   high[k] = sum_j g[j] * x[(2k+j) mod n]
-// `src_stride` / `low_stride` / `high_stride` 以样本为单位，使同一函数既能
-// 处理连续行（stride 1）也能处理跨步行缓冲（stride W/2）。周期边界用
-// 取模实现；k 与 j 都按升序累加，保证与线程无关。复杂度 O(n*taps)。
+// `src_stride`, `low_stride`, and `high_stride` are measured in samples, allowing
+// the same function to handle contiguous rows (stride 1) and strided row buffers
+// (stride W/2). Modulo indexing implements periodic boundaries; ascending k and j
+// accumulation keeps results thread-independent. Complexity: O(n*taps).
 inline void AnalyzeSequence(const double* src, int64_t src_stride, int64_t n,
                             const std::vector<double>& low_filter,
                             const std::vector<double>& high_filter, double* low,
@@ -91,11 +100,13 @@ inline void AnalyzeSequence(const double* src, int64_t src_stride, int64_t n,
   }
 }
 
-// 一维合成（重建）：先把输出清零，再把每个系数上采样后叠加：
+// 1D synthesis (reconstruction): clear the output, then upsample and accumulate
+// each coefficient:
 //   out[(2k+j) mod n] += h[j]*low[k] + g[j]*high[k]
-// 按 k 升序、j 升序累加，与分析的固定顺序一致；边界为周期。因为多个
-// (k, j) 会落到同一输出样本，累加顺序会影响末位，所以顺序必须固定。
-// 复杂度 O(n*taps)。
+// Accumulate in ascending k and j order, matching the fixed analysis order;
+// boundaries are periodic. Multiple (k, j) pairs can map to the same output
+// sample, so accumulation order affects the low bits and must remain fixed.
+// Complexity: O(n*taps).
 inline void SynthesizeSequence(const double* low, int64_t low_stride,
                                const double* high, int64_t high_stride,
                                int64_t n, const std::vector<double>& low_filter,
@@ -117,13 +128,14 @@ inline void SynthesizeSequence(const double* low, int64_t low_stride,
   }
 }
 
-// 一次二维分析：先行、后列。
-//   行：x[y,:]        -> low_rows[y,:], high_rows[y,:]（W -> W/2）
-//   列：low_rows[:,x] -> LL[:,x], LH[:,x]
-//       high_rows[:,x]-> HL[:,x], HH[:,x]（H -> H/2）
-// 行与行、列与列互不依赖，Runner 只决定哪条线交给哪个线程，因此三级
-// CPU 位精确。中间缓冲 low_rows/high_rows 各 H*(W/2) 个 double。
-// 复杂度 O(H*W*taps)。
+// One 2D analysis pass: rows first, then columns.
+//   Rows: x[y,:]         -> low_rows[y,:], high_rows[y,:] (W -> W/2)
+//   Cols: low_rows[:,x]  -> LL[:,x], LH[:,x]
+//         high_rows[:,x] -> HL[:,x], HH[:,x] (H -> H/2)
+// Rows and columns are mutually independent; Runner only decides which thread
+// handles each line, so all three CPU levels are bit-exact. The intermediate
+// low_rows/high_rows buffers each contain H*(W/2) doubles.
+// Complexity: O(H*W*taps).
 template <typename Runner>
 inline void AnalyzePlane(const double* plane, int64_t h, int64_t w,
                          const std::vector<double>& low_filter,
@@ -145,10 +157,11 @@ inline void AnalyzePlane(const double* plane, int64_t h, int64_t w,
   });
 }
 
-// 二维合成：AnalyzePlane 的严格逆序，先列后行。
-//   列：LL/LH -> low_rows，HL/HH -> high_rows（H/2 -> H）
-//   行：low_rows/high_rows -> plane（W/2 -> W）
-// 中间缓冲与 AnalyzePlane 同尺寸；复杂度 O(H*W*taps)。
+// 2D synthesis: the exact reverse of AnalyzePlane, columns first and then rows.
+//   Cols: LL/LH -> low_rows, HL/HH -> high_rows (H/2 -> H)
+//   Rows: low_rows/high_rows -> plane (W/2 -> W)
+// Intermediate buffers have the same sizes as in AnalyzePlane.
+// Complexity: O(H*W*taps).
 template <typename Runner>
 inline void SynthesizePlane(const double* ll, const double* lh,
                             const double* hl, const double* hh, int64_t h,
@@ -171,7 +184,7 @@ inline void SynthesizePlane(const double* ll, const double* lh,
   });
 }
 
-// 从输入视图按字节偏移读出 double 值，支持 f32/f64。
+// Read a double value from an input view at a byte offset; supports f32/f64.
 inline double LoadWaveletValue(const char* source, DataType dtype) {
   if (dtype == DataType::kFloat32) {
     return *reinterpret_cast<const float*>(source);
@@ -179,7 +192,8 @@ inline double LoadWaveletValue(const char* source, DataType dtype) {
   return *reinterpret_cast<const double*>(source);
 }
 
-// 把 double 写回输出张量，只在这里窄化到 f32 或保留 f64。
+// Write a double back to the output tensor, narrowing to f32 or retaining f64
+// only here.
 inline void StoreWaveletValue(char* destination, DataType dtype, double value) {
   if (dtype == DataType::kFloat32) {
     *reinterpret_cast<float*>(destination) = static_cast<float>(value);
@@ -188,8 +202,8 @@ inline void StoreWaveletValue(char* destination, DataType dtype, double value) {
   *reinterpret_cast<double*>(destination) = value;
 }
 
-// 把一个 (n, c) 平面读入连续的 double 暂存区，复杂度 O(H*W)。
-// 读取走 ImageByteOffset，因此源张量可以是非连续视图。
+// Load an (n, c) plane into a contiguous double scratch buffer in O(H*W) time.
+// Reads use ImageByteOffset, so the source tensor may be a non-contiguous view.
 inline void LoadWaveletPlane(const Tensor& source, const ImageInfo& info,
                              int64_t n, int64_t c, std::vector<double>* plane) {
   plane->resize(static_cast<size_t>(info.h * info.w));
@@ -203,7 +217,8 @@ inline void LoadWaveletPlane(const Tensor& source, const ImageInfo& info,
   }
 }
 
-// 把一个平面写回输出张量，复杂度 O(H*W)。输出由入口分配，是连续内存。
+// Write a plane back to the output tensor in O(H*W) time. The entry point
+// allocates the output as contiguous memory.
 inline void StoreWaveletPlane(const std::vector<double>& plane,
                               const ImageInfo& info, int64_t n, int64_t c,
                               Tensor* destination) {
@@ -217,11 +232,13 @@ inline void StoreWaveletPlane(const std::vector<double>& plane,
   }
 }
 
-// 所有 CPU 级别共用的驱动。`input` 在正向是图像、逆向是 LL，因此两个
-// 方向的平面尺寸不同：图像/子带的 ImageInfo 由方向推导，而不是只看张量。
-// 每个 (n, c) 平面独立处理：正向 load -> AnalyzePlane -> 写四个子带；
-// 逆向 load 四个子带 -> SynthesizePlane -> 写图像。
-// 复杂度 O(H*W*taps)。
+// Driver shared by all CPU levels. `input` is the image in the forward direction
+// and LL in the inverse direction, so plane dimensions differ: derive ImageInfo
+// for the image/subbands from the direction rather than the tensor alone.
+// Each (n, c) plane is processed independently: forward performs load ->
+// AnalyzePlane -> write four subbands; inverse performs load four subbands ->
+// SynthesizePlane -> write image.
+// Complexity: O(H*W*taps).
 template <typename Runner>
 inline Status WaveletImpl(const Tensor& input, const void* params,
                           Tensor* output) {

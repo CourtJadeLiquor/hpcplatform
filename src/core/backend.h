@@ -25,28 +25,33 @@ class Backend {
  public:
   virtual ~Backend() = default;
 
-  // 返回后端类型、设备，以及该后端持有的内存管理器与默认流。
+  // Returns the backend type and device, plus its memory manager and default
+  // stream.
   virtual BackendType type() const = 0;
   virtual Device device() const = 0;
   virtual MemoryManager& memory() = 0;
-  virtual Stream& stream() = 0;
-  // 等待该后端上的全部工作完成。
+  virtual Stream& stream() const = 0;
+  // Waits for all work on this backend to complete.
   virtual Status Synchronize() = 0;
 
-  // 在后端可见范围内搬运原始字节；无法直接访问设备内存时返回 kUnsupported，
-  // 不允许暗中经由主机中转，避免调用方误判同步/性能语义。
+  // Copies raw bytes within memory visible to the backend; returns kUnsupported
+  // when device memory is inaccessible. Never stages via the host implicitly,
+  // which would obscure synchronization/performance semantics. `stream` is
+  // valid only for the CUDA backend.
   virtual Status CopyBuffer(Buffer* dst, size_t dst_offset, const Buffer* src,
-                            size_t src_offset, size_t bytes, Stream* stream);
+                            size_t src_offset, size_t bytes,
+                            Stream* stream) const;
 
-  // 该后端是否支持指定 dtype。
+  // Returns whether this backend supports the specified dtype.
   virtual bool SupportsDType(DataType dtype) const {
     return DTypeSize(dtype) != 0;
   }
 
-  // 该构建/后端能否执行指定 CPU 内核级别；非 CPU 后端只对 kNaive 返回 true。
+  // Returns whether this build/backend supports the CPU kernel level; non-CPU
+  // backends support only kNaive.
   virtual bool SupportsKernelLevel(CpuKernelLevel level) const = 0;
 
-  // 返回后端与设备的人类可读描述，用于日志与错误信息。
+  // Returns a human-readable backend and device description for logs and errors.
   virtual std::string Describe() const = 0;
 };
 

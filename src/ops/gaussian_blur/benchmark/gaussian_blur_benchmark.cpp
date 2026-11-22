@@ -1,5 +1,5 @@
 // Per-operator benchmark for gaussian_blur (docs/architecture.md §6.1/§7.2).
-// 基准程序用于在本机构建可用的后端/内核级别上测量 gaussian_blur 的吞吐与延迟。
+// Measures gaussian_blur throughput and latency for every backend/kernel level available in this build.
 //
 // Sweeps kernel size / sigma / channel count (c>=4 unlocks the AVX2 block),
 // dtype and every execution backend available in this build, emitting CSV for

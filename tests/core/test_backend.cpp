@@ -1,5 +1,5 @@
-// 测试接口用于验证后端工厂选型、CPU
-// 后端能力（dtype/拷贝/流）与算子上下文的执行级别约束。
+// Tests for backend factory selection, CPU backend capabilities
+// (dtype/copy/stream), and operator-context execution-level constraints.
 #include "test_framework.h"
 
 #include "core/backend.h"

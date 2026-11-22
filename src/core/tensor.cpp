@@ -6,9 +6,8 @@
 #include <vector>
 
 #include "core/backend.h"
-#include "core/copy_internal.h"
+#include "core/copy.h"
 #include "mycv/core/context.h"
-#include "mycv/core/tensor_iterator.h"
 
 namespace mycv {
 namespace {
@@ -190,7 +189,7 @@ Result<Tensor> Tensor::Clone() const {
   auto result = Tensor::Create(owner.value(), shape_, dtype_);
   if (!result.ok()) return result.status();
   MYCV_RETURN_IF_ERROR(
-      CopyTensor(*owner.value(), &result.value(), *this, nullptr));
+      CopyTensorData(*owner.value(), &result.value(), *this, nullptr));
   return result;
 }
 

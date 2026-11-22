@@ -6,18 +6,19 @@
 
 namespace mycv {
 
-// 错误分类：调用方据此决定是修正参数、换后端还是补实现。
+// Error classification: tells callers whether to fix arguments, switch backends,
+// or add an implementation.
 enum class StatusCode : int {
-  kOk = 0,               // 成功
-  kInvalidArgument = 1,  // 参数不合法
-  kOutOfMemory = 2,      // 内存分配失败
-  kUnsupported = 3,      // 当前构建未启用该能力
-  kNotImplemented = 4,   // 能力可用但该组合没有内核
-  kBadState = 5,         // 对象状态不允许当前操作
-  kInternal = 6,         // 内部不变量被破坏
+  kOk = 0,               // Success
+  kInvalidArgument = 1,  // Invalid argument
+  kOutOfMemory = 2,      // Memory allocation failed
+  kUnsupported = 3,      // Capability is not enabled in this build
+  kNotImplemented = 4,   // No kernel supports this available combination
+  kBadState = 5,         // Object state does not allow this operation
+  kInternal = 6,         // Internal invariant violated
 };
 
-// 返回错误码的稳定名称。
+// Returns the stable name of a status code.
 const char* StatusCodeName(StatusCode code);
 
 // Lightweight error object. The library core does not throw exceptions so that
@@ -50,14 +51,14 @@ class Status {
     return Status(StatusCode::kInternal, std::move(message));
   }
 
-  // 是否成功。
+  // Whether the operation succeeded.
   bool ok() const { return code_ == StatusCode::kOk; }
-  // 错误码；成功时为 kOk。
+  // Status code; kOk on success.
   StatusCode code() const { return code_; }
-  // 人类可读的错误信息。
+  // Human-readable error message.
   const std::string& message() const { return message_; }
 
-  // 格式化为 "code: message"。
+  // Formats as "code: message".
   std::string ToString() const;
 
  private:
@@ -76,14 +77,14 @@ class Result {
   // NOLINTNEXTLINE(google-explicit-constructor)
   Result(Status status) : status_(std::move(status)), ok_(false) {}
 
-  // 是否持有值；为 false 时只能读取 status()。
+  // Whether a value is held; when false, only status() may be read.
   bool ok() const { return ok_; }
-  // 失败时返回对应 Status；成功时为 kOk。
+  // Returns the failure Status, or an OK Status on success.
   const Status& status() const { return status_; }
-  // 返回值的引用；调用方必须先确认 ok()。
+  // Returns a reference to the value; caller must check ok() first.
   T& value() { return value_; }
   const T& value() const { return value_; }
-  // 成功时返回值，失败时返回 fallback。
+  // Returns the value on success, or fallback on failure.
   T ValueOr(T fallback) const { return ok_ ? value_ : std::move(fallback); }
 
  private:

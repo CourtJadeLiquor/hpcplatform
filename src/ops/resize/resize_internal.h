@@ -1,9 +1,10 @@
 #ifndef MYCV_SRC_OPS_RESIZE_RESIZE_INTERNAL_H_
 #define MYCV_SRC_OPS_RESIZE_RESIZE_INTERNAL_H_
 
-// resize 算子目录的内部契约（docs/architecture.md §6.1）：
-// 集中声明缩放参数结构体、各后端的内核入口，以及注册钩子。
-// 本文件只供 src/ops/resize/ 与内核注册表使用，不暴露给公共 API。
+// Internal contract for the resize operator directory (docs/architecture.md §6.1):
+// declares the resize parameter struct, backend kernel entry points, and the
+// registration hook. Used only by src/ops/resize/ and the kernel registry;
+// not exposed through the public API.
 
 #include "framework/image_utils.h"
 #include "mycv/ops/image.h"
@@ -12,8 +13,9 @@
 namespace mycv {
 namespace ops_internal {
 
-// 一次 resize 调用的全部参数：目标高宽、插值方式、输入图像布局。
-// layout 决定线性下标如何解码成 (n, y, x, c)，也决定输出张量的形状。
+// All parameters for a resize invocation: target height/width, interpolation
+// mode, and input image layout. layout determines how linear indices decode to
+// (n, y, x, c) and determines the output tensor shape.
 struct ResizeParams {
   int64_t height;
   int64_t width;
@@ -21,9 +23,10 @@ struct ResizeParams {
   ImageLayout layout;
 };
 
-// CPU 内核入口：naive 始终编译，OpenMP/TBB 仅在对应特性开启时存在。
-// 每个入口定义在各自的 .cpp 中，内部共用 resize_cpu.h 的同一像素核，
-// 因此各 level 对同一输入逐位完全一致。
+// CPU kernel entry points: naive is always compiled; OpenMP/TBB exist only
+// when their features are enabled. Each entry point is defined in its own .cpp
+// and shares the same pixel kernel in resize_cpu.h, so all levels produce
+// bit-exact results for the same input.
 Status ResizeCpuNaive(const OpContext& context, const Tensor& input,
                       const Tensor* other, const void* params, Tensor* output);
 #ifdef MYCV_WITH_OPENMP
@@ -34,8 +37,9 @@ Status ResizeCpuOpenMP(const OpContext&, const Tensor&, const Tensor*,
 Status ResizeCpuTbb(const OpContext&, const Tensor&, const Tensor*, const void*,
                     Tensor*);
 #endif
-// 可选后端入口：CUDA 与 OpenCV，签名与 CPU 入口一致，均只接受 kNaive
-// 级别（见 ValidateInvocation 对非 CPU 后端的限制）。
+// Optional backend entry points: CUDA and OpenCV use the same signatures as
+// the CPU entries and accept only kNaive (see ValidateInvocation's restrictions
+// on non-CPU backends).
 #ifdef MYCV_WITH_CUDA
 Status ResizeCuda(const OpContext&, const Tensor&, const Tensor*, const void*,
                   Tensor*);
@@ -45,8 +49,9 @@ Status ResizeOpenCv(const OpContext&, const Tensor&, const Tensor*, const void*,
                     Tensor*);
 #endif
 
-// 把本二进制内已编译的 resize 实现登记到内核表（docs/architecture.md
-// §6.3）：所有启用的 CPU level，加上启用的可选后端（CUDA/OpenCV）。
+// Register all resize implementations compiled into this binary in the kernel
+// table (docs/architecture.md §6.3): every enabled CPU level plus enabled
+// optional backends (CUDA/OpenCV).
 void RegisterResizeKernels();
 
 }  // namespace ops_internal

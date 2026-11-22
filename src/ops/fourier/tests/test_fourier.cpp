@@ -1,4 +1,4 @@
-// 测试接口用于验证 fourier 正逆变换的一致性、归一化与边界处理。
+// Tests fourier forward/inverse consistency, normalization, and boundary handling.
 #include "test_framework.h"
 
 #include <cmath>

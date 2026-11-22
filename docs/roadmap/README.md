@@ -79,7 +79,7 @@
 ### 内部设施
 
 - 新增 `src/framework/{compiler,dtype_dispatch,profiling,stats}.h`。
-- 新增 `src/core/copy_internal.h`：`CopyTensor` / `ResolveOwningBackend` 内部声明。
+- 新增 `src/core/copy.h`：`CopyTensorData` / `ResolveOwningBackend` 内部声明。
 - 新增 `tests/perf/test_operator_perf.cpp`：基于 profiling/stats 的算子性能评估样例。
 - `tests/` 重组为 `core/`、`backends/`、`perf/` 与各算子内部 `tests/`。
 

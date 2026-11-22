@@ -1,5 +1,6 @@
 // Per-operator benchmark for laplacian_pyramid (docs/architecture.md
-// §6.1/§7.2). 基准程序用于测量拉普拉斯金字塔在不同深度与后端上的耗时。
+// §6.1/§7.2). The benchmark measures Laplacian pyramid runtime across depths and
+// backends.
 //
 // The pyramid is a composition of gaussian_blur and resize, so its "version"
 // is the CpuKernelLevel forwarded to those two ops. This sweep crosses input

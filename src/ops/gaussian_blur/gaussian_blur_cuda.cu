@@ -7,39 +7,47 @@
 #include "gaussian_blur_internal.h"
 #include "mycv/ops/image.h"
 
-// CUDA 后端：可分离高斯模糊。主机侧构造核，设备侧跑两趟一维卷积，
-// 把每像素 O(K^2) 次乘加降为 O(2K)：
+// CUDA backend: separable Gaussian blur. The host builds the kernel and the
+// device runs two 1D convolution passes, reducing per-pixel multiply-adds from
+// O(K^2) to O(2K):
 //
-// 流水线：
-//  1) GaussianBlurCuda() 解析形状，用 BuildGaussianKernel 在主机生成
-//     归一化核，并用 Context::AllocateTensor 分配同形状的 f64 中间
-//     张量（即水平 pass 的输出 tmp，位于显存）；
-//  2) LaunchBlur() 用 cudaMalloc + cudaMemcpyAsync(H2D，同流) 上传核；
-//  3) BlurHorizontalKernel 做水平 pass：
+// Pipeline:
+//  1) GaussianBlurCuda() parses the shape, builds a normalized kernel on the
+//     host with BuildGaussianKernel, and uses Context::AllocateTensor to
+//     allocate a same-shaped f64 intermediate tensor (the horizontal pass's
+//     output tmp, in device memory);
+//  2) LaunchBlur() uploads the kernel with cudaMalloc + cudaMemcpyAsync
+//     (H2D, on the same stream);
+//  3) BlurHorizontalKernel performs the horizontal pass:
 //       tmp[n,y,x,c] = sum_i k[i] * in[n, y, clamp(x+i-r), c]
-//     x 方向越界 replicate；
-//  4) BlurVerticalKernel 做垂直 pass 并直接按输出 dtype 写回：
+//     with replicate for out-of-range x;
+//  4) BlurVerticalKernel performs the vertical pass and stores directly in the
+//     output dtype:
 //       out[n,y,x,c] = sum_i k[i] * tmp[n, clamp(y+i-r), x, c]
-//  5) FinishLaunch 检查启动错误并同步流，之后才 cudaFree 核系数。
+//  5) FinishLaunch checks launch errors and synchronizes the stream before
+//     cudaFree releases the kernel coefficients.
 //
-// 两个内核在同一条 stream 上，天然先后有序；垂直 pass 依赖水平 pass
-// 写完整张中间张量，因此两者之间不能插入其他流的操作。
-// 线程划分：每 block 256 线程，block 数 = ceil(count/256) 且上限
-// 65535；每个线程用 grid-stride 循环（ThreadIndex/ThreadStride）
-// 领取线性下标，再用 DecodeImageIndex 映射到 (n,y,x,c)。NHWC 下
-// 相邻线程对应相邻 c，CHW 下对应相邻 x，两种布局都是 coalesced。
-// 未使用 shared memory / constant memory：系数很小，走 L1/L2 即可。
-// 误差来源：设备端默认做 FMA 收缩，舍入与主机逐步 mul+add 不同，
-// 故与 CPU 层不位精确，跨后端按 1e-4 相对容差比较
-// （docs/qa/testing.md §4.2）。
+// Both kernels use the same stream and are therefore ordered. The vertical pass
+// depends on the horizontal pass completing the entire intermediate tensor, so
+// no operations on other streams may be inserted between them.
+// Thread decomposition: 256 threads per block and ceil(count/256) blocks,
+// capped at 65535. Each thread claims linear indices with a grid-stride loop
+// (ThreadIndex/ThreadStride), then DecodeImageIndex maps them to (n,y,x,c).
+// Adjacent threads access adjacent c in NHWC and adjacent x in CHW, so both
+// layouts are coalesced. Shared/constant memory is unused; the small
+// coefficient array can use L1/L2. Error source: device-side FMA contraction by
+// default rounds differently from host-side stepwise mul+add, so results are
+// not bit-exact with CPU levels. Compare across backends with 1e-4 relative
+// tolerance (docs/qa/testing.md §4.2).
 namespace mycv {
 namespace ops_internal {
 namespace {
 
-// 设备端按布局计算连续张量的线性下标，C 为通道数：
+// Device-side linear index for a contiguous tensor according to layout, where
+// C is the channel count:
 //   NHWC: ((n*h + y)*w + x)*C + c
-//   其他（CHW）: ((n*C + c)*h + y)*w + x
-// 垂直 pass 用它索引 f64 中间张量。
+//   Other (CHW): ((n*C + c)*h + y)*w + x
+// The vertical pass uses this to index the f64 intermediate tensor.
 __device__ inline int64_t ImageLinearIndexDevice(const DeviceImage& image,
                                                  int64_t n, int64_t y,
                                                  int64_t x, int64_t c) {
@@ -49,8 +57,9 @@ __device__ inline int64_t ImageLinearIndexDevice(const DeviceImage& image,
   return ((n * image.c + c) * image.h + y) * image.w + x;
 }
 
-// 按 dtype 从设备指针读取一个元素并提升为 double：u8 取 0..255，
-// f32 先扩为 double 再参与累加，f64 直接读取。O(1)。
+// Load one element from a device pointer according to dtype and promote it to
+// double: u8 spans 0..255, f32 is widened before accumulation, and f64 is read
+// directly. O(1).
 __device__ inline double LoadPixelDouble(const void* base, int64_t offset,
                                          DataType dtype) {
   if (dtype == DataType::kUInt8) {
@@ -62,14 +71,15 @@ __device__ inline double LoadPixelDouble(const void* base, int64_t offset,
   return static_cast<const double*>(base)[offset];
 }
 
-// 水平 pass 内核。输入：源张量 input、图像描述 image、核系数 kernel
-// （设备端点）、tap_count 与 radius；输出：f64 中间张量 tmp。
-// 每个线程以 grid-stride 循环处理若干线性下标 index < count：
-// 1) DecodeImageIndex 把 index 解成 (n,y,x,c)；
-// 2) 对 i = 0..tap_count-1 取 xx = x+i-radius 并按 replicate 夹到
-//    [0, w-1]，累加 kernel[i] * LoadPixelDouble(in[n,y,xx,c])；
-// 3) 写 tmp[index]（tmp 与输入同形状、f64、连续）。
-// 单元素 O(K)，整趟 O(H*W*K)。
+// Horizontal pass kernel. Inputs: source tensor input, image descriptor image,
+// kernel coefficients (device pointer), tap_count, and radius; output: f64
+// intermediate tensor tmp. Each thread processes multiple linear indices
+// index < count with a grid-stride loop:
+// 1) DecodeImageIndex decodes index to (n,y,x,c);
+// 2) For i = 0..tap_count-1, set xx = x+i-radius, clamp with replicate to
+//    [0, w-1], and accumulate kernel[i] * LoadPixelDouble(in[n,y,xx,c]);
+// 3) Write tmp[index] (tmp has the input shape, f64 dtype, and is contiguous).
+// O(K) per element; O(H*W*K) per pass.
 __global__ void BlurHorizontalKernel(DeviceTensor input, DeviceImage image,
                                      double* tmp, int64_t count,
                                      const double* kernel, int tap_count,
@@ -93,13 +103,14 @@ __global__ void BlurHorizontalKernel(DeviceTensor input, DeviceImage image,
   }
 }
 
-// 垂直 pass 内核。输入：水平 pass 的 f64 中间张量 tmp、图像描述；
-// 输出：output_data（按 dtype 解释）。同样 grid-stride 领取线性下标，
-// 解码 (n,y,x,c) 后对 i 把 y+i-radius 按 replicate 夹到 [0, h-1]，
-// 累加 kernel[i] * tmp[ImageLinearIndexDevice(n,yy,x,c)]。
-// 输出是新分配且连续的张量，故线性下标就是元素下标；u8 先 ::round
-// 再经 SaturatingCast 饱和到 [0,255]，f32/f64 直接转换。
-// 单元素 O(K)，整趟 O(H*W*K)。
+// Vertical pass kernel. Inputs: the horizontal pass's f64 intermediate tensor
+// tmp and the image descriptor; output: output_data (interpreted by dtype).
+// Threads similarly claim linear indices with grid-stride, decode (n,y,x,c),
+// clamp y+i-radius with replicate to [0, h-1] for each i, and accumulate
+// kernel[i] * tmp[ImageLinearIndexDevice(n,yy,x,c)]. The newly allocated output
+// is contiguous, so the linear index is the element index. u8 is rounded with
+// ::round and saturated to [0,255] by SaturatingCast; f32/f64 convert directly.
+// O(K) per element; O(H*W*K) per pass.
 __global__ void BlurVerticalKernel(const double* tmp, DeviceImage image,
                                    void* output_data, int64_t count,
                                    const double* kernel, int tap_count,
@@ -116,7 +127,7 @@ __global__ void BlurVerticalKernel(const double* tmp, DeviceImage image,
       yy = yy < 0 ? 0 : (yy >= image.h ? image.h - 1 : yy);
       acc += kernel[i] * tmp[ImageLinearIndexDevice(image, n, yy, x, c)];
     }
-    // 输出连续，index 即元素下标（u8 按 half away from zero 舍入）。
+    // Contiguous output: index is the element index (u8 rounds half away from zero).
     if (dtype == DataType::kUInt8) {
       static_cast<uint8_t*>(output_data)[index] =
           SaturatingCast<uint8_t>(::round(acc));
@@ -128,16 +139,18 @@ __global__ void BlurVerticalKernel(const double* tmp, DeviceImage image,
   }
 }
 
-// 启动两趟内核并管理核系数的设备内存。步骤：
-// 1) cudaMalloc 分配 tap_count 个 double 存放核系数，再用
-//    cudaMemcpyAsync(H2D) 在同一条 stream 上传；后续内核也在此 stream
-//    上，因此拷贝先于内核完成，无需额外同步；
-// 2) count = output->Numel()，blocks = BlockCount(count)（每 block
-//    kThreadsPerBlock = 256 线程，块数上限 65535，剩余元素由
-//    grid-stride 循环覆盖）；
-// 3) 依次启动水平、垂直内核，中间张量 tmp 由调用方提供；
-// 4) FinishLaunch 检查启动错误并同步流，确认两个内核都结束后才
-//    cudaFree 核系数，保证不释放仍在使用中的显存；返回其状态。
+// Launch both kernels and manage device memory for kernel coefficients. Steps:
+// 1) cudaMalloc allocates tap_count doubles for the coefficients, then
+//    cudaMemcpyAsync(H2D) uploads them on the same stream as the subsequent
+//    kernels. The copy therefore completes before the kernels without extra
+//    synchronization;
+// 2) count = output->Numel(), blocks = BlockCount(count) (each block has
+//    kThreadsPerBlock = 256 threads, at most 65535 blocks; grid-stride loops
+//    cover remaining elements);
+// 3) Launch horizontal then vertical kernels, using caller-provided tmp;
+// 4) FinishLaunch checks launch errors and synchronizes the stream. Only after
+//    both kernels finish does cudaFree release the coefficients, avoiding
+//    freeing device memory still in use; return its status.
 Status LaunchBlur(const Tensor& input, const ImageInfo& info,
                   const GaussianBlurParams& options, const double* kernel_host,
                   double* tmp, Tensor* output, cudaStream_t stream) {
@@ -164,11 +177,12 @@ Status LaunchBlur(const Tensor& input, const ImageInfo& info,
 
 }  // namespace
 
-// CUDA 入口：取当前 CUDA 流 -> 按 layout 解析形状 -> 主机侧构造
-// 归一化核 -> 用 context.context->AllocateTensor 分配与输入同形状的
-// f64 中间张量 -> 交给 LaunchBlur 启动两趟内核。
-// 中间张量有 Numel 个 double，生命周期由 context 管理；两趟之间
-// 不显式同步，顺序由同一条 stream 保证。
+// CUDA entry point: get the current CUDA stream -> parse the shape by layout
+// -> build a normalized kernel on the host -> allocate a same-shaped f64
+// intermediate tensor with context.context->AllocateTensor -> pass it to
+// LaunchBlur to launch both kernels. The intermediate tensor contains Numel
+// doubles and its lifetime is managed by context. No explicit synchronization
+// occurs between passes; the same stream guarantees their order.
 Status GaussianBlurCuda(const OpContext& context, const Tensor& input,
                         const Tensor*, const void* params, Tensor* output) {
   auto stream_result = GetCudaStream(context);

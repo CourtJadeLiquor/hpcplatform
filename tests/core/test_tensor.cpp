@@ -1,5 +1,5 @@
-// 测试接口用于验证 Tensor
-// 的创建、生命周期、元数据（shape/dtype/strides）与边界校验。
+// Tests for Tensor creation, lifetime, metadata (shape/dtype/strides), and
+// boundary validation.
 #include "test_framework.h"
 
 #include <cstdint>

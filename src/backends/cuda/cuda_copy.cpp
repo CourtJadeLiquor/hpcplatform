@@ -9,7 +9,7 @@ namespace mycv {
 
 Status CudaBackend::CopyBuffer(Buffer* dst, size_t dst_offset,
                                const Buffer* src, size_t src_offset,
-                               size_t bytes, Stream* stream) {
+                               size_t bytes, Stream* stream) const {
   return CudaCopyBuffer(dst, dst_offset, src, src_offset, bytes, stream);
 }
 

@@ -1,5 +1,5 @@
-// 测试接口用于提供零依赖的断言与用例注册框架，供 core/backends/ops
-// 各层测试复用。
+// Dependency-free assertion and test registration framework shared by
+// core/backends/ops tests.
 #ifndef MYCV_TESTS_TEST_FRAMEWORK_H_
 #define MYCV_TESTS_TEST_FRAMEWORK_H_
 

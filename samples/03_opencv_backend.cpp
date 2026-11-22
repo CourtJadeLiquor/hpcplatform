@@ -1,4 +1,4 @@
-// 样例用于演示 OpenCV 后端：cv::Mat 零拷贝接管与 resize/gaussian_blur 调用。
+// Demonstrates the OpenCV backend: zero-copy cv::Mat adoption and resize/gaussian_blur calls.
 #include <iostream>
 
 #include <opencv2/core.hpp>

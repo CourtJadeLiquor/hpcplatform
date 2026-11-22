@@ -1,17 +1,18 @@
 #ifndef MYCV_SRC_OPS_GAUSSIAN_BLUR_GAUSSIAN_BLUR_CPU_H_
 #define MYCV_SRC_OPS_GAUSSIAN_BLUR_GAUSSIAN_BLUR_CPU_H_
 
-// gaussian_blur 的 CPU 共享骨架（可分离两趟模糊）。
+// Shared CPU skeleton for gaussian_blur (two separable blur passes).
 //
-// 两趟各 O(H*W*K)：水平 pass 把结果写进 double 中间缓冲 tmp，
-// 垂直 pass 读 tmp 并按输出 dtype 存储；水平方向
+// Each pass is O(H*W*K). The horizontal pass writes results to the double
+// intermediate buffer tmp; the vertical pass reads tmp and stores according to
+// the output dtype. Horizontal:
 //   tmp[y,x] = sum_k in[y, x-r+k] * w[k]
-// 垂直方向
+// Vertical:
 //   out[y,x] = sum_k tmp[y-r+k, x] * w[k]
-// 越界下标按 replicate 复制边缘像素。
-// 所有 CPU 层都用 double 累加且 tap 顺序一致（核下标 0 -> size-1，
-// 即偏移 -radius .. +radius），因此各层结果位精确一致；
-// docs/architecture.md §7.2。
+// Out-of-range indices replicate edge pixels. All CPU levels accumulate in
+// double with identical tap order (kernel indices 0 -> size-1, i.e. offsets
+// -radius .. +radius), so their results are bit-exact;
+// docs/architecture.md §7.2.
 
 #include <cmath>
 #include <cstdint>
@@ -27,10 +28,11 @@
 namespace mycv {
 namespace ops_internal {
 
-// 按输出 dtype 写回一个像素：把 double 结果转成 u8/f32/f64。
-// u8 采用 half away from zero 舍入（std::round）；由于核系数全为正且
-// 已归一化，累加和天然落在 [0,255]，无需额外饱和处理。
-// 非法 dtype 会被入口校验拦下，这里直接忽略。
+// Store one pixel according to the output dtype: convert the double result to
+// u8/f32/f64. u8 uses half-away-from-zero rounding (std::round). Since all
+// kernel coefficients are positive and normalized, the accumulated sum is
+// naturally within [0,255] and needs no extra saturation. Entry-point validation
+// rejects invalid dtypes, which are ignored here.
 inline void StoreBlurPixel(char* destination, DataType dtype, double value) {
   switch (dtype) {
     case DataType::kUInt8:
@@ -48,8 +50,9 @@ inline void StoreBlurPixel(char* destination, DataType dtype, double value) {
   }
 }
 
-// 按 dtype 读取一个像素并提升为 double；u8 值域 0..255，f32/f64 直接扩展。
-// 非法 dtype 会被入口校验拦下，这里返回 0。
+// Load one pixel according to dtype and promote it to double; u8 spans 0..255,
+// while f32/f64 are converted directly. Entry-point validation rejects invalid
+// dtypes, for which this returns 0.
 inline double LoadBlurPixel(const char* source, DataType dtype) {
   switch (dtype) {
     case DataType::kUInt8:
@@ -63,8 +66,8 @@ inline double LoadBlurPixel(const char* source, DataType dtype) {
   }
 }
 
-// 把一维线性像素下标解码为 (n, y, x, c)，解码规则与 resize 相同：
-// NHWC 下 c 变化最快，CHW 下 x 变化最快（channel 为外层）。
+// Decode a linear pixel index to (n, y, x, c) using the same rules as resize:
+// c varies fastest in NHWC; x varies fastest in CHW (channels are outermost).
 inline void DecodeBlurIndex(const ImageInfo& info, int64_t linear, int64_t& n,
                             int64_t& y, int64_t& x, int64_t& c) {
   int64_t remaining = linear;
@@ -85,16 +88,16 @@ inline void DecodeBlurIndex(const ImageInfo& info, int64_t linear, int64_t& n,
   }
 }
 
-// replicate 边界：负下标夹到 0，>= limit 夹到 limit-1，其余不变。
+// Replicate boundary: clamp negative indices to 0 and indices >= limit to limit-1.
 inline int64_t ClampIndex(int64_t value, int64_t limit) {
   return value < 0 ? 0 : (value >= limit ? limit - 1 : value);
 }
 
-// 水平 pass 的单个输出元素：
+// One output element of the horizontal pass:
 //   tmp[linear] = sum_i k[i] * in(n, y, clamp(x+i-r), c)
-// 输入为原始张量、图像信息、核与半径，输出写入 tmp 的同一下标。
-// 按 i 从 0 到 2r 顺序累加（double），复杂度 O(K)；整个 pass 为
-// O(H*W*K)。边界用 replicate 夹取。
+// Inputs are the source tensor, image info, kernel, and radius; output goes to
+// the same index in tmp. Accumulate in double for i = 0..2r in order. O(K) per
+// element and O(H*W*K) per pass. Clamp boundaries with replicate.
 inline void BlurHorizontalElement(const Tensor& input, const ImageInfo& info,
                                   const double* kernel, int radius,
                                   int64_t linear, double* tmp) {
@@ -114,10 +117,11 @@ inline void BlurHorizontalElement(const Tensor& input, const ImageInfo& info,
   tmp[linear] = acc;
 }
 
-// 垂直 pass 的单个输出元素：
+// One output element of the vertical pass:
 //   out(linear) = store(sum_i k[i] * tmp(n, clamp(y+i-r), x, c))
-// 从水平 pass 的 double 缓冲读取，按 i 递增顺序累加后按输出 dtype
-// 存储；单元素 O(K)，整个 pass O(H*W*K)，y 方向边界同样 replicate。
+// Read the horizontal pass's double buffer, accumulate in increasing i order,
+// and store according to the output dtype. O(K) per element and O(H*W*K) per
+// pass, with replicate boundaries along y as well.
 inline void BlurVerticalElement(const double* tmp, const ImageInfo& info,
                                 const double* kernel, int radius,
                                 int64_t linear, Tensor* output) {
@@ -136,7 +140,7 @@ inline void BlurVerticalElement(const double* tmp, const ImageInfo& info,
                  output->dtype(), acc);
 }
 
-// 校验并按 options.layout 解析输入形状，填充 ImageInfo（n/h/w/c/layout）。
+// Validate and parse the input shape according to options.layout, filling ImageInfo (n/h/w/c/layout).
 inline Status PrepareBlur(const Tensor& input,
                           const GaussianBlurParams& options, ImageInfo* info) {
   auto parsed = ParseImage(input.shape(), options.layout);
@@ -145,10 +149,11 @@ inline Status PrepareBlur(const Tensor& input,
   return Status::Ok();
 }
 
-// naive 参考实现：顺序执行两趟，是所有其他层的位精确基准。
-// 步骤：解析图像 -> 构造核 -> 为每个线性下标做水平 pass（写 double
-// 临时缓冲）-> 再做一遍垂直 pass 写入 output。
-// 每 pass O(H*W*K)，额外内存 O(H*W*C) 个 double。
+// Naive reference implementation: runs both passes sequentially and is the
+// bit-exact reference for all other levels. Steps: parse image -> build kernel
+// -> run the horizontal pass for every linear index (writing a double temporary
+// buffer) -> run the vertical pass into output. Each pass is O(H*W*K), with
+// O(H*W*C) doubles of additional memory.
 inline Status BlurNaiveImpl(const Tensor& input,
                             const GaussianBlurParams& options, Tensor* output) {
   ImageInfo info;
@@ -167,11 +172,12 @@ inline Status BlurNaiveImpl(const Tensor& input,
 }
 
 #ifdef MYCV_WITH_OPENMP
-// OpenMP 层：把扁平化的像素下标 [0, Numel) 作为并行粒度，
-// 两趟各开一个 `#pragma omp parallel for`（未指定 schedule，采用运行时
-// 默认调度，通常为 static）。每个线程只写自己的 tmp/output 元素，
-// 无临界区；垂直 pass 需要水平结果全部可见，故两趟之间隐含屏障。
-// 单像素内部的 tap 顺序未变，因此与 naive 位精确一致。
+// OpenMP level: parallelize over flat pixel indices [0, Numel), with one
+// `#pragma omp parallel for` per pass. No schedule is specified, so the runtime
+// default applies (typically static). Each thread writes only its own tmp/output
+// elements, with no critical sections. An implicit barrier between passes makes
+// all horizontal results visible to the vertical pass. The per-pixel tap order
+// is unchanged, ensuring bit-exact agreement with naive.
 inline Status BlurOpenMPImpl(const Tensor& input,
                              const GaussianBlurParams& options,
                              Tensor* output) {
@@ -194,10 +200,11 @@ inline Status BlurOpenMPImpl(const Tensor& input,
 #endif
 
 #ifdef MYCV_WITH_TBB
-// TBB 层：用 tbb::parallel_for 在区间 [0, Numel) 上做划分（默认
-// auto_partitioner，粒度由运行时决定），两趟各调用一次；第二次调用返回
-// 时第一次已全部完成，保证垂直 pass 读到完整的水平结果。
-// 每个下标被唯一线程处理，tap 顺序不变，故与 naive 位精确一致。
+// TBB level: partition [0, Numel) with tbb::parallel_for (default
+// auto_partitioner; runtime-determined granularity), once per pass. The first
+// call completes before the second returns control, so the vertical pass reads
+// complete horizontal results. Each index is handled by exactly one thread and
+// tap order is unchanged, ensuring bit-exact agreement with naive.
 inline Status BlurTbbImpl(const Tensor& input,
                           const GaussianBlurParams& options, Tensor* output) {
   ImageInfo info;

@@ -1,4 +1,4 @@
-// 测试接口用于验证 resize 的插值模式、坐标映射、对齐与非法参数错误分支。
+// Tests resize interpolation modes, coordinate mapping, alignment, and invalid-argument error paths.
 #include "test_framework.h"
 
 #include <cmath>

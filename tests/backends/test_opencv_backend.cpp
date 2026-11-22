@@ -1,4 +1,4 @@
-// 测试接口用于验证 OpenCV 后端的图像包装、跨运行时内存接管与 copyTo 语义。
+// Tests for OpenCV backend image wrapping, cross-runtime memory adoption, and copyTo semantics.
 #include "test_framework.h"
 
 #include <cmath>

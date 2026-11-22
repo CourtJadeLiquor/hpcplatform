@@ -1,4 +1,4 @@
-// 测试接口用于验证小波分解/重构的可逆性与边界延拓策略。
+// Tests wavelet decomposition/reconstruction invertibility and boundary extension.
 #include "test_framework.h"
 
 #include <cmath>

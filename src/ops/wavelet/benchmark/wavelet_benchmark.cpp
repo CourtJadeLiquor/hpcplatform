@@ -1,5 +1,5 @@
 // Per-operator benchmark for wavelet (docs/architecture.md §6.1/§7.2).
-// 基准程序用于测量小波分解/重构在不同层数与后端上的耗时。
+// Measures wavelet decomposition/reconstruction across levels and backends.
 //
 //   ./build-release-full/src/ops/wavelet/wavelet_benchmark
 //

@@ -1,14 +1,16 @@
-// resize 的 OpenCV 后端：按 batch 为每张图建立 HxWxC 的 cv::Mat 视图，
-// 直接调用 cv::resize 完成缩放，本实现不含自写插值公式。
+// OpenCV backend for resize: creates an HxWxC cv::Mat view for each image in
+// the batch and calls cv::resize directly; no custom interpolation formulas.
 //
-// 插值标志：最近邻 -> cv::INTER_NEAREST，双线性 -> cv::INTER_LINEAR；
-// 目标尺寸以 cv::Size(width, height) 传入，fx/fy 置 0（由 dsize 决定）。
-// 布局/通道：OpenCV 只接受 HW/HWC/NHWC，NCHW 由 RejectNchw 拒绝，需先
-// 显式转置；ImageMat 只建立 header，不拷贝数据。
+// Interpolation flags: nearest -> cv::INTER_NEAREST; bilinear -> cv::INTER_LINEAR.
+// The target size is passed as cv::Size(width, height), with fx/fy set to 0
+// (dsize determines the scaling). Layout/channels: OpenCV accepts only
+// HW/HWC/NHWC; RejectNchw rejects NCHW, which requires an explicit transpose.
+// ImageMat creates only a header and does not copy data.
 //
-// 位精确性：cv::resize 使用 OpenCV 自身的定点/向量化路径与边界处理，
-// 与手写 CPU/CUDA 核只在容差意义下一致，不保证逐位相同。
-// 异常：cv::Exception 由 CvCall 捕获并转换为 Status。
+// Bit exactness: cv::resize uses OpenCV's fixed-point/vectorized paths and
+// border handling, so it agrees with the custom CPU/CUDA kernels only within
+// tolerance, not bit for bit. Exceptions: CvCall catches cv::Exception and
+// converts it to Status.
 
 #include <opencv2/imgproc.hpp>
 
@@ -20,10 +22,11 @@
 namespace mycv {
 namespace ops_internal {
 
-// OpenCV 后端入口：输入 input、参数 options（目标高宽/插值/布局），
-// 输出 output。步骤：拒绝 NCHW -> 解析输入 ImageInfo -> 覆盖输出 h/w
-// -> 逐 batch 建立源/目标 Mat 并调用 cv::resize。
-// 复杂度由 OpenCV 实现决定，量级为 O(N*H_out*W_out*C)。
+// OpenCV backend entry point: input is the source tensor, options contains the
+// target height/width, interpolation, and layout, and output is the destination.
+// Steps: reject NCHW -> parse input ImageInfo -> override output h/w -> create
+// source/destination Mat views per batch and call cv::resize. Complexity depends
+// on OpenCV and is on the order of O(N*H_out*W_out*C).
 Status ResizeOpenCv(const OpContext&, const Tensor& input, const Tensor*,
                     const void* params, Tensor* output) {
   const auto& options = *static_cast<const ResizeParams*>(params);
@@ -31,12 +34,12 @@ Status ResizeOpenCv(const OpContext&, const Tensor& input, const Tensor*,
   auto image = ParseImage(input.shape(), options.layout);
   if (!image.ok()) return image.status();
   ImageInfo output_info = image.value();
-  // 输出与输入同 rank/layout，仅 H/W 不同。
+  // Output has the same rank/layout as input; only H/W differ.
   output_info.h = options.height;
   output_info.w = options.width;
   return CvCall([&] {
     for (int64_t n = 0; n < image.value().n; ++n) {
-      // 第 n 张图的 HxWxC 视图；失败说明 dtype/连续性不满足 OpenCV 要求。
+      // HxWxC view of image n; failure means dtype/contiguity violates OpenCV requirements.
       auto source = ImageMat(input, image.value(), n);
       auto destination = ImageMat(*output, output_info, n);
       if (!source.ok() || !destination.ok()) {
@@ -47,7 +50,7 @@ Status ResizeOpenCv(const OpContext&, const Tensor& input, const Tensor*,
                  cv::Size(static_cast<int>(options.width),
                           static_cast<int>(options.height)),
                  0, 0,
-                 // 两种插值一一映射到 OpenCV 的配套标志。
+                 // Map each interpolation mode to its OpenCV flag.
                  options.interpolation == InterpolationMode::kNearest
                      ? cv::INTER_NEAREST
                      : cv::INTER_LINEAR);

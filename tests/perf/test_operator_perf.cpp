@@ -1,5 +1,5 @@
-// 测试接口用于评估 resize 算子的性能：预热后多轮计时，并通过 profiling/stats
-// 设施核对耗时聚合与内存峰值/泄漏统计。
+// Performance tests for resize: multiple timed iterations after warm-up, with
+// profiling/stats checks for timing aggregation and memory peak/leak statistics.
 #include "test_framework.h"
 
 #include <chrono>
@@ -41,7 +41,7 @@ MYCV_TEST(ResizePerformanceAndMemorySnapshot) {
   }
 
   const OpContext op_context = CpuOpContext(*context);
-  // 预热：排除首次分配、页错误与缓存冷启动对计时的影响。
+  // Warm-up: exclude first allocation, page faults, and cold-cache effects from timing.
   MYCV_EXPECT_OK(
       Resize(op_context, input, kInputHeight / 2, kInputWidth / 2).status());
 
@@ -66,7 +66,7 @@ MYCV_TEST(ResizePerformanceAndMemorySnapshot) {
   MYCV_EXPECT_TRUE(elapsed_ms > 0.0);
   MYCV_EXPECT_TRUE(after.host.peak_bytes >=
                    before.host.allocated_bytes + kOutputBytes);
-  // 每轮输出都已释放：活动分配与计数应回到基线，缓存块不计入。
+  // Outputs are released each iteration: active allocations and counts return to baseline; cached blocks are excluded.
   MYCV_EXPECT_EQ(after.host.allocated_bytes, before.host.allocated_bytes);
   MYCV_EXPECT_EQ(after.host.allocation_count, before.host.allocation_count);
   MYCV_EXPECT_EQ(after.device.allocated_bytes, static_cast<size_t>(0));

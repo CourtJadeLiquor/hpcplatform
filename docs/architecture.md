@@ -47,7 +47,7 @@
 
 ```
 include/mycv/
-  core/                  # shape / dtype / error / device / memory / stream / tensor / tensor_iterator / context
+  core/                  # shape / dtype / error / device / memory / stream / tensor / context
   ops/                   # image.h / op.h / resize.h / gaussian_blur.h / laplacian_pyramid.h / fourier.h / wavelet.h
   interop/opencv.h       # cv::Mat 与 Tensor 的数据适配器
   mycv.h                 # 伞形头
@@ -55,8 +55,9 @@ include/mycv/
 src/
   core/                  # 数据结构与内部契约
     backend.h            # Backend 接口（core 内部契约）
-    copy.cpp             # Backend::CopyBuffer / CopyTensor / Context::Copy
-    copy_internal.h      # CopyTensor / ResolveOwningBackend 声明
+    copy.cpp             # Backend::CopyBuffer / CopyTensorData / Context::Copy
+    copy.h               # CopyTensorData / ResolveOwningBackend 声明
+    tensor_iterator.h    # 内部 stride 逐元素遍历工具（非公共 API）
   framework/             # 框架工具层
     op_registry.{h,cpp}  # 三元组内核注册表
     image_utils.h        # 图像布局解析与索引计算

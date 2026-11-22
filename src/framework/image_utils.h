@@ -12,7 +12,7 @@
 namespace mycv {
 namespace ops_internal {
 
-// 图像逻辑视图：n/h/w/c 与布局，由 Shape 解析而来。
+// Logical image view: n/h/w/c and layout, parsed from Shape.
 struct ImageInfo {
   int rank = 0;
   int64_t n = 1;
@@ -22,7 +22,8 @@ struct ImageInfo {
   ImageLayout layout = ImageLayout::kNHWC;
 };
 
-// 将 rank-2/3/4 的 Shape 解析为 ImageInfo；非法形状返回 kInvalidArgument。
+// Parses a rank-2/3/4 Shape into ImageInfo; returns kInvalidArgument for invalid
+// shapes.
 inline Result<ImageInfo> ParseImage(const Shape& shape, ImageLayout layout) {
   MYCV_RETURN_IF_ERROR(shape.Validate());
   const int rank = shape.Rank();
@@ -62,7 +63,7 @@ inline Result<ImageInfo> ParseImage(const Shape& shape, ImageLayout layout) {
   return info;
 }
 
-// 按原布局生成长宽为 height/width 的 Shape。
+// Creates a Shape with the given height/width in the original layout.
 inline Shape MakeImageShape(const ImageInfo& info, int64_t height,
                             int64_t width) {
   if (info.rank == 2) return Shape{height, width};
@@ -76,7 +77,8 @@ inline Shape MakeImageShape(const ImageInfo& info, int64_t height,
   return Shape{info.n, info.c, height, width};
 }
 
-// 返回元素 (n, y, x, c) 相对 Tensor::data() 的字节偏移，支持非连续布局。
+// Returns the byte offset of element (n, y, x, c) relative to Tensor::data();
+// supports non-contiguous layouts.
 inline size_t ImageByteOffset(const Tensor& tensor, const ImageInfo& info,
                               int64_t n, int64_t y, int64_t x, int64_t c) {
   std::array<int64_t, 4> coordinates{};
@@ -100,7 +102,8 @@ inline size_t ImageByteOffset(const Tensor& tensor, const ImageInfo& info,
   return offset;
 }
 
-// 返回元素 (n, y, x, c) 在连续布局下的逻辑线性下标。
+// Returns the logical linear index of element (n, y, x, c) in a contiguous
+// layout.
 inline int64_t ImageLinearIndex(const ImageInfo& info, int64_t n, int64_t y,
                                 int64_t x, int64_t c) {
   if (info.layout == ImageLayout::kNHWC) {
@@ -109,7 +112,7 @@ inline int64_t ImageLinearIndex(const ImageInfo& info, int64_t n, int64_t y,
   return ((n * info.c + c) * info.h + y) * info.w + x;
 }
 
-// 图像算子接受的 dtype：u8/f32/f64。
+// Data types accepted by image operators: u8/f32/f64.
 inline bool IsSupportedImageDType(DataType dtype) {
   return dtype == DataType::kUInt8 || dtype == DataType::kFloat32 ||
          dtype == DataType::kFloat64;

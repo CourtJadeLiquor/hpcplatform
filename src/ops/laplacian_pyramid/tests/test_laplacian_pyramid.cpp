@@ -1,5 +1,5 @@
-// 测试接口用于验证拉普拉斯金字塔的层数、重构误差与 resize/gaussian_blur
-// 组合行为。
+// Tests validate Laplacian pyramid level counts, reconstruction error, and the
+// composed resize/gaussian_blur behavior.
 #include "test_framework.h"
 
 #include <algorithm>

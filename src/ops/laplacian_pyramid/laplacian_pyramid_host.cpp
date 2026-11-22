@@ -1,16 +1,20 @@
-// laplacian_pyramid 的主机侧组合子算子（native_cpu 与 OpenCV 后端）。
+// Host-side composed suboperator for laplacian_pyramid (native_cpu and OpenCV
+// backends).
 //
-// 一个 stage 不写新的像素级数学，而是复用两个已注册子算子：
-//   1. GaussianBlur：对当前层 G_i 做可分离高斯平滑；
-//   2. Resize：先 nearest 下采样到 ceil(H/2) x ceil(W/2) 得到 G_{i+1}，
-//      再 bilinear 上采样回 G_i 尺寸；
-//   3. 主机逐元素相减：L_i = G_i - upsample(G_{i+1})。
-// 最顶层在循环之外由入口直接把 G_n 作为残差，因此 L_n = G_n；
-// 重建关系为 G_i = L_i + upsample(G_{i+1})。
+// A stage introduces no new pixel-level math and instead reuses two registered
+// suboperators:
+//   1. GaussianBlur: separable Gaussian smoothing of the current level G_i;
+//   2. Resize: nearest downsampling to ceil(H/2) x ceil(W/2) for G_{i+1}, then
+//      bilinear upsampling back to G_i dimensions;
+//   3. Host element-wise subtraction: L_i = G_i - upsample(G_{i+1}).
+// Outside the loop, the entry point directly uses G_n as the top-level residual,
+// so L_n = G_n; reconstruction is G_i = L_i + upsample(G_{i+1}).
 //
-// 后端与级别不单独传参：OpContext 原样透传给两个子算子，它们分别按
-// input.backend() 与 context.cpu_level 查表。因此组合路径调用的就是
-// 单算子公开入口的同一套内核与参数，语义（含边界/采样规则）完全一致。
+// Backend and level are not passed separately: OpContext is forwarded unchanged
+// to both suboperators, which query kernels using input.backend() and
+// context.cpu_level. The composed path therefore uses the same kernels and
+// parameters as the public single-operator entry points, with identical semantics
+// (including boundary and sampling rules).
 
 #include <cstdint>
 #include <utility>
@@ -24,8 +28,8 @@ namespace mycv {
 namespace ops_internal {
 namespace {
 
-// 从主机内存读取一个带通样本并提升为 double；仅支持 f32/f64
-// （入口已拒绝其他 dtype）。复杂度 O(1)。
+// Read a band-pass sample from host memory and promote it to double; only f32/f64
+// are supported (the entry point rejects other dtypes). Complexity: O(1).
 inline double LoadBandValue(const char* source, DataType dtype) {
   if (dtype == DataType::kFloat32) {
     return *reinterpret_cast<const float*>(source);
@@ -33,8 +37,9 @@ inline double LoadBandValue(const char* source, DataType dtype) {
   return *reinterpret_cast<const double*>(source);
 }
 
-// 把 double 结果写回带通张量；f32 时窄化为 float，其余按 double。
-// 输入为字节指针、dtype 与数值，无返回值；复杂度 O(1)。
+// Write a double result back to a band-pass tensor, narrowing to float for f32
+// and otherwise storing double. Takes a byte pointer, dtype, and value, and
+// returns nothing. Complexity: O(1).
 inline void StoreBandValue(char* destination, DataType dtype, double value) {
   if (dtype == DataType::kFloat32) {
     *reinterpret_cast<float*>(destination) = static_cast<float>(value);
@@ -43,8 +48,9 @@ inline void StoreBandValue(char* destination, DataType dtype, double value) {
   *reinterpret_cast<double*>(destination) = value;
 }
 
-// 线性下标 -> (n, y, x, c)，分解顺序与 ImageLinearIndex 一致：
-// NHWC 为 n,y,x,c，NCHW 为 n,c,y,x。复杂度 O(rank)，rank <= 4。
+// Linear index -> (n, y, x, c), using the same decomposition order as
+// ImageLinearIndex: n,y,x,c for NHWC and n,c,y,x for NCHW.
+// Complexity: O(rank), where rank <= 4.
 inline void DecodeLinear(const ImageInfo& info, int64_t linear, int64_t& n,
                          int64_t& y, int64_t& x, int64_t& c) {
   int64_t remaining = linear;
@@ -65,10 +71,11 @@ inline void DecodeLinear(const ImageInfo& info, int64_t linear, int64_t& n,
   }
 }
 
-// 主机内存上的逐元素相减：L = fine - up（native_cpu 与 OpenCV 张量）。
-// fine 可能是带 stride 的视图（例如调用者输入），用 ImageByteOffset 按
-// (n,y,x,c) 解算真实字节偏移；up 与 output 是刚分配的连续张量，可直接用
-// 线性下标寻址。复杂度 O(Numel)，每个元素一次减法与一次类型转换。
+// Element-wise subtraction in host memory: L = fine - up (native_cpu and OpenCV
+// tensors). fine may be a strided view (such as the caller's input), so use
+// ImageByteOffset to resolve actual byte offsets from (n,y,x,c). up and output are
+// newly allocated contiguous tensors and can use linear indices directly.
+// Complexity: O(Numel), with one subtraction and one type conversion per element.
 inline void SubtractBands(const Tensor& fine, const ImageInfo& info,
                           const Tensor& up, Tensor* output) {
   const char* fine_base = static_cast<const char*>(fine.data());
@@ -93,14 +100,17 @@ inline void SubtractBands(const Tensor& fine, const ImageInfo& info,
 
 }  // namespace
 
-// 主机侧 stage：计算一级带通 L_i 与下一级高斯层 G_{i+1}。
-// 输入：context（原样透传给子算子）、G_i（input）、params；other 不使用。
-// 输出：output 写 L_i（与 input 同尺寸）；params->next_gaussian 写 G_{i+1}。
-// 步骤：先 GaussianBlur 再 ResizeNearest 得到 G_{i+1}，然后用
-//       ResizeBilinear 放大回当前尺寸，最后在主机内存逐元素相减。
-// 尺寸：下一级取 (h+1)/2、(w+1)/2，即 ceil 半尺寸，奇数边长与 pyrDown
-//       的层形状一致；上采样目标始终是当前层的 h x w。
-// 复杂度：O(N * kernel_size)，N 为当前层元素数。
+// Host stage: compute one band-pass level L_i and the next Gaussian level G_{i+1}.
+// Inputs: context (forwarded unchanged to suboperators), G_i (input), and params;
+// other is unused.
+// Outputs: output receives L_i (same dimensions as input);
+// params->next_gaussian receives G_{i+1}.
+// Steps: GaussianBlur followed by ResizeNearest for G_{i+1}, then ResizeBilinear
+//        back to current dimensions, and finally host element-wise subtraction.
+// Dimensions: the next level uses (h+1)/2 and (w+1)/2 (ceil half-size), matching
+//             classic pyrDown level shapes for odd extents; upsampling always
+//             targets the current level's h x w.
+// Complexity: O(N * kernel_size), where N is the current level's element count.
 Status LaplacianPyramidHostStage(const OpContext& context, const Tensor& input,
                                  const Tensor* /*other*/, const void* params,
                                  Tensor* output) {
@@ -108,8 +118,8 @@ Status LaplacianPyramidHostStage(const OpContext& context, const Tensor& input,
   auto image = ParseImage(input.shape(), options.layout);
   if (!image.ok()) return image.status();
 
-  // 下采样：先高斯平滑，再用 nearest 隔行隔列取样；ceil 保证奇数边长得到
-  // 经典 pyrDown 的层形状。
+  // Downsampling: apply Gaussian smoothing, then nearest sampling of every other
+  // row and column; ceil produces classic pyrDown level shapes for odd extents.
   const int64_t next_h = (image.value().h + 1) / 2;
   const int64_t next_w = (image.value().w + 1) / 2;
   auto blurred = GaussianBlur(context, input, options.kernel_size,
@@ -119,7 +129,8 @@ Status LaplacianPyramidHostStage(const OpContext& context, const Tensor& input,
                      InterpolationMode::kNearest, options.layout);
   if (!next.ok()) return next.status();
 
-  // 上采样回当前层尺寸并相减，得到带通 L_i = G_i - upsample(G_{i+1})。
+  // Upsample to current level dimensions and subtract to obtain the band-pass
+  // L_i = G_i - upsample(G_{i+1}).
   auto up = Resize(context, next.value(), image.value().h, image.value().w,
                    InterpolationMode::kBilinear, options.layout);
   if (!up.ok()) return up.status();

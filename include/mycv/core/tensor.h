@@ -45,28 +45,30 @@ class Tensor {
                              MemoryKind kind = MemoryKind::kHost,
                              Buffer::Deleter deleter = nullptr);
 
-  // 是否已绑定内存；默认构造或移动后的 Tensor 返回 false。
+  // Returns whether memory is bound; false for default-constructed or moved-from
+  // Tensors.
   bool defined() const { return static_cast<bool>(buffer_); }
 
-  // 返回元数据：形状、类型、设备与后端。
+  // Returns metadata: shape, dtype, device, and backend.
   const Shape& shape() const { return shape_; }
   DataType dtype() const { return dtype_; }
   Device device() const { return device_; }
   BackendType backend() const { return backend_; }
-  // 逻辑元素个数；标量为 1。
+  // Number of logical elements; 1 for scalars.
   int64_t Numel() const { return shape_.Numel(); }
-  // 单个元素的字节数。
+  // Size of one element in bytes.
   size_t ElementSize() const { return DTypeSize(dtype_); }
-  // 逻辑元素字节数（不含视图跨度造成的空洞）。
+  // Size of logical elements in bytes, excluding gaps from view strides.
   size_t ByteSize() const {
     return static_cast<size_t>(Numel()) * ElementSize();
   }
 
-  // 底层 Buffer 与视图起始偏移（字节）。
+  // Underlying Buffer and view start offset in bytes.
   const std::shared_ptr<Buffer>& buffer() const { return buffer_; }
   size_t offset() const { return offset_; }
 
-  // 返回已加上 offset 的首元素指针；未绑定内存时为 nullptr。
+  // Returns the first-element pointer including offset; nullptr if no memory is
+  // bound.
   void* data() {
     return buffer_ ? static_cast<char*>(buffer_->data()) + offset_ : nullptr;
   }
@@ -75,7 +77,7 @@ class Tensor {
                    : nullptr;
   }
 
-  // 以 T 视角访问首元素；调用方需保证 dtype 与 T 匹配。
+  // Accesses the first element as T; caller must ensure dtype matches T.
   template <typename T>
   T* Data() {
     return reinterpret_cast<T*>(data());
@@ -85,16 +87,17 @@ class Tensor {
     return reinterpret_cast<const T*>(data());
   }
 
-  // 仅修改元数据的视图：共享 Buffer，不拷贝元素。
+  // Metadata-only view: shares the Buffer without copying elements.
   Result<Tensor> View(const Shape& shape) const;
-  // 在第 dim 维截取 [begin, end)。
+  // Slices [begin, end) along dimension dim.
   Result<Tensor> Slice(int dim, int64_t begin, int64_t end) const;
-  // 按 order 重排维度，支持任意维度顺序。
+  // Reorders dimensions according to order; any dimension order is supported.
   Result<Tensor> Permute(const std::vector<int>& order) const;
 
-  // 连续张量零拷贝改形状；非连续张量会先克隆。
+  // Reshapes contiguous tensors with zero copy; clones non-contiguous tensors
+  // first.
   Result<Tensor> Reshape(const Shape& shape) const;
-  // 深拷贝：新 Buffer、新后端分配，元数据保持一致。
+  // Deep copy: allocates a new Buffer on the backend, preserving metadata.
   Result<Tensor> Clone() const;
   // Type conversion lives in ops: use mycv::Cast(OpContext, tensor, dtype) so
   // the registered SIMD / OpenCV / CUDA kernels actually run.
@@ -109,9 +112,9 @@ class Tensor {
   // Stride in elements (not bytes).
   int64_t Stride(int dim) const { return strides_[static_cast<size_t>(dim)]; }
 
-  // 按逻辑顺序检查 strides 是否满足连续布局。
+  // Checks whether strides describe a contiguous layout in logical order.
   bool IsContiguous() const;
-  // 输出形状、类型、strides 与设备，用于日志。
+  // Formats shape, dtype, strides, and device for logging.
   std::string ToString() const;
 
  private:

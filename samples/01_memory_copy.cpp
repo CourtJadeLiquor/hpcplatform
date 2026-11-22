@@ -1,5 +1,5 @@
-// 样例用于演示 Context/Buffer 的分配、Host↔Device 拷贝与 Tensor::Clone
-// 的生命周期行为。
+// Demonstrates Context/Buffer allocation, Host↔Device copies, and
+// Tensor::Clone lifetime behavior.
 #include <cstring>
 #include <iostream>
 

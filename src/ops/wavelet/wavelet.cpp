@@ -1,12 +1,14 @@
-// wavelet 算子的入口：负责注册、参数校验、内核查找与输出分配，然后分派
-// 给某个后端实现。所有后端共享 wavelet_internal.h 中的参数契约。
+// Entry point for the wavelet operator: handles registration, parameter
+// validation, kernel lookup, and output allocation before dispatching to a
+// backend. All backends share the parameter contract in wavelet_internal.h.
 //
-// 正向流程：校验 dtype/rank/layout 与 H、W 为偶数 -> ParseImage ->
-// FindKernel -> 分配 LL/LH/HL/HH 四个 H/2 x W/2 张量 -> 以图像为 input
-// 调用后端，LH/HL/HH 通过 extra_out 传入。
-// 逆向流程：额外校验四带 shape/dtype/backend/device 一致 -> 分配
-// H x W 输出 -> 以 LL 为 input、另外三带通过 extra_in 传入。
-// 本文件只做编排，不做逐元素计算。
+// Forward flow: validate dtype/rank/layout and even H/W -> ParseImage ->
+// FindKernel -> allocate four H/2 x W/2 tensors for LL/LH/HL/HH -> invoke the
+// backend with the image as input and LH/HL/HH passed through extra_out.
+// Inverse flow: additionally validate matching shape/dtype/backend/device across
+// all four bands -> allocate the H x W output -> invoke the backend with LL as
+// input and the other three bands passed through extra_in.
+// This file only orchestrates; it performs no element-wise computation.
 
 #include "mycv/ops/wavelet.h"
 
@@ -19,9 +21,10 @@
 namespace mycv {
 namespace ops_internal {
 
-// 把编译进本二进制的实现登记到算子注册表：CPU 的 naive/OpenMP/TBB 三个
-// 级别与可选的 CUDA 后端。GPU 实现按 CpuKernelLevel::kNaive 槽位登记，
-// 实际分派只看 BackendType；未编译的级别在注册阶段即缺席。
+// Register implementations compiled into this binary: the CPU naive/OpenMP/TBB
+// levels and the optional CUDA backend. The GPU implementation occupies the
+// CpuKernelLevel::kNaive slot, while actual dispatch depends only on BackendType;
+// levels not compiled are absent at registration time.
 void RegisterWaveletKernels() {
   const BackendType cpu = BackendType::kNativeCpu;
   RegisterKernel(OpKind::kWaveletTransform, cpu, CpuKernelLevel::kNaive,
@@ -38,15 +41,16 @@ void RegisterWaveletKernels() {
   RegisterKernel(OpKind::kWaveletTransform, BackendType::kCUDA,
                  CpuKernelLevel::kNaive, &WaveletCuda);
 #endif
-  // 不注册 OpenCV 版本：查找该后端时返回 kNotImplemented，而不是悄悄
-  // 用主机内核去跑设备内存。
+  // Do not register an OpenCV version: lookup for that backend returns
+  // kNotImplemented rather than silently running a host kernel on device memory.
 }
 
 }  // namespace ops_internal
 
 namespace {
 
-// 细节子带带符号，只接受 f32/f64；u8 无法表示负系数，直接 kUnsupported。
+// Detail bands are signed and accept only f32/f64; u8 cannot represent negative
+// coefficients, so return kUnsupported directly.
 Status ValidateBandDType(DataType dtype) {
   if (dtype != DataType::kFloat32 && dtype != DataType::kFloat64) {
     return Status::Unsupported(
@@ -56,8 +60,8 @@ Status ValidateBandDType(DataType dtype) {
   return Status::Ok();
 }
 
-// 单层周期性 DWT 会把两个方向都减半，因此 H、W 必须为偶数；否则子带
-// 尺寸没有定义，在这里返回 kInvalidArgument。
+// A single-level periodic DWT halves both directions, so H and W must be even;
+// otherwise subband dimensions are undefined and kInvalidArgument is returned.
 Status ValidateEvenExtent(const ops_internal::ImageInfo& info) {
   if (info.h % 2 != 0 || info.w % 2 != 0) {
     return Status::InvalidArgument(
@@ -69,11 +73,13 @@ Status ValidateEvenExtent(const ops_internal::ImageInfo& info) {
 
 }  // namespace
 
-// 正向单层二维 DWT：把 H x W 图像分解为四个 H/2 x W/2 子带。
+// Forward single-level 2D DWT: decompose an H x W image into four H/2 x W/2
+// subbands.
 //
-// 步骤：校验调用/dtype/偶数尺寸 -> 解析布局 -> 查找后端 -> 分配四带 ->
-// 调用后端（图像作为 input，LL 作为 output，其余三带经 extra_out）。
-// 复杂度 O(H*W*taps)：taps 为滤波器长度（Haar 2、Db4 4）。
+// Steps: validate invocation/dtype/even dimensions -> parse layout -> find the
+// backend -> allocate four bands -> invoke the backend with the image as input,
+// LL as output, and the other three bands passed through extra_out.
+// Complexity: O(H*W*taps), where taps is the filter length (Haar: 2, Db4: 4).
 Result<WaveletBands> WaveletTransform(const OpContext& context,
                                       const Tensor& input, WaveletKind kind,
                                       ImageLayout layout) {
@@ -116,12 +122,15 @@ Result<WaveletBands> WaveletTransform(const OpContext& context,
   return bands;
 }
 
-// 逆向单层二维 DWT：由 LL/LH/HL/HH 完美重建 H x W 图像。
+// Inverse single-level 2D DWT: perfectly reconstruct an H x W image from
+// LL/LH/HL/HH.
 //
-// 步骤：校验调用、dtype、四个子带的 shape/dtype/backend/device 一致 ->
-// 按子带形状解析布局（反向推出图像尺寸）-> 查找后端 -> 分配输出 ->
-// 以 LL 为 input、其余三带经 extra_in 调用后端。
-// 复杂度 O(H*W*taps)；`kind` 必须与分解时一致，否则重建不再是恒等。
+// Steps: validate invocation, dtype, and matching shape/dtype/backend/device
+// across all four bands -> parse layout from the band shape (inferring image
+// dimensions) -> find the backend -> allocate output -> invoke the backend with
+// LL as input and the other three bands passed through extra_in.
+// Complexity: O(H*W*taps). `kind` must match decomposition; otherwise
+// reconstruction is no longer an identity operation.
 Result<Tensor> InverseWaveletTransform(const OpContext& context,
                                        const WaveletBands& bands,
                                        WaveletKind kind, ImageLayout layout) {

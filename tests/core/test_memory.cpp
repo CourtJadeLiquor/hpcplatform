@@ -1,5 +1,5 @@
-// 测试接口用于验证 Buffer / MemoryManager 的分配、对齐、计数与释放（含自定义
-// deleter）。
+// Tests for Buffer / MemoryManager allocation, alignment, counting, and
+// deallocation (including custom deleters).
 #include "test_framework.h"
 
 #include <cstring>

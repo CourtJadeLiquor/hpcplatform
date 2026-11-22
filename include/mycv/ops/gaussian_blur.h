@@ -2,11 +2,14 @@
 #define MYCV_OPS_GAUSSIAN_BLUR_H_
 
 #include <cstdint>
+#include <memory>
+#include <string>
 
 #include "mycv/core/error.h"
 #include "mycv/core/tensor.h"
 #include "mycv/ops/image.h"
 #include "mycv/ops/op.h"
+#include "mycv/operator.h"
 
 namespace mycv {
 
@@ -27,6 +30,29 @@ namespace mycv {
 Result<Tensor> GaussianBlur(const OpContext& context, const Tensor& input,
                             int kernel_size, double sigma,
                             ImageLayout layout = ImageLayout::kNHWC);
+
+// A configured Gaussian blur holding a bound kernel size, sigma, and layout.
+// Built by LoadOperators from a config entry; call Run with an input tensor
+// allocated on the bound backend/device. See docs/operator_config.md.
+class GaussianBlurOperator : public Operator {
+ public:
+  GaussianBlurOperator(std::string name, std::shared_ptr<Context> context,
+                       CpuKernelLevel cpu_level, int kernel_size, double sigma,
+                       ImageLayout layout);
+
+  const std::string& name() const override;
+  OpKind kind() const override;
+
+  // Blurs `input` with the bound parameters. Output shape equals the input
+  // shape; result is bit-identical to calling mycv::GaussianBlur directly.
+  Result<Tensor> Run(const Tensor& input) const;
+
+ private:
+  const std::string name_;
+  const int kernel_size_;
+  const double sigma_;
+  const ImageLayout layout_;
+};
 
 }  // namespace mycv
 

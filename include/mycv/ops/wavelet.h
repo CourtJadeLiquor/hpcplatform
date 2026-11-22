@@ -2,9 +2,12 @@
 #define MYCV_OPS_WAVELET_H_
 
 #include <cstdint>
+#include <memory>
+#include <string>
 
 #include "mycv/core/error.h"
 #include "mycv/core/tensor.h"
+#include "mycv/operator.h"
 #include "mycv/ops/image.h"
 #include "mycv/ops/op.h"
 
@@ -45,6 +48,14 @@ inline const char* WaveletKindName(WaveletKind kind) {
   return "unknown";
 }
 
+// Parses a stable wavelet name back to its enum ("haar" / "db4"); an unknown
+// name returns kInvalidArgument.
+inline Result<WaveletKind> WaveletKindFromName(const std::string& name) {
+  if (name == "haar") return WaveletKind::kHaar;
+  if (name == "db4") return WaveletKind::kDaubechies4;
+  return Status::InvalidArgument("unknown wavelet kind: " + name);
+}
+
 // Four subbands: LL approximation, LH horizontal detail, HL vertical detail,
 // and HH diagonal detail.
 struct WaveletBands {
@@ -69,6 +80,28 @@ Result<Tensor> InverseWaveletTransform(const OpContext& context,
                                        const WaveletBands& bands,
                                        WaveletKind kind = WaveletKind::kHaar,
                                        ImageLayout layout = ImageLayout::kNHWC);
+
+// A configured single-level wavelet decomposition holding a bound basis and
+// layout. Built by LoadOperators from a config entry; call Run with an input
+// allocated on the bound backend/device. See docs/operator_config.md.
+class WaveletTransformOperator : public Operator {
+ public:
+  WaveletTransformOperator(std::string name, std::shared_ptr<Context> context,
+                           CpuKernelLevel cpu_level, WaveletKind kind,
+                           ImageLayout layout);
+
+  const std::string& name() const override;
+  OpKind kind() const override;
+
+  // Decomposes `input` with the bound basis; bit-identical to calling
+  // mycv::WaveletTransform directly.
+  Result<WaveletBands> Run(const Tensor& input) const;
+
+ private:
+  const std::string name_;
+  const WaveletKind kind_;
+  const ImageLayout layout_;
+};
 
 }  // namespace mycv
 

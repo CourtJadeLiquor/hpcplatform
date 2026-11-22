@@ -1,8 +1,12 @@
 #ifndef MYCV_OPS_FOURIER_H_
 #define MYCV_OPS_FOURIER_H_
 
+#include <memory>
+#include <string>
+
 #include "mycv/core/error.h"
 #include "mycv/core/tensor.h"
+#include "mycv/operator.h"
 #include "mycv/ops/image.h"
 #include "mycv/ops/op.h"
 
@@ -50,6 +54,26 @@ Result<ComplexImage> FourierTransform(const OpContext& context,
 Result<Tensor> InverseFourierTransform(const OpContext& context,
                                        const Tensor& real, const Tensor& imag,
                                        ImageLayout layout = ImageLayout::kNHWC);
+
+// A configured forward 2D DFT holding a bound layout. Built by LoadOperators
+// from a config entry; call Run with an input allocated on the bound
+// backend/device. See docs/operator_config.md.
+class FourierTransformOperator : public Operator {
+ public:
+  FourierTransformOperator(std::string name, std::shared_ptr<Context> context,
+                           CpuKernelLevel cpu_level, ImageLayout layout);
+
+  const std::string& name() const override;
+  OpKind kind() const override;
+
+  // Computes the spectrum of `input`; bit-identical to calling
+  // mycv::FourierTransform directly.
+  Result<ComplexImage> Run(const Tensor& input) const;
+
+ private:
+  const std::string name_;
+  const ImageLayout layout_;
+};
 
 }  // namespace mycv
 

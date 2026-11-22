@@ -1,10 +1,13 @@
 #ifndef MYCV_OPS_LAPLACIAN_PYRAMID_H_
 #define MYCV_OPS_LAPLACIAN_PYRAMID_H_
 
+#include <memory>
+#include <string>
 #include <vector>
 
 #include "mycv/core/error.h"
 #include "mycv/core/tensor.h"
+#include "mycv/operator.h"
 #include "mycv/ops/image.h"
 #include "mycv/ops/op.h"
 
@@ -38,6 +41,30 @@ Result<LaplacianPyramid> BuildLaplacianPyramid(
     const OpContext& context, const Tensor& input, int levels,
     int kernel_size = 5, double sigma = 1.0,
     ImageLayout layout = ImageLayout::kNHWC);
+
+// A configured Laplacian pyramid holding a bound level count, blur kernel,
+// sigma, and layout. Built by LoadOperators from a config entry; call Run with
+// an input allocated on the bound backend/device. See docs/operator_config.md.
+class LaplacianPyramidOperator : public Operator {
+ public:
+  LaplacianPyramidOperator(std::string name, std::shared_ptr<Context> context,
+                           CpuKernelLevel cpu_level, int levels,
+                           int kernel_size, double sigma, ImageLayout layout);
+
+  const std::string& name() const override;
+  OpKind kind() const override;
+
+  // Builds the pyramid with the bound parameters; bit-identical to calling
+  // mycv::BuildLaplacianPyramid directly.
+  Result<LaplacianPyramid> Run(const Tensor& input) const;
+
+ private:
+  const std::string name_;
+  const int levels_;
+  const int kernel_size_;
+  const double sigma_;
+  const ImageLayout layout_;
+};
 
 }  // namespace mycv
 

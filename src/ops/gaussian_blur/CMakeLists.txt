@@ -47,6 +47,10 @@ if(MYCV_WITH_CUDA)
   target_sources(mycv PRIVATE gaussian_blur_cuda.cu)
 endif()
 
+if(MYCV_WITH_YAML)
+  target_sources(mycv PRIVATE gaussian_blur_operator.cpp)
+endif()
+
 if(MYCV_BUILD_TESTS)
   add_executable(test_gaussian_blur tests/test_gaussian_blur.cpp)
   target_link_libraries(test_gaussian_blur PRIVATE mycv)

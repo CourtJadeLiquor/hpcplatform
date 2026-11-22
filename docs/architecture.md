@@ -21,14 +21,17 @@
 
 ```
                  include/mycv/**                ← 唯一公共 API 面（调用者只见这里）
+                  operator.h 等                 ← 含 Operator 基类与 LoadOperators
                         ↑
-                     src/core/                  ← Tensor/Shape/Buffer/MemoryManager/Stream/Context
-                        ↑                       ← 内部契约：Backend 接口、Copy 语义
+                   src/operator/                ← 配置驱动：YAML → Operator 对象（MYCV_WITH_YAML）
+                        ↑                       ← 描述符注册表、环境解析、fail-fast 校验
                   src/framework/                ← 注册表、图像工具、dtype 分发、剖析与统计
                    ↑         ↑
         src/backends/       src/ops/
         （能力服务）          （算子自治，每算子一个文件夹）
 ```
+
+`src/operator/`（`MYCV_WITH_YAML`）是位于 `ops`/`framework` 之上的更高一层：读取配置文件，经描述符注册表把每个条目构造为已绑定参数的 `Operator` 对象，交给业务层持有并自行编排执行。它不构建计算图，也不假设图像算法，只是把已有算子封装成可配置的对象工具。未启用 `MYCV_WITH_YAML` 时该层不编译，公共 `LoadOperators` 返回 `kUnsupported`。
 
 算子自己的后端实现文件（`*_cuda.cu`、`*_opencv.cpp`）位于算子文件夹内，按需引用对应后端的服务头。
 
@@ -50,6 +53,7 @@ include/mycv/
   core/                  # shape / dtype / error / device / memory / stream / tensor / context
   ops/                   # image.h / op.h / resize.h / gaussian_blur.h / laplacian_pyramid.h / fourier.h / wavelet.h
   interop/opencv.h       # cv::Mat 与 Tensor 的数据适配器
+  operator.h             # 配置驱动 Operator 基类与 LoadOperators（公共 API）
   mycv.h                 # 伞形头
 
 src/
@@ -60,6 +64,7 @@ src/
     tensor_iterator.h    # 内部 stride 逐元素遍历工具（非公共 API）
   framework/             # 框架工具层
     op_registry.{h,cpp}  # 三元组内核注册表
+    op_descriptor.{h,cpp}# 算子对象描述符注册表（config name → 构造器）
     image_utils.h        # 图像布局解析与索引计算
     dtype_dispatch.h     # u8/f32/f64 分发
     compiler.h           # 编译器暗示宏
@@ -81,13 +86,21 @@ src/
     laplacian_pyramid/
     fourier/
     wavelet/
+  operator/              # 配置驱动算子对象层（MYCV_WITH_YAML）
+    operator_config.h     # 内部配置结构 OperatorInstanceConfig
+    yaml_parser.cpp       # YAML → OperatorsConfig
+    load_operators.cpp    # 常驻 stub：未启用时返回 kUnsupported
+    load_operators_real.cpp  # 真实实现（启用时编译）
+    register_descriptors.cpp # 描述符登记清单
 
 tests/
   test_framework.h       # 零依赖测试框架
   core/                  # shape / tensor / views / memory / backend / copy
   backends/              # CUDA / OpenCV 后端级测试
   perf/                  # 算子性能评估（按目标开启 profiling）
+  operator/              # 配置驱动算子对象测试（MYCV_WITH_YAML）
 samples/                 # 公共 API 使用样例
+  configs/operators.yaml # 配置驱动示例配置
 ```
 
 ***
@@ -208,6 +221,27 @@ void RegisterAllKernels() {
 
 **不使用静态自注册**：静态库中未被引用的翻译单元可能根本不会被链接器拉入，自注册对象的构造函数可能不执行，导致内核静默缺失；补 `--whole-archive` 等链接器魔法与"显式优先"原则冲突。显式清单多一行登记，换来行为完全可预期。
 
+### 7.3 描述符注册表（高阶：构造算子对象）
+
+与 7.1 的**内核注册表**（低阶：`(OpKind, BackendType, CpuKernelLevel) → OpKernelFn`）不同，`src/framework/op_descriptor.{h,cpp}` 维护一张**高阶描述符注册表**：`config op name → OpDescriptor`。描述符知道一个算子需要哪些参数、如何校验、如何构造一个已绑定参数的 `Operator` 对象，但不关心具体后端的内核函数。
+
+```cpp
+struct OpDescriptor {
+  const char* Name() const;        // 配置里的 op 名字，如 "resize"
+  OpKind Kind() const;             // 对应内核注册表的 OpKind
+  Status ValidateParams(const ParamMap&) const;
+  Result<std::unique_ptr<Operator>> Construct(name, context, cpu_level, params) const;
+};
+```
+
+分层职责：
+
+- **描述符注册表**回答"这个 `op` 名字对应哪个对象构造器"。
+- **内核注册表**回答"这个 `(OpKind, backend, level)` 有没有内核函数可用"。
+- `LoadOperators`（`src/operator/`）串起两者：先按名字找描述符做参数校验，再用 `FindKernel(desc->Kind(), backend, level)` 确认后端可用，全部通过后才 `Construct`。任一失败整体返回错误、不构造任何对象（fail-fast，不静默回退）。
+
+描述符同样走**显式登记清单**（`src/operator/register_descriptors.cpp` 的 `RegisterAllOpDescriptors()`），与内核清单同因同果，不使用静态自注册。
+
 ***
 
 ## 8. 框架工具层
@@ -234,6 +268,7 @@ void RegisterAllKernels() {
 ## 9. 构建与开关
 
 - 可选后端：`MYCV_WITH_CUDA`、`MYCV_WITH_OPENCV`、`MYCV_WITH_TBB`、`MYCV_WITH_OPENMP`、`MYCV_WITH_SIMD_GENERIC`。
+- 配置驱动算子对象：`MYCV_WITH_YAML`（默认 OFF；启用后引入 yaml-cpp，提供 `LoadOperators` 与 `Operator` 对象；未启用时 `LoadOperators` 返回 `kUnsupported`，不影响默认构建）。
 - 运行时开关：`MYCV_ENABLE_SIMD`、`MYCV_ENABLE_PROFILING`。
 - 各算子通过自己的 `CMakeLists.txt` 逐文件门控；未启用时对应翻译单元不参与编译。
 - 推荐至少维护三棵构建树：默认（无可选后端）、全开、ASan。
@@ -255,6 +290,16 @@ void RegisterAllKernels() {
 
 **新增后端 B**：`src/backends/b/`（内存管理器 + 流）+ `src/backends/factory.cpp` 加一个 `case` + 构建开关。各算子自愿增量添加 `*_b.cpp`，不添加也不破坏现有构建。
 
+**让已有算子支持配置驱动实例化**（`MYCV_WITH_YAML`，详见 [`operator_config.md`](./operator_config.md)）：
+
+1. 公共头 `include/mycv/ops/<op>.h` 追加 `class <Op>Operator : public Operator`（持有强类型参数，`Run(...)` 调已有公共函数）。
+2. 算子文件夹新增 `<op>_operator.cpp`：实现 `<Op>Operator` + `<Op>Descriptor : public OpDescriptor`（`ValidateParams` 校验必填/类型，`Construct` 解析并构造对象）+ `Register<Op>Descriptor()`。
+3. 算子 `CMakeLists.txt` 在 `if(MYCV_WITH_YAML)` 下追加该 `.cpp`。
+4. `src/operator/register_descriptors.cpp` 的 `RegisterAllOpDescriptors()` 加一行 `Register<Op>Descriptor();`。
+5. 在 `docs/operator_config.md` 登记该算子的参数表。
+
+core / framework / 其他算子均零改动；未启用 `MYCV_WITH_YAML` 时新文件不参与编译，不影响默认构建。
+
 ***
 
 ## 11. 关键设计模式
@@ -264,6 +309,7 @@ void RegisterAllKernels() {
 | Strategy        | 每算子多版本内核 + `CpuKernelLevel`               | 同一语义的不同实现可替换                |
 | Factory         | `CreateBackend`                           | 屏蔽后端构造细节                    |
 | Registry        | `op_registry.{h,cpp}`                     | 三元组到内核函数的延迟绑定               |
+| 描述符注册表         | `op_descriptor.{h,cpp}`、`register_descriptors.cpp` | 配置名到算子对象构造器的延迟绑定，与内核注册表分层 |
 | Facade          | `Context`                                 | 对调用者隐藏后端与内存管理               |
 | Adapter         | `interop/opencv.h`、`opencv_tensor_access` | 外部 `cv::Mat` 与 `Tensor` 互操作 |
 | Template Method | `<op>_cpu.h` 共享骨架                         | 固定遍历/边界/累加骨架，版本只填热点         |

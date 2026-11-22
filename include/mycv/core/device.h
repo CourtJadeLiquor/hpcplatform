@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <string>
 
+#include "mycv/core/error.h"
+
 namespace mycv {
 
 // Backend type: implementation provider. Selection is explicit, with no runtime
@@ -35,6 +37,16 @@ inline const char* BackendTypeName(BackendType type) {
       return "npu";
   }
   return "unknown";
+}
+
+// Parses a stable backend name back to its enum. Returns kInvalidArgument for
+// an unrecognized name; the inverse of BackendTypeName (excluding "unknown").
+inline Result<BackendType> BackendTypeFromName(const std::string& name) {
+  if (name == "native_cpu") return BackendType::kNativeCpu;
+  if (name == "opencv") return BackendType::kOpenCV;
+  if (name == "cuda") return BackendType::kCUDA;
+  if (name == "npu") return BackendType::kNPU;
+  return Status::InvalidArgument("unknown backend name: " + name);
 }
 
 // Returns the device type's stable name.

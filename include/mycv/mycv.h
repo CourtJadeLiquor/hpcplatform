@@ -15,6 +15,8 @@
 #include "mycv/core/shape.h"
 #include "mycv/core/stream.h"
 #include "mycv/core/tensor.h"
+#include "mycv/core/timing.h"
+#include "mycv/operator.h"
 #include "mycv/ops/fourier.h"
 #include "mycv/ops/gaussian_blur.h"
 #include "mycv/ops/image.h"

@@ -14,6 +14,7 @@ option(MYCV_ENABLE_SIMD "Enable portable and instruction-set SIMD kernels" ON)
 option(MYCV_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 option(MYCV_WITH_OPENCV "Build the OpenCV backend" OFF)
 option(MYCV_WITH_CUDA "Build the CUDA backend" OFF)
+option(MYCV_WITH_YAML "Build the YAML config-driven operator loader" OFF)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
@@ -47,6 +48,8 @@ add_library(mycv STATIC
   src/backends/cpu/cpu_memory_manager.cpp
   src/backends/npu/npu_backend.cpp
   src/framework/op_registry.cpp
+  src/framework/op_descriptor.cpp
+  src/operator/load_operators.cpp
   src/ops/register_ops.cpp
 )
 
@@ -126,6 +129,25 @@ if(MYCV_WITH_CUDA)
   target_compile_definitions(mycv PUBLIC MYCV_WITH_CUDA=1)
   target_compile_options(mycv PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+endif()
+
+# --- YAML config-driven operator loader (optional) ------------------------
+# Off by default so the default build stays dependency-free. When on, pulls in
+# yaml-cpp and the operator descriptors; the public LoadOperators API is always
+# declared and returns kUnsupported when this is off (see src/operator/).
+if(MYCV_WITH_YAML)
+  find_package(yaml-cpp REQUIRED)
+  target_sources(mycv PRIVATE
+    src/operator/load_operators_real.cpp
+    src/operator/register_descriptors.cpp
+    src/operator/yaml_parser.cpp)
+  # PUBLIC so consumers (tests, samples, anything linking the static mycv and
+  # calling LoadOperators) get yaml-cpp's include dirs and link line, matching
+  # how the OpenCV backend is linked. Public headers do not change based on
+  # MYCV_WITH_YAML, so propagating it is ABI-neutral; it lets downstream code
+  # #ifdef on the feature (e.g. the operator tests).
+  target_link_libraries(mycv PUBLIC yaml-cpp::yaml-cpp)
+  target_compile_definitions(mycv PUBLIC MYCV_WITH_YAML=1)
 endif()
 
 # Operator folders are self-contained (sources, optional-backend files,

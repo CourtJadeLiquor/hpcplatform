@@ -15,3 +15,8 @@ if(MYCV_WITH_OPENCV)
   add_executable(03_opencv_backend 03_opencv_backend.cpp)
   target_link_libraries(03_opencv_backend PRIVATE mycv)
 endif()
+
+if(MYCV_WITH_YAML)
+  add_executable(05_config_operator 05_config_operator.cpp)
+  target_link_libraries(05_config_operator PRIVATE mycv)
+endif()

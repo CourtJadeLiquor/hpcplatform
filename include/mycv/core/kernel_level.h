@@ -2,6 +2,9 @@
 #define MYCV_CORE_KERNEL_LEVEL_H_
 
 #include <cstdint>
+#include <string>
+
+#include "mycv/core/error.h"
 
 namespace mycv {
 
@@ -33,6 +36,18 @@ inline const char* CpuKernelLevelName(CpuKernelLevel level) {
       return "tbb";
   }
   return "unknown";
+}
+
+// Parses a stable CPU kernel level name back to its enum. Inverse of
+// CpuKernelLevelName (excluding "unknown"); unknown name -> kInvalidArgument.
+inline Result<CpuKernelLevel> CpuKernelLevelFromName(const std::string& name) {
+  if (name == "naive") return CpuKernelLevel::kNaive;
+  if (name == "openmp") return CpuKernelLevel::kOpenMP;
+  if (name == "simd_generic") return CpuKernelLevel::kSimdGeneric;
+  if (name == "simd_avx2") return CpuKernelLevel::kSimdAvx2;
+  if (name == "simd_neon") return CpuKernelLevel::kSimdNeon;
+  if (name == "tbb") return CpuKernelLevel::kTbb;
+  return Status::InvalidArgument("unknown cpu kernel level name: " + name);
 }
 
 // Returns true for SIMD levels (generic / AVX2 / NEON).

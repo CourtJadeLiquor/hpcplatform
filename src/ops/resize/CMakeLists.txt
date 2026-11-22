@@ -22,6 +22,10 @@ if(MYCV_WITH_CUDA)
   target_sources(mycv PRIVATE resize_cuda.cu)
 endif()
 
+if(MYCV_WITH_YAML)
+  target_sources(mycv PRIVATE resize_operator.cpp)
+endif()
+
 if(MYCV_BUILD_TESTS)
   add_executable(test_resize tests/test_resize.cpp)
   target_link_libraries(test_resize PRIVATE mycv)

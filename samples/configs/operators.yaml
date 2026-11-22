@@ -1,0 +1,50 @@
+# mycv 配置驱动算子示例配置
+# 顶层必须是 operators 列表；每个元素描述一个算子对象实例。
+# 运行时也可通过环境变量覆盖环境：
+#   MYCV_BACKEND=native_cpu|opencv|cuda|npu
+#   MYCV_CPU_LEVEL=naive|openmp|simd_generic|simd_avx2|simd_neon|tbb  (可选)
+#   MYCV_DEVICE_INDEX=0  (可选)
+# 设置 MYCV_BACKEND 后，所有对象共享同一个 Context，配置里的 backend /
+# cpu_level / device_index 字段会被忽略；请求的后端不可用时直接报错，不回退。
+operators:
+  # 实例名：在 LoadOperators 返回的 map 中作为键，GetOperator 按此查找。
+  - name: downscale
+    op: resize                 # 算子类型，必须是已注册的描述符名
+    backend: native_cpu        # native_cpu / opencv / cuda / npu
+    cpu_level: naive           # 可选，默认 naive；CPU 后端还可选 openmp / simd_*
+    device_index: 0            # 可选，默认 0；非 CPU 后端用于选卡
+    params:                    # 算子专属参数，全部按标量字符串解析
+      output_height: 2         # resize 输出高，必须 > 0
+      output_width: 2          # resize 输出宽，必须 > 0
+      interpolation: bilinear  # nearest / bilinear
+      layout: nhwc             # nhwc / nchw
+
+  - name: smooth
+    op: gaussian_blur
+    backend: native_cpu
+    params:
+      kernel_size: 3           # 高斯核大小，奇数且 >= 3
+      sigma: 1.0               # 标准差，有限且 > 0
+      layout: nhwc
+
+  - name: pyramid
+    op: laplacian_pyramid
+    backend: native_cpu
+    params:
+      levels: 2                # 金字塔层数，>= 1，且每级保持 >= 2x2
+      kernel_size: 3           # 高斯核大小，奇数且 >= 3
+      sigma: 1.0               # 标准差，有限且 > 0
+      layout: nhwc
+
+  - name: spectrum
+    op: fourier_transform
+    backend: native_cpu
+    params:
+      layout: nhwc
+
+  - name: bands
+    op: wavelet_transform
+    backend: native_cpu
+    params:
+      kind: haar               # haar / db4
+      layout: nhwc

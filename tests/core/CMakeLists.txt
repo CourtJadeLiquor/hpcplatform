@@ -3,7 +3,9 @@
 set(MYCV_CORE_TEST_SOURCES
   test_backend.cpp
   test_copy.cpp
+  test_enum_names.cpp
   test_memory.cpp
+  test_operator_stub.cpp
   test_shape.cpp
   test_tensor.cpp
   test_tensor_views.cpp)

@@ -2,6 +2,7 @@
 #define MYCV_OPS_OP_H_
 
 #include <cstdint>
+#include <string>
 
 #include "mycv/core/context.h"
 #include "mycv/core/kernel_level.h"
@@ -42,6 +43,17 @@ inline const char* OpKindName(OpKind kind) {
       return "wavelet_transform";
   }
   return "unknown";
+}
+
+// Parses a stable operator name back to its enum. Inverse of OpKindName
+// (excluding "unknown"); unknown name -> kInvalidArgument.
+inline Result<OpKind> OpKindFromName(const std::string& name) {
+  if (name == "resize") return OpKind::kResize;
+  if (name == "gaussian_blur") return OpKind::kGaussianBlur;
+  if (name == "laplacian_pyramid") return OpKind::kLaplacianPyramid;
+  if (name == "fourier_transform") return OpKind::kFourierTransform;
+  if (name == "wavelet_transform") return OpKind::kWaveletTransform;
+  return Status::InvalidArgument("unknown operator name: " + name);
 }
 
 }  // namespace mycv

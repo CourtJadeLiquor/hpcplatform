@@ -1,17 +1,17 @@
-#ifndef MYCV_CORE_CONTEXT_H_
-#define MYCV_CORE_CONTEXT_H_
+#ifndef hpcplatform_CORE_CONTEXT_H_
+#define hpcplatform_CORE_CONTEXT_H_
 
 #include <memory>
 #include <string>
 
-#include "mycv/core/device.h"
-#include "mycv/core/error.h"
-#include "mycv/core/memory.h"
-#include "mycv/core/shape.h"
-#include "mycv/core/stream.h"
-#include "mycv/core/tensor.h"
+#include "hpcplatform/core/device.h"
+#include "hpcplatform/core/error.h"
+#include "hpcplatform/core/memory.h"
+#include "hpcplatform/core/shape.h"
+#include "hpcplatform/core/stream.h"
+#include "hpcplatform/core/tensor.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 // The per-device provider interface behind every Context. Internal type: the
 // definition lives in src/core/backend.h and is never exposed through the
@@ -74,6 +74,6 @@ class Context {
   std::shared_ptr<Backend> backend_;
 };
 
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_CORE_CONTEXT_H_
+#endif  // hpcplatform_CORE_CONTEXT_H_

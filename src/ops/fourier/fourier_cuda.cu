@@ -23,9 +23,9 @@
 
 #include "backends/cuda/cuda_device_utils.h"
 #include "fourier_internal.h"
-#include "mycv/ops/image.h"
+#include "hpcplatform/ops/image.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 namespace {
 
@@ -354,4 +354,4 @@ Status FourierCuda(const OpContext& context, const Tensor& input,
 }
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform

@@ -1,4 +1,4 @@
-# mycv 架构设计
+# hpcplatform 架构设计
 
 ***
 
@@ -20,10 +20,10 @@
 ### 2.1 分层
 
 ```
-                 include/mycv/**                ← 唯一公共 API 面（调用者只见这里）
+                 include/hpcplatform/**                ← 唯一公共 API 面（调用者只见这里）
                   operator.h 等                 ← 含 Operator 基类与 LoadOperators
                         ↑
-                   src/operator/                ← 配置驱动：YAML → Operator 对象（MYCV_WITH_YAML）
+                   src/operator/                ← 配置驱动：YAML → Operator 对象（hpcplatform_WITH_YAML）
                         ↑                       ← 描述符注册表、环境解析、fail-fast 校验
                   src/framework/                ← 注册表、图像工具、dtype 分发、剖析与统计
                    ↑         ↑
@@ -31,13 +31,13 @@
         （能力服务）          （算子自治，每算子一个文件夹）
 ```
 
-`src/operator/`（`MYCV_WITH_YAML`）是位于 `ops`/`framework` 之上的更高一层：读取配置文件，经描述符注册表把每个条目构造为已绑定参数的 `Operator` 对象，交给业务层持有并自行编排执行。它不构建计算图，也不假设图像算法，只是把已有算子封装成可配置的对象工具。未启用 `MYCV_WITH_YAML` 时该层不编译，公共 `LoadOperators` 返回 `kUnsupported`。
+`src/operator/`（`hpcplatform_WITH_YAML`）是位于 `ops`/`framework` 之上的更高一层：读取配置文件，经描述符注册表把每个条目构造为已绑定参数的 `Operator` 对象，交给业务层持有并自行编排执行。它不构建计算图，也不假设图像算法，只是把已有算子封装成可配置的对象工具。未启用 `hpcplatform_WITH_YAML` 时该层不编译，公共 `LoadOperators` 返回 `kUnsupported`。
 
 算子自己的后端实现文件（`*_cuda.cu`、`*_opencv.cpp`）位于算子文件夹内，按需引用对应后端的服务头。
 
 ### 2.2 依赖规则
 
-- **R1** 公共头（`include/mycv/**`）不得包含任何 `src/**`。可选能力用 `#ifdef MYCV_WITH_*` 门控。
+- **R1** 公共头（`include/hpcplatform/**`）不得包含任何 `src/**`。可选能力用 `#ifdef hpcplatform_WITH_*` 门控。
 - **R2** `src/core/**` 不得包含 `framework`、`backends`、`ops`。`Backend` 作为 core 的内部契约定义在 `src/core/backend.h`。
 - **R3** `src/framework/**` 依赖 `core` 与公共头中的稳定类型（`ops/op.h`、`ops/image.h`），不得包含 `backends` 或任何具体算子实现。
 - **R4** `src/backends/**` 只依赖 `core`/`framework`，不得包含 `src/ops/**`。
@@ -49,12 +49,12 @@
 ## 3. 目录结构
 
 ```
-include/mycv/
+include/hpcplatform/
   core/                  # shape / dtype / error / device / memory / stream / tensor / context
   ops/                   # image.h / op.h / resize.h / gaussian_blur.h / laplacian_pyramid.h / fourier.h / wavelet.h
   interop/opencv.h       # cv::Mat 与 Tensor 的数据适配器
   operator.h             # 配置驱动 Operator 基类与 LoadOperators（公共 API）
-  mycv.h                 # 伞形头
+  hpcplatform.h                 # 伞形头
 
 src/
   core/                  # 数据结构与内部契约
@@ -86,7 +86,7 @@ src/
     laplacian_pyramid/
     fourier/
     wavelet/
-  operator/              # 配置驱动算子对象层（MYCV_WITH_YAML）
+  operator/              # 配置驱动算子对象层（hpcplatform_WITH_YAML）
     operator_config.h     # 内部配置结构 OperatorInstanceConfig
     yaml_parser.cpp       # YAML → OperatorsConfig
     load_operators.cpp    # 常驻 stub：未启用时返回 kUnsupported
@@ -94,11 +94,12 @@ src/
     register_descriptors.cpp # 描述符登记清单
 
 tests/
-  test_framework.h       # 零依赖测试框架
+  test_utils.h           # GoogleTest 胶水层（Status 断言）；gtest_main 提供入口
   core/                  # shape / tensor / views / memory / backend / copy
   backends/              # CUDA / OpenCV 后端级测试
   perf/                  # 算子性能评估（按目标开启 profiling）
-  operator/              # 配置驱动算子对象测试（MYCV_WITH_YAML）
+  operator/              # 配置驱动算子对象测试（hpcplatform_WITH_YAML）
+                         # 每个测试文件一个 GoogleTest 可执行，由 CTest 注册
 samples/                 # 公共 API 使用样例
   configs/operators.yaml # 配置驱动示例配置
 ```
@@ -161,12 +162,12 @@ src/ops/<op>/
   <op>_internal.h          # 参数结构体、内核原型、注册声明
   <op>_cpu.h               # CPU 共享骨架（可选）
   <op>_cpu_naive.cpp       # 参考实现
-  <op>_cpu_omp.cpp         # MYCV_WITH_OPENMP
-  <op>_cpu_tbb.cpp         # MYCV_WITH_TBB
-  <op>_cpu_simd.cpp        # MYCV_ENABLE_SIMD
-  <op>_cpu_avx2.cpp        # MYCV_COMPILER_HAS_AVX2（独立 OBJECT 库）
-  <op>_cuda.cu             # MYCV_WITH_CUDA
-  <op>_opencv.cpp          # MYCV_WITH_OPENCV
+  <op>_cpu_omp.cpp         # hpcplatform_WITH_OPENMP
+  <op>_cpu_tbb.cpp         # hpcplatform_WITH_TBB
+  <op>_cpu_simd.cpp        # hpcplatform_ENABLE_SIMD
+  <op>_cpu_avx2.cpp        # hpcplatform_COMPILER_HAS_AVX2（独立 OBJECT 库）
+  <op>_cuda.cu             # hpcplatform_WITH_CUDA
+  <op>_opencv.cpp          # hpcplatform_WITH_OPENCV
   CMakeLists.txt           # 逐文件宏门控 + 挂测试与基准
   tests/                   # 正确性与位精确对拍
   benchmark/               # 各版本耗时
@@ -180,7 +181,7 @@ src/ops/<op>/
 - **参数结构体归位**：`ResizeParams`、`GaussianBlurParams` 等定义在各自 `*_internal.h`。
 - **入口骨架固定**：校验 → 查注册表 → 分配输出 → 调内核；公共头只声明 API。
 - **版本不齐不是错误**：某组合没有实现时，注册表返回 `kNotImplemented`，`SupportsKernelLevel` 返回 false。
-- **AVX2 构建**：AVX2 翻译单元编成独立 OBJECT 库（`-mavx2` + `MYCV_ARCH_AVX2`），再嵌入 `mycv`，避免污染整个静态库的可移植性。
+- **AVX2 构建**：AVX2 翻译单元编成独立 OBJECT 库（`-mavx2` + `hpcplatform_ARCH_AVX2`），再嵌入 `hpcplatform`，避免污染整个静态库的可移植性。
 
 ### 6.2 内核纪律
 
@@ -254,7 +255,7 @@ struct OpDescriptor {
 
 ### 8.2 剖析与统计
 
-- `profiling.h`：`MYCV_PROFILE_SCOPE` / `MYCV_PROFILE_OP`，默认展开为空语句；只对需要剖析的目标定义 `MYCV_ENABLE_PROFILING=1`。
+- `profiling.h`：`hpcplatform_PROFILE_SCOPE` / `hpcplatform_PROFILE_OP`，默认展开为空语句；只对需要剖析的目标定义 `hpcplatform_ENABLE_PROFILING=1`。
 - `stats.h`：`SnapshotMemory(Context&)` 按 `MemoryKind` 聚合活动字节、峰值与分配次数，用于峰值和泄漏检查。
 - 算子 `benchmark/` 直接使用 `std::chrono::steady_clock`，不强依赖剖析宏。
 - 性能评估用例见 `tests/perf/test_operator_perf.cpp`。
@@ -267,11 +268,12 @@ struct OpDescriptor {
 
 ## 9. 构建与开关
 
-- 可选后端：`MYCV_WITH_CUDA`、`MYCV_WITH_OPENCV`、`MYCV_WITH_TBB`、`MYCV_WITH_OPENMP`、`MYCV_WITH_SIMD_GENERIC`。
-- 配置驱动算子对象：`MYCV_WITH_YAML`（默认 OFF；启用后引入 yaml-cpp，提供 `LoadOperators` 与 `Operator` 对象；未启用时 `LoadOperators` 返回 `kUnsupported`，不影响默认构建）。
-- 运行时开关：`MYCV_ENABLE_SIMD`、`MYCV_ENABLE_PROFILING`。
+- 可选后端：`hpcplatform_WITH_CUDA`、`hpcplatform_WITH_OPENCV`、`hpcplatform_WITH_YAML`，CPU 并行与 SIMD：`hpcplatform_ENABLE_OPENMP`、`hpcplatform_ENABLE_TBB`、`hpcplatform_ENABLE_SIMD`；均为默认 ON。
+- 配置驱动算子对象：`hpcplatform_WITH_YAML` 启用后引入 yaml-cpp，提供 `LoadOperators` 与 `Operator` 对象；关闭时 `LoadOperators` 返回 `kUnsupported`。
+- 剖析开关：`hpcplatform_ENABLE_PROFILING` 按目标开启，库默认零开销。
 - 各算子通过自己的 `CMakeLists.txt` 逐文件门控；未启用时对应翻译单元不参与编译。
-- 推荐至少维护三棵构建树：默认（无可选后端）、全开、ASan。
+- 默认只维护一条全特性构建链：`build_debug`（Debug + ASan/UBSan）或 `build_release`（Release）；测试统一使用 GoogleTest + CTest。旧的 default / full / asan 三棵树验证矩阵已废弃。
+- 打包：`cpack -G TGZ` / `cpack -G DEB`，安装布局由根 [`CMakeLists.txt`](../CMakeLists.txt) 的 `install()` 规则决定。
 
 ***
 
@@ -279,26 +281,26 @@ struct OpDescriptor {
 
 **新增算子 X**：
 
-1. `include/mycv/ops/x.h` —— 公共 API。
-2. `include/mycv/ops/op.h` —— `OpKind` 追加枚举值（append-only）。
+1. `include/hpcplatform/ops/x.h` —— 公共 API。
+2. `include/hpcplatform/ops/op.h` —— `OpKind` 追加枚举值（append-only）。
 3. `src/ops/x/` —— 自治文件夹（入口、内部头、各版本实现、CMake、tests、benchmark、README）。
 4. `src/ops/register_ops.cpp` —— 加一行 `RegisterXKernels();`。
 5. `src/ops/CMakeLists.txt` —— 加一行 `add_subdirectory(x)`。
-6. `include/mycv/mycv.h` —— 加一行 include。
+6. `include/hpcplatform/hpcplatform.h` —— 加一行 include。
 
 **给已有算子加后端实现**：算子文件夹加一个实现文件 + `Register<Op>Kernels()` 加一行宏门控注册 + 算子 CMake 加一行。core/backends/其他算子零改动。
 
 **新增后端 B**：`src/backends/b/`（内存管理器 + 流）+ `src/backends/factory.cpp` 加一个 `case` + 构建开关。各算子自愿增量添加 `*_b.cpp`，不添加也不破坏现有构建。
 
-**让已有算子支持配置驱动实例化**（`MYCV_WITH_YAML`，详见 [`operator_config.md`](./operator_config.md)）：
+**让已有算子支持配置驱动实例化**（`hpcplatform_WITH_YAML`，详见 [`operator_config.md`](./operator_config.md)）：
 
-1. 公共头 `include/mycv/ops/<op>.h` 追加 `class <Op>Operator : public Operator`（持有强类型参数，`Run(...)` 调已有公共函数）。
+1. 公共头 `include/hpcplatform/ops/<op>.h` 追加 `class <Op>Operator : public Operator`（持有强类型参数，`Run(...)` 调已有公共函数）。
 2. 算子文件夹新增 `<op>_operator.cpp`：实现 `<Op>Operator` + `<Op>Descriptor : public OpDescriptor`（`ValidateParams` 校验必填/类型，`Construct` 解析并构造对象）+ `Register<Op>Descriptor()`。
-3. 算子 `CMakeLists.txt` 在 `if(MYCV_WITH_YAML)` 下追加该 `.cpp`。
+3. 算子 `CMakeLists.txt` 在 `if(hpcplatform_WITH_YAML)` 下追加该 `.cpp`。
 4. `src/operator/register_descriptors.cpp` 的 `RegisterAllOpDescriptors()` 加一行 `Register<Op>Descriptor();`。
 5. 在 `docs/operator_config.md` 登记该算子的参数表。
 
-core / framework / 其他算子均零改动；未启用 `MYCV_WITH_YAML` 时新文件不参与编译，不影响默认构建。
+core / framework / 其他算子均零改动；未启用 `hpcplatform_WITH_YAML` 时新文件不参与编译，不影响默认构建。
 
 ***
 
@@ -314,7 +316,7 @@ core / framework / 其他算子均零改动；未启用 `MYCV_WITH_YAML` 时新�
 | Adapter         | `interop/opencv.h`、`opencv_tensor_access` | 外部 `cv::Mat` 与 `Tensor` 互操作 |
 | Template Method | `<op>_cpu.h` 共享骨架                         | 固定遍历/边界/累加骨架，版本只填热点         |
 | RAII            | `Buffer`、`Result`、`Stream`                | 资源与错误生命周期自动收敛               |
-| 编译期多态           | `MYCV_WITH_*` / `MYCV_ENABLE_*`           | 零运行时开销的可选能力                 |
+| 编译期多态           | `hpcplatform_WITH_*` / `hpcplatform_ENABLE_*`           | 零运行时开销的可选能力                 |
 
 ***
 

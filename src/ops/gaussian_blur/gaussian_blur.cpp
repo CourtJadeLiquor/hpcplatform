@@ -1,4 +1,4 @@
-#include "mycv/ops/gaussian_blur.h"
+#include "hpcplatform/ops/gaussian_blur.h"
 
 #include <cmath>
 
@@ -15,7 +15,7 @@
 // convolution. The horizontal pass computes
 // tmp[y,x] = sum_k in[y, x-r+k] * w[k] with replicate boundaries; the vertical
 // pass applies the same 1D weighting to tmp.
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 // Register every gaussian_blur kernel compiled into this binary: all enabled
@@ -26,27 +26,27 @@ void RegisterGaussianBlurKernels() {
   const BackendType cpu = BackendType::kNativeCpu;
   RegisterKernel(OpKind::kGaussianBlur, cpu, CpuKernelLevel::kNaive,
                  &GaussianBlurCpuNaive);
-#ifdef MYCV_WITH_OPENMP
+#ifdef hpcplatform_WITH_OPENMP
   RegisterKernel(OpKind::kGaussianBlur, cpu, CpuKernelLevel::kOpenMP,
                  &GaussianBlurCpuOpenMP);
 #endif
-#ifdef MYCV_WITH_TBB
+#ifdef hpcplatform_WITH_TBB
   RegisterKernel(OpKind::kGaussianBlur, cpu, CpuKernelLevel::kTbb,
                  &GaussianBlurCpuTbb);
 #endif
-#ifdef MYCV_WITH_SIMD_GENERIC
+#ifdef hpcplatform_WITH_SIMD_GENERIC
   RegisterKernel(OpKind::kGaussianBlur, cpu, CpuKernelLevel::kSimdGeneric,
                  &GaussianBlurCpuSimd);
 #endif
-#ifdef MYCV_ARCH_AVX2
+#ifdef hpcplatform_ARCH_AVX2
   RegisterKernel(OpKind::kGaussianBlur, cpu, CpuKernelLevel::kSimdAvx2,
                  &GaussianBlurCpuAvx2);
 #endif
-#ifdef MYCV_WITH_CUDA
+#ifdef hpcplatform_WITH_CUDA
   RegisterKernel(OpKind::kGaussianBlur, BackendType::kCUDA,
                  CpuKernelLevel::kNaive, &GaussianBlurCuda);
 #endif
-#ifdef MYCV_WITH_OPENCV
+#ifdef hpcplatform_WITH_OPENCV
   RegisterKernel(OpKind::kGaussianBlur, BackendType::kOpenCV,
                  CpuKernelLevel::kNaive, &GaussianBlurOpenCv);
 #endif
@@ -62,7 +62,7 @@ void RegisterGaussianBlurKernels() {
 //    params. The kernel performs two 1D convolution passes, each O(H*W*K).
 Result<Tensor> GaussianBlur(const OpContext& context, const Tensor& input,
                             int kernel_size, double sigma, ImageLayout layout) {
-  MYCV_RETURN_IF_ERROR(ops_internal::ValidateInvocation(context, input));
+  hpcplatform_RETURN_IF_ERROR(ops_internal::ValidateInvocation(context, input));
   if (kernel_size < 3 || kernel_size % 2 == 0) {
     return Status::InvalidArgument(
         "GaussianBlur kernel_size must be an odd integer >= 3");
@@ -82,9 +82,9 @@ Result<Tensor> GaussianBlur(const OpContext& context, const Tensor& input,
       ops_internal::AllocateOutput(context, input.shape(), input.dtype());
   if (!output.ok()) return output.status();
   const ops_internal::GaussianBlurParams params{kernel_size, sigma, layout};
-  MYCV_RETURN_IF_ERROR(
+  hpcplatform_RETURN_IF_ERROR(
       kernel.value()(context, input, nullptr, &params, &output.value()));
   return output;
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform

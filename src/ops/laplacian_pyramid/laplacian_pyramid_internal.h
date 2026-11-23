@@ -1,5 +1,5 @@
-#ifndef MYCV_SRC_OPS_LAPLACIAN_PYRAMID_LAPLACIAN_PYRAMID_INTERNAL_H_
-#define MYCV_SRC_OPS_LAPLACIAN_PYRAMID_LAPLACIAN_PYRAMID_INTERNAL_H_
+#ifndef hpcplatform_SRC_OPS_LAPLACIAN_PYRAMID_LAPLACIAN_PYRAMID_INTERNAL_H_
+#define hpcplatform_SRC_OPS_LAPLACIAN_PYRAMID_LAPLACIAN_PYRAMID_INTERNAL_H_
 
 // Internal contract for the laplacian_pyramid operator directory
 // (docs/architecture.md §6.1/§11). This operator has no pixel-level math of its
@@ -17,10 +17,10 @@
 // Reconstruction: G_i = L_i + upsample(G_{i+1}).
 
 #include "framework/image_utils.h"
-#include "mycv/ops/image.h"
-#include "mycv/ops/op.h"
+#include "hpcplatform/ops/image.h"
+#include "hpcplatform/ops/op.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 // Immutable parameters for one stage, valid only for a synchronous kernel call.
@@ -45,7 +45,7 @@ struct LaplacianPyramidParams {
 Status LaplacianPyramidHostStage(const OpContext& context, const Tensor& input,
                                  const Tensor* other, const void* params,
                                  Tensor* output);
-#ifdef MYCV_WITH_CUDA
+#ifdef hpcplatform_WITH_CUDA
 // Device stage: uses the same per-level semantics as the host version, with CUDA
 // suboperators and a final device subtraction kernel. OpContext must provide a
 // CudaStream (context.stream or the stream in context.context).
@@ -63,6 +63,6 @@ Status LaplacianPyramidCudaStage(const OpContext& context, const Tensor& input,
 void RegisterLaplacianPyramidKernels();
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_SRC_OPS_LAPLACIAN_PYRAMID_LAPLACIAN_PYRAMID_INTERNAL_H_
+#endif  // hpcplatform_SRC_OPS_LAPLACIAN_PYRAMID_LAPLACIAN_PYRAMID_INTERNAL_H_

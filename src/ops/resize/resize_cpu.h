@@ -1,5 +1,5 @@
-#ifndef MYCV_SRC_OPS_RESIZE_RESIZE_CPU_H_
-#define MYCV_SRC_OPS_RESIZE_RESIZE_CPU_H_
+#ifndef hpcplatform_SRC_OPS_RESIZE_RESIZE_CPU_H_
+#define hpcplatform_SRC_OPS_RESIZE_RESIZE_CPU_H_
 
 // Shared CPU skeleton for resize: the pixel kernel ResizeElement plus three
 // outer-loop organizations (serial naive / OpenMP / TBB). Every CPU level calls
@@ -17,7 +17,7 @@
 #include <algorithm>
 #include <cmath>
 
-#ifdef MYCV_WITH_TBB
+#ifdef hpcplatform_WITH_TBB
 #include <tbb/parallel_for.h>
 #endif
 
@@ -26,7 +26,7 @@
 #include "ops/common/op_common.h"
 #include "resize_internal.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 // Compute one output element, output[output_linear].
@@ -141,7 +141,7 @@ inline Status ResizeNaiveImpl(const Tensor& input, const ResizeParams& options,
                               Tensor* output) {
   ImageInfo image;
   ImageInfo output_info;
-  MYCV_RETURN_IF_ERROR(PrepareResize(input, options, &image, &output_info));
+  hpcplatform_RETURN_IF_ERROR(PrepareResize(input, options, &image, &output_info));
   for (int64_t i = 0; i < output->Numel(); ++i) {
     ResizeElement(input, image, output_info, options, i, output);
   }
@@ -158,7 +158,7 @@ inline Status ResizeOpenMPImpl(const Tensor& input, const ResizeParams& options,
                                Tensor* output) {
   ImageInfo image;
   ImageInfo output_info;
-  MYCV_RETURN_IF_ERROR(PrepareResize(input, options, &image, &output_info));
+  hpcplatform_RETURN_IF_ERROR(PrepareResize(input, options, &image, &output_info));
 #pragma omp parallel for
   for (int64_t i = 0; i < output->Numel(); ++i) {
     ResizeElement(input, image, output_info, options, i, output);
@@ -171,12 +171,12 @@ inline Status ResizeOpenMPImpl(const Tensor& input, const ResizeParams& options,
 // work-stealing scheduling. body invokes the same pixel kernel for each index;
 // independent iterations and naive-identical computation ensure bit-exact
 // results. O(N*H_out*W_out*C).
-#ifdef MYCV_WITH_TBB
+#ifdef hpcplatform_WITH_TBB
 inline Status ResizeTbbImpl(const Tensor& input, const ResizeParams& options,
                             Tensor* output) {
   ImageInfo image;
   ImageInfo output_info;
-  MYCV_RETURN_IF_ERROR(PrepareResize(input, options, &image, &output_info));
+  hpcplatform_RETURN_IF_ERROR(PrepareResize(input, options, &image, &output_info));
   tbb::parallel_for(int64_t{0}, output->Numel(), [&](int64_t i) {
     ResizeElement(input, image, output_info, options, i, output);
   });
@@ -185,6 +185,6 @@ inline Status ResizeTbbImpl(const Tensor& input, const ResizeParams& options,
 #endif
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_SRC_OPS_RESIZE_RESIZE_CPU_H_
+#endif  // hpcplatform_SRC_OPS_RESIZE_RESIZE_CPU_H_

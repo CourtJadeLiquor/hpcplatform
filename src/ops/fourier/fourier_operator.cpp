@@ -1,20 +1,20 @@
 // Config-driven concrete operator + descriptor for fourier_transform. Compiled
-// only when MYCV_WITH_YAML is on; the default build never references these
+// only when hpcplatform_WITH_YAML is on; the default build never references these
 // symbols.
 
-#include "mycv/ops/fourier.h"
+#include "hpcplatform/ops/fourier.h"
 
 #include <memory>
 #include <string>
 #include <utility>
 
 #include "framework/op_descriptor.h"
-#include "mycv/core/context.h"
-#include "mycv/core/kernel_level.h"
-#include "mycv/ops/image.h"
-#include "mycv/ops/op.h"
+#include "hpcplatform/core/context.h"
+#include "hpcplatform/core/kernel_level.h"
+#include "hpcplatform/ops/image.h"
+#include "hpcplatform/ops/op.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace {
 
 struct ParsedFourierParams {
@@ -75,7 +75,7 @@ OpKind FourierTransformOperator::kind() const {
 
 Result<ComplexImage> FourierTransformOperator::Run(const Tensor& input) const {
   const OpContext ctx{context_.get(), /*stream=*/nullptr, cpu_level_};
-  return mycv::FourierTransform(ctx, input, layout_);
+  return hpcplatform::FourierTransform(ctx, input, layout_);
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform

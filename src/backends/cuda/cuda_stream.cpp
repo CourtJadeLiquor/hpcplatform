@@ -2,7 +2,7 @@
 
 #include "backends/cuda/cuda_common.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 CudaStream::~CudaStream() {
   if (stream_ != nullptr) {
@@ -14,7 +14,7 @@ CudaStream::~CudaStream() {
 Status CudaStream::Initialize() {
   if (stream_ != nullptr)
     return Status::BadState("CUDA stream is already initialized");
-  MYCV_RETURN_IF_ERROR(
+  hpcplatform_RETURN_IF_ERROR(
       CudaStatus(cudaSetDevice(device_.index), "cudaSetDevice"));
   return CudaStatus(cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking),
                     "cudaStreamCreateWithFlags");
@@ -23,9 +23,9 @@ Status CudaStream::Initialize() {
 Status CudaStream::Synchronize() {
   if (stream_ == nullptr)
     return Status::BadState("CUDA stream is not initialized");
-  MYCV_RETURN_IF_ERROR(
+  hpcplatform_RETURN_IF_ERROR(
       CudaStatus(cudaSetDevice(device_.index), "cudaSetDevice"));
   return CudaStatus(cudaStreamSynchronize(stream_), "cudaStreamSynchronize");
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform

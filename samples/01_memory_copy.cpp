@@ -3,10 +3,10 @@
 #include <cstring>
 #include <iostream>
 
-#include "mycv/mycv.h"
+#include "hpcplatform/hpcplatform.h"
 
 int main() {
-  using namespace mycv;
+  using namespace hpcplatform;
 
   auto context = Context::Create(BackendType::kNativeCpu).value();
   auto src = context->AllocateTensor(Shape{4}, DataType::kFloat32).value();

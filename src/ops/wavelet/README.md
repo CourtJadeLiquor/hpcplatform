@@ -4,7 +4,7 @@
 正交二维离散小波变换，把 H × W 图像（H、W 必须为偶数）拆成四个 H/2 × W/2 子带，
 并能从四子带完美重建原图。支持 Haar 与 Daubechies-4 两种小波，周期边界。
 
-- 公共头：[`include/mycv/ops/wavelet.h`](../../../include/mycv/ops/wavelet.h)
+- 公共头：[`include/hpcplatform/ops/wavelet.h`](../../../include/hpcplatform/ops/wavelet.h)
 - 入口与注册：[`wavelet.cpp`](wavelet.cpp)
 - 共享 CPU 骨架：[`wavelet_cpu.h`](wavelet_cpu.h)
 - 测试：[`tests/test_wavelet.cpp`](tests/test_wavelet.cpp)
@@ -177,17 +177,17 @@ Tensor 接口，且能同时覆盖 Haar/Db4、给出位精确的 CPU 级别矩�
 ## 6. 接口与示例
 
 ```cpp
-#include "mycv/mycv.h"
+#include "hpcplatform/hpcplatform.h"
 
-mycv::OpContext ctx;
+hpcplatform::OpContext ctx;
 
 // 单层分解（默认 Haar；指定 kDaubechies4 使用 Db4）
-auto bands = mycv::WaveletTransform(ctx, image, mycv::WaveletKind::kHaar);
+auto bands = hpcplatform::WaveletTransform(ctx, image, hpcplatform::WaveletKind::kHaar);
 // bands.ll / bands.lh / bands.hl / bands.hh 均为 H/2 x W/2
 
 // 完美重建（kind 必须与分解时一致）
-auto restored = mycv::InverseWaveletTransform(ctx, bands.value(),
-                                              mycv::WaveletKind::kHaar);
+auto restored = hpcplatform::InverseWaveletTransform(ctx, bands.value(),
+                                              hpcplatform::WaveletKind::kHaar);
 ```
 
 参数校验：f32/f64（u8 返回 `kUnsupported`）；H、W 必须为偶数
@@ -211,14 +211,12 @@ shape、dtype、backend、device 完全一致。
 | `WaveletCudaMatchesCpu` | Haar/Db4 四带逐带与 CPU 对拍（`1e-4`） |
 | `WaveletCudaRoundTripIsIdentity` | CUDA 上 Haar/Db4 正逆往返回到原图（`1e-4`） |
 
-CUDA 用例在 `MYCV_WITH_CUDA` 且设备可用时执行；设备不可用时打印 SKIP 而不是失败。
+CUDA 用例在 `hpcplatform_WITH_CUDA` 且设备可用时执行；设备不可用时打印 SKIP 而不是失败。
 
-三棵构建树的验收结果：
+全特性构建树（`build_debug`，GoogleTest + CTest）：
 
-```
-build-default        11/11
-build-release-full   13/13
-build-asan           12/12
+```bash
+ctest --test-dir build_debug -R test_wavelet --output-on-failure   # 10/10
 ```
 
 ## 8. 基准

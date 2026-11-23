@@ -5,7 +5,7 @@
 
 #include <memory>
 
-namespace mycv {
+namespace hpcplatform {
 
 Result<std::shared_ptr<Backend>> CreateBackend(BackendType type,
                                                int device_index) {
@@ -13,13 +13,13 @@ Result<std::shared_ptr<Backend>> CreateBackend(BackendType type,
     case BackendType::kNativeCpu:
       return CreateCpuBackend(device_index);
     case BackendType::kOpenCV:
-#ifdef MYCV_WITH_OPENCV
+#ifdef hpcplatform_WITH_OPENCV
       return CreateOpenCvBackend(device_index);
 #else
       return Status::Unsupported("opencv backend is not built");
 #endif
     case BackendType::kCUDA:
-#ifdef MYCV_WITH_CUDA
+#ifdef hpcplatform_WITH_CUDA
       return CreateCudaBackend(device_index);
 #else
       return Status::Unsupported("cuda backend is not built");
@@ -30,4 +30,4 @@ Result<std::shared_ptr<Backend>> CreateBackend(BackendType type,
   return Status::InvalidArgument("unknown backend type");
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform

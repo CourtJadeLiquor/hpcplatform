@@ -5,9 +5,9 @@
 
 #include <opencv2/core.hpp>
 
-#include "mycv/core/dtype.h"
+#include "hpcplatform/core/dtype.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 int CvDepth(DataType dtype) {
@@ -57,7 +57,7 @@ cv::Mat FlatMat(const Tensor& tensor) {
 
 Result<cv::Mat> ImageMat(const Tensor& tensor, const ImageInfo& info,
                          int64_t n) {
-  MYCV_RETURN_IF_ERROR(CheckDType(tensor));
+  hpcplatform_RETURN_IF_ERROR(CheckDType(tensor));
   if (info.c > CV_CN_MAX)
     return Status::Unsupported("too many channels for cv::Mat");
   const int64_t first = ImageLinearIndex(info, n, 0, 0, 0);
@@ -78,4 +78,4 @@ Status RejectNchw(ImageLayout layout) {
 }
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform

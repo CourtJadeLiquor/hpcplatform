@@ -5,7 +5,7 @@
 #include "backends/cuda/cuda_common.h"
 #include "backends/cuda/cuda_stream.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 Status CudaBackend::CopyBuffer(Buffer* dst, size_t dst_offset,
                                const Buffer* src, size_t src_offset,
@@ -32,7 +32,7 @@ Status CudaCopyBuffer(Buffer* dst, size_t dst_offset, const Buffer* src,
   const int device_index = src->kind() == MemoryKind::kDevice
                                ? src->device().index
                                : dst->device().index;
-  MYCV_RETURN_IF_ERROR(
+  hpcplatform_RETURN_IF_ERROR(
       CudaStatus(cudaSetDevice(device_index), "cudaSetDevice"));
   cudaMemcpyKind kind = cudaMemcpyDefault;
   if (src->kind() == MemoryKind::kDevice &&
@@ -54,10 +54,10 @@ Status CudaCopyBuffer(Buffer* dst, size_t dst_offset, const Buffer* src,
     // D2H uses the destination CPU Context's stream. Serialize with pending
     // CUDA work before using the default copy stream rather than racing a
     // non-blocking stream.
-    MYCV_RETURN_IF_ERROR(
+    hpcplatform_RETURN_IF_ERROR(
         CudaStatus(cudaDeviceSynchronize(), "cudaDeviceSynchronize"));
   }
-  MYCV_RETURN_IF_ERROR(CudaStatus(
+  hpcplatform_RETURN_IF_ERROR(CudaStatus(
       cudaMemcpyAsync(static_cast<char*>(dst->data()) + dst_offset,
                       static_cast<const char*>(src->data()) + src_offset, bytes,
                       kind, handle),
@@ -66,4 +66,4 @@ Status CudaCopyBuffer(Buffer* dst, size_t dst_offset, const Buffer* src,
                     "cudaStreamSynchronize(copy)");
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform

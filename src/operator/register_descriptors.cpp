@@ -2,11 +2,11 @@
 // binary. Mirrors the kernel manifest pattern (src/ops/register_ops.cpp):
 // static self-registration is unreliable in a static library, so registration
 // is driven from this one referenced translation unit. Compiled only when
-// MYCV_WITH_YAML is on (see top-level CMakeLists.txt).
+// hpcplatform_WITH_YAML is on (see top-level CMakeLists.txt).
 
 #include "framework/op_descriptor.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 // Each operator owns its descriptor registration in its own op folder. Add one
 // line here to register a new config-driven operator; no shared loader code
@@ -25,4 +25,4 @@ void RegisterAllOpDescriptors() {
   RegisterWaveletTransformDescriptor();
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform

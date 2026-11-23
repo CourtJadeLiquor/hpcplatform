@@ -249,13 +249,13 @@ for i = 0 .. levels-1:
 ## 5. 接口示例
 
 ```cpp
-#include "mycv/mycv.h"
+#include "hpcplatform/hpcplatform.h"
 
-mycv::OpContext ctx;  // context / stream / cpu_level
-auto pyramid = mycv::BuildLaplacianPyramid(ctx, image, /*levels=*/3,
+hpcplatform::OpContext ctx;  // context / stream / cpu_level
+auto pyramid = hpcplatform::BuildLaplacianPyramid(ctx, image, /*levels=*/3,
                                            /*kernel_size=*/5, /*sigma=*/1.2);
 if (pyramid.ok()) {
-  for (const mycv::Tensor& band : pyramid.value().levels) {
+  for (const hpcplatform::Tensor& band : pyramid.value().levels) {
     // 前 levels 个是带通 L[i]，最后一个是低频残差 G[levels]
   }
 }
@@ -269,7 +269,7 @@ if (pyramid.ok()) {
 ## 6. 测试
 
 ```bash
-ctest --test-dir build-default -R test_laplacian_pyramid --output-on-failure
+ctest --test-dir build_debug -R test_laplacian_pyramid --output-on-failure
 ```
 
 | 用例 | 覆盖点 |

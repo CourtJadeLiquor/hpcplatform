@@ -1,16 +1,16 @@
-#ifndef MYCV_OPERATOR_H_
-#define MYCV_OPERATOR_H_
+#ifndef hpcplatform_OPERATOR_H_
+#define hpcplatform_OPERATOR_H_
 
 #include <map>
 #include <memory>
 #include <string>
 
-#include "mycv/core/context.h"
-#include "mycv/core/error.h"
-#include "mycv/core/kernel_level.h"
-#include "mycv/ops/op.h"
+#include "hpcplatform/core/context.h"
+#include "hpcplatform/core/error.h"
+#include "hpcplatform/core/kernel_level.h"
+#include "hpcplatform/ops/op.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 // A configured operator instance: holds a bound execution environment (Context
 // + CPU kernel level) and the operator's typed parameters. Instances are built
@@ -50,7 +50,7 @@ using OperatorMap = std::map<std::string, std::unique_ptr<Operator>>;
 // Loads operator instances from a YAML config file. Each entry specifies its own
 // environment unless overridden (see docs/operator_config.md). On any validation
 // failure returns an error and an empty map: fail-fast, no partially built
-// objects, no silent fallback to another backend. Requires MYCV_WITH_YAML;
+// objects, no silent fallback to another backend. Requires hpcplatform_WITH_YAML;
 // returns kUnsupported when the feature is not compiled in.
 Result<OperatorMap> LoadOperators(const std::string& config_path);
 
@@ -75,6 +75,6 @@ T* GetOperator(const OperatorMap& operators, const std::string& name) {
   return dynamic_cast<T*>(it->second.get());
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_OPERATOR_H_
+#endif  // hpcplatform_OPERATOR_H_

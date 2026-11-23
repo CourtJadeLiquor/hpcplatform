@@ -5,7 +5,7 @@
 
 #include "backends/cuda/cuda_device_utils.h"
 #include "gaussian_blur_internal.h"
-#include "mycv/ops/image.h"
+#include "hpcplatform/ops/image.h"
 
 // CUDA backend: separable Gaussian blur. The host builds the kernel and the
 // device runs two 1D convolution passes, reducing per-pixel multiply-adds from
@@ -39,7 +39,7 @@
 // default rounds differently from host-side stepwise mul+add, so results are
 // not bit-exact with CPU levels. Compare across backends with 1e-4 relative
 // tolerance (docs/qa/testing.md §4.2).
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 namespace {
 
@@ -202,4 +202,4 @@ Status GaussianBlurCuda(const OpContext& context, const Tensor& input,
 }
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform

@@ -1,6 +1,6 @@
-#include "mycv/core/dtype.h"
+#include "hpcplatform/core/dtype.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 size_t DTypeSize(DataType dtype) {
   switch (dtype) {
@@ -50,4 +50,4 @@ bool IsFloatingPoint(DataType dtype) {
          dtype == DataType::kFloat64;
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform

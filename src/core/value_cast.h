@@ -1,5 +1,5 @@
-#ifndef MYCV_SRC_CORE_VALUE_CAST_H_
-#define MYCV_SRC_CORE_VALUE_CAST_H_
+#ifndef hpcplatform_SRC_CORE_VALUE_CAST_H_
+#define hpcplatform_SRC_CORE_VALUE_CAST_H_
 
 #include <algorithm>
 #include <cmath>
@@ -8,9 +8,9 @@
 #include <limits>
 #include <type_traits>
 
-#include "mycv/core/dtype.h"
+#include "hpcplatform/core/dtype.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace detail {
 
 inline float Float16BitsToFloat(uint16_t half) {
@@ -168,6 +168,6 @@ inline void CastElement(const void* src, DataType src_dtype, void* dst,
 }
 
 }  // namespace detail
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_SRC_CORE_VALUE_CAST_H_
+#endif  // hpcplatform_SRC_CORE_VALUE_CAST_H_

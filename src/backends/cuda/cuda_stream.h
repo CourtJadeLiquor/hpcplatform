@@ -1,11 +1,11 @@
-#ifndef MYCV_SRC_BACKENDS_CUDA_CUDA_STREAM_H_
-#define MYCV_SRC_BACKENDS_CUDA_CUDA_STREAM_H_
+#ifndef hpcplatform_SRC_BACKENDS_CUDA_CUDA_STREAM_H_
+#define hpcplatform_SRC_BACKENDS_CUDA_CUDA_STREAM_H_
 
 #include <cuda_runtime_api.h>
 
-#include "mycv/core/stream.h"
+#include "hpcplatform/core/stream.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 class CudaStream final : public Stream {
  public:
@@ -26,6 +26,6 @@ class CudaStream final : public Stream {
   cudaStream_t stream_ = nullptr;
 };
 
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_SRC_BACKENDS_CUDA_CUDA_STREAM_H_
+#endif  // hpcplatform_SRC_BACKENDS_CUDA_CUDA_STREAM_H_

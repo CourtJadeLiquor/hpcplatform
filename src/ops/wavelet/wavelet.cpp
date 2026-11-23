@@ -10,7 +10,7 @@
 // input and the other three bands passed through extra_in.
 // This file only orchestrates; it performs no element-wise computation.
 
-#include "mycv/ops/wavelet.h"
+#include "hpcplatform/ops/wavelet.h"
 
 #include <utility>
 
@@ -18,7 +18,7 @@
 #include "ops/common/op_common.h"
 #include "wavelet_internal.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 // Register implementations compiled into this binary: the CPU naive/OpenMP/TBB
@@ -29,15 +29,15 @@ void RegisterWaveletKernels() {
   const BackendType cpu = BackendType::kNativeCpu;
   RegisterKernel(OpKind::kWaveletTransform, cpu, CpuKernelLevel::kNaive,
                  &WaveletCpuNaive);
-#ifdef MYCV_WITH_OPENMP
+#ifdef hpcplatform_WITH_OPENMP
   RegisterKernel(OpKind::kWaveletTransform, cpu, CpuKernelLevel::kOpenMP,
                  &WaveletCpuOpenMP);
 #endif
-#ifdef MYCV_WITH_TBB
+#ifdef hpcplatform_WITH_TBB
   RegisterKernel(OpKind::kWaveletTransform, cpu, CpuKernelLevel::kTbb,
                  &WaveletCpuTbb);
 #endif
-#ifdef MYCV_WITH_CUDA
+#ifdef hpcplatform_WITH_CUDA
   RegisterKernel(OpKind::kWaveletTransform, BackendType::kCUDA,
                  CpuKernelLevel::kNaive, &WaveletCuda);
 #endif
@@ -83,11 +83,11 @@ Status ValidateEvenExtent(const ops_internal::ImageInfo& info) {
 Result<WaveletBands> WaveletTransform(const OpContext& context,
                                       const Tensor& input, WaveletKind kind,
                                       ImageLayout layout) {
-  MYCV_RETURN_IF_ERROR(ops_internal::ValidateInvocation(context, input));
-  MYCV_RETURN_IF_ERROR(ValidateBandDType(input.dtype()));
+  hpcplatform_RETURN_IF_ERROR(ops_internal::ValidateInvocation(context, input));
+  hpcplatform_RETURN_IF_ERROR(ValidateBandDType(input.dtype()));
   auto image = ops_internal::ParseImage(input.shape(), layout);
   if (!image.ok()) return image.status();
-  MYCV_RETURN_IF_ERROR(ValidateEvenExtent(image.value()));
+  hpcplatform_RETURN_IF_ERROR(ValidateEvenExtent(image.value()));
   auto kernel = ops_internal::FindKernel(OpKind::kWaveletTransform,
                                          input.backend(), context.cpu_level);
   if (!kernel.ok()) return kernel.status();
@@ -111,7 +111,7 @@ Result<WaveletBands> WaveletTransform(const OpContext& context,
   params.extra_out[0] = &lh.value();
   params.extra_out[1] = &hl.value();
   params.extra_out[2] = &hh.value();
-  MYCV_RETURN_IF_ERROR(
+  hpcplatform_RETURN_IF_ERROR(
       kernel.value()(context, input, nullptr, &params, &ll.value()));
 
   WaveletBands bands;
@@ -134,7 +134,7 @@ Result<WaveletBands> WaveletTransform(const OpContext& context,
 Result<Tensor> InverseWaveletTransform(const OpContext& context,
                                        const WaveletBands& bands,
                                        WaveletKind kind, ImageLayout layout) {
-  MYCV_RETURN_IF_ERROR(ops_internal::ValidateInvocation(context, bands.ll));
+  hpcplatform_RETURN_IF_ERROR(ops_internal::ValidateInvocation(context, bands.ll));
   const Tensor* all[4] = {&bands.ll, &bands.lh, &bands.hl, &bands.hh};
   for (const Tensor* band : all) {
     if (!band->defined()) {
@@ -149,7 +149,7 @@ Result<Tensor> InverseWaveletTransform(const OpContext& context,
           "WaveletBands must share shape, dtype, backend and device");
     }
   }
-  MYCV_RETURN_IF_ERROR(ValidateBandDType(bands.ll.dtype()));
+  hpcplatform_RETURN_IF_ERROR(ValidateBandDType(bands.ll.dtype()));
   auto image = ops_internal::ParseImage(bands.ll.shape(), layout);
   if (!image.ok()) return image.status();
   const ops_internal::ImageInfo& band_info = image.value();
@@ -170,9 +170,9 @@ Result<Tensor> InverseWaveletTransform(const OpContext& context,
   params.extra_in[0] = &bands.lh;
   params.extra_in[1] = &bands.hl;
   params.extra_in[2] = &bands.hh;
-  MYCV_RETURN_IF_ERROR(
+  hpcplatform_RETURN_IF_ERROR(
       kernel.value()(context, bands.ll, nullptr, &params, &output.value()));
   return output;
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform

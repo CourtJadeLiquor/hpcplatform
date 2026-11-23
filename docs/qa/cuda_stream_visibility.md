@@ -1,7 +1,7 @@
 # CUDA 外部内存可见性：Wrap 进来的数据为什么是错的
 
-> 相关代码：`src/backends/cuda/cuda_stream.cpp`、`include/mycv/core/context.h`（`Wrap`）、`tests/consistency/test_cuda_backend.cpp`（`CudaWrapAdoptsExternalDeviceMemory`）
-> 这是本项目真实踩过并写进测试的坑。如果你要把 `cudaMalloc` / `cv::cuda::GpuMat` / 其他运行时的 device 指针喂给 mycv，必读。
+> 相关代码：`src/backends/cuda/cuda_stream.cpp`、`include/hpcplatform/core/context.h`（`Wrap`）、`tests/consistency/test_cuda_backend.cpp`（`CudaWrapAdoptsExternalDeviceMemory`）
+> 这是本项目真实踩过并写进测试的坑。如果你要把 `cudaMalloc` / `cv::cuda::GpuMat` / 其他运行时的 device 指针喂给 hpcplatform，必读。
 
 ---
 
@@ -23,14 +23,14 @@ auto out = Add(OpContext{cuda_ctx.get()}, t, t);   // 读出来的是垃圾！
 
 ## 2. 根因：non-blocking 流与默认流没有隐式顺序
 
-mycv 的 CUDA 流创建时带 `cudaStreamNonBlocking` 标志（`src/backends/cuda/cuda_stream.cpp`）。这意味着：
+hpcplatform 的 CUDA 流创建时带 `cudaStreamNonBlocking` 标志（`src/backends/cuda/cuda_stream.cpp`）。这意味着：
 
-- mycv 的流与 CUDA 默认流（stream 0）**不隐式同步**；
-- 你在默认流上 `cudaMemcpy` 产生的数据，和 mycv 流上 launch 的内核之间，**没有 CUDA 自动建立的 happens-before 关系**。
+- hpcplatform 的流与 CUDA 默认流（stream 0）**不隐式同步**；
+- 你在默认流上 `cudaMemcpy` 产生的数据，和 hpcplatform 流上 launch 的内核之间，**没有 CUDA 自动建立的 happens-before 关系**。
 
 虽然 `cudaMemcpy`（同步版本）会阻塞 CPU 直到拷贝完成，但那只是 **host 侧**的等待；在 GPU 的**流序**层面，默认流的写与 non-blocking 流的读之间没有强制顺序。在某些系统/时序下可能碰巧对，但**不保证、不可移植**——在本项目的验证机上它就是错的。
 
-> 对比：如果数据是通过 `Context::Copy`（H2D）产生的，它用的就是 mycv 自己的流，且返回前同步——同一条流内的操作天然有序，所以不需要额外处理。问题只出在"外部流产生的数据"。
+> 对比：如果数据是通过 `Context::Copy`（H2D）产生的，它用的就是 hpcplatform 自己的流，且返回前同步——同一条流内的操作天然有序，所以不需要额外处理。问题只出在"外部流产生的数据"。
 
 ---
 
@@ -38,7 +38,7 @@ mycv 的 CUDA 流创建时带 `cudaStreamNonBlocking` 标志（`src/backends/cud
 
 库**不会**替你同步外部内存，因为它根本不知道外部数据是在哪条流上产生的（可能是默认流，可能是另一个库的流，可能是图形 API 的队列）。这是调用方的责任：
 
-> 把外部 device 内存交给 `Wrap` / 算子之前，必须先确保它对 mycv 的流可见。
+> 把外部 device 内存交给 `Wrap` / 算子之前，必须先确保它对 hpcplatform 的流可见。
 
 ---
 
@@ -61,11 +61,11 @@ auto out = Add(OpContext{cuda_ctx.get()}, t, t);   // 正确
 cudaEvent_t ready;
 cudaEventCreate(&ready);
 cudaEventRecord(ready, producer_stream);   // 在产生数据的流上记录事件
-cudaStreamWaitEvent(mycv_raw_stream, ready, 0);  // mycv 流等该事件
+cudaStreamWaitEvent(hpcplatform_raw_stream, ready, 0);  // hpcplatform 流等该事件
 // 然后 Wrap + 调用算子
 ```
 
-只让 mycv 流等这一次外部写，不阻塞其他流。需要拿到 mycv 流的原生句柄（当前未直接暴露，可通过后端扩展）。
+只让 hpcplatform 流等这一次外部写，不阻塞其他流。需要拿到 hpcplatform 流的原生句柄（当前未直接暴露，可通过后端扩展）。
 
 ---
 
@@ -99,4 +99,4 @@ cudaStreamWaitEvent(mycv_raw_stream, ready, 0);  // mycv 流等该事件
 
 ## 7. 一句话总结
 
-> mycv 的 CUDA 流是 non-blocking 的，和默认流不隐式同步。外部流产生的 device 内存在 `Wrap`/喂算子前，调用方必须先 `cudaDeviceSynchronize()` 或用事件建立顺序——库不替你做，因为它不知道外部流的存在。
+> hpcplatform 的 CUDA 流是 non-blocking 的，和默认流不隐式同步。外部流产生的 device 内存在 `Wrap`/喂算子前，调用方必须先 `cudaDeviceSynchronize()` 或用事件建立顺序——库不替你做，因为它不知道外部流的存在。

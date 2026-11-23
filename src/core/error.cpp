@@ -1,6 +1,6 @@
-#include "mycv/core/error.h"
+#include "hpcplatform/core/error.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 const char* StatusCodeName(StatusCode code) {
   switch (code) {
@@ -31,4 +31,4 @@ std::string Status::ToString() const {
   return result;
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform

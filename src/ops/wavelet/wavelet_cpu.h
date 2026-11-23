@@ -1,5 +1,5 @@
-#ifndef MYCV_SRC_OPS_WAVELET_WAVELET_CPU_H_
-#define MYCV_SRC_OPS_WAVELET_WAVELET_CPU_H_
+#ifndef hpcplatform_SRC_OPS_WAVELET_WAVELET_CPU_H_
+#define hpcplatform_SRC_OPS_WAVELET_WAVELET_CPU_H_
 
 // Shared CPU skeleton for the wavelet operator (docs/architecture.md §6.1/§7.2).
 // A single level uses a separable two-pass filter bank with periodic
@@ -24,13 +24,13 @@
 #include <cstdint>
 #include <vector>
 
-#ifdef MYCV_WITH_TBB
+#ifdef hpcplatform_WITH_TBB
 #include <tbb/parallel_for.h>
 #endif
 
 #include "wavelet_internal.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 // Execution policy: each translation unit selects exactly one, keeping the
@@ -45,7 +45,7 @@ struct WaveletSequentialRunner {
   }
 };
 
-#ifdef MYCV_WITH_OPENMP
+#ifdef hpcplatform_WITH_OPENMP
 // OpenMP policy: distributes independent rows/columns with omp parallel for,
 // using the default static scheduling.
 struct WaveletOpenMPRunner {
@@ -58,7 +58,7 @@ struct WaveletOpenMPRunner {
 };
 #endif
 
-#ifdef MYCV_WITH_TBB
+#ifdef hpcplatform_WITH_TBB
 // TBB policy: parallel_for automatically partitions work and balances load.
 struct WaveletTbbRunner {
   template <typename Fn>
@@ -298,6 +298,6 @@ inline Status WaveletImpl(const Tensor& input, const void* params,
 }
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_SRC_OPS_WAVELET_WAVELET_CPU_H_
+#endif  // hpcplatform_SRC_OPS_WAVELET_WAVELET_CPU_H_

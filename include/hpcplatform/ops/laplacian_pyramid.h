@@ -1,17 +1,17 @@
-#ifndef MYCV_OPS_LAPLACIAN_PYRAMID_H_
-#define MYCV_OPS_LAPLACIAN_PYRAMID_H_
+#ifndef hpcplatform_OPS_LAPLACIAN_PYRAMID_H_
+#define hpcplatform_OPS_LAPLACIAN_PYRAMID_H_
 
 #include <memory>
 #include <string>
 #include <vector>
 
-#include "mycv/core/error.h"
-#include "mycv/core/tensor.h"
-#include "mycv/operator.h"
-#include "mycv/ops/image.h"
-#include "mycv/ops/op.h"
+#include "hpcplatform/core/error.h"
+#include "hpcplatform/core/tensor.h"
+#include "hpcplatform/operator.h"
+#include "hpcplatform/ops/image.h"
+#include "hpcplatform/ops/op.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 // Gaussian/Laplacian pyramid built on top of GaussianBlur and Resize.
 //
@@ -55,7 +55,7 @@ class LaplacianPyramidOperator : public Operator {
   OpKind kind() const override;
 
   // Builds the pyramid with the bound parameters; bit-identical to calling
-  // mycv::BuildLaplacianPyramid directly.
+  // hpcplatform::BuildLaplacianPyramid directly.
   Result<LaplacianPyramid> Run(const Tensor& input) const;
 
  private:
@@ -66,6 +66,6 @@ class LaplacianPyramidOperator : public Operator {
   const ImageLayout layout_;
 };
 
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_OPS_LAPLACIAN_PYRAMID_H_
+#endif  // hpcplatform_OPS_LAPLACIAN_PYRAMID_H_

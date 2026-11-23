@@ -1,15 +1,15 @@
-#ifndef MYCV_SRC_FRAMEWORK_IMAGE_UTILS_H_
-#define MYCV_SRC_FRAMEWORK_IMAGE_UTILS_H_
+#ifndef hpcplatform_SRC_FRAMEWORK_IMAGE_UTILS_H_
+#define hpcplatform_SRC_FRAMEWORK_IMAGE_UTILS_H_
 
 #include <array>
 #include <cstdint>
 #include <vector>
 
-#include "mycv/core/error.h"
-#include "mycv/core/tensor.h"
-#include "mycv/ops/image.h"
+#include "hpcplatform/core/error.h"
+#include "hpcplatform/core/tensor.h"
+#include "hpcplatform/ops/image.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 // Logical image view: n/h/w/c and layout, parsed from Shape.
@@ -25,7 +25,7 @@ struct ImageInfo {
 // Parses a rank-2/3/4 Shape into ImageInfo; returns kInvalidArgument for invalid
 // shapes.
 inline Result<ImageInfo> ParseImage(const Shape& shape, ImageLayout layout) {
-  MYCV_RETURN_IF_ERROR(shape.Validate());
+  hpcplatform_RETURN_IF_ERROR(shape.Validate());
   const int rank = shape.Rank();
   if (rank < 2 || rank > 4 || (rank == 2 && layout != ImageLayout::kNHWC)) {
     return Status::InvalidArgument(
@@ -119,6 +119,6 @@ inline bool IsSupportedImageDType(DataType dtype) {
 }
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_SRC_FRAMEWORK_IMAGE_UTILS_H_
+#endif  // hpcplatform_SRC_FRAMEWORK_IMAGE_UTILS_H_

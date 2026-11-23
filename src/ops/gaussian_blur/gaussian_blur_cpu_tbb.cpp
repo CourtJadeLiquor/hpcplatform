@@ -4,7 +4,7 @@
 // vertical), reducing per-pixel cost from O(K^2) to O(2K). This file only
 // connects the entry point to BlurTbbImpl in the shared skeleton; see that
 // function's comments for task partitioning.
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 // Entry point: validate/parse, then partition tasks over [0, Numel) with
@@ -18,4 +18,4 @@ Status GaussianBlurCpuTbb(const OpContext&, const Tensor& input, const Tensor*,
 }
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform

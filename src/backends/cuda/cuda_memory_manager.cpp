@@ -8,7 +8,7 @@
 #include "backends/backend_internal.h"
 #include "backends/cuda/cuda_common.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 CudaAllocatorState::~CudaAllocatorState() {
   cudaSetDevice(device_index);
@@ -57,9 +57,9 @@ Result<std::shared_ptr<Buffer>> CudaMemoryManager::Allocate(size_t bytes,
   }
 
   if (!found) {
-    MYCV_RETURN_IF_ERROR(
+    hpcplatform_RETURN_IF_ERROR(
         CudaStatus(cudaSetDevice(device_.index), "cudaSetDevice"));
-    MYCV_RETURN_IF_ERROR(CudaStatus(
+    hpcplatform_RETURN_IF_ERROR(CudaStatus(
         cudaMalloc(&block.raw, bytes + alignment - 1), "cudaMalloc"));
     const uintptr_t raw = reinterpret_cast<uintptr_t>(block.raw);
     block.data =
@@ -95,4 +95,4 @@ MemoryStats CudaMemoryManager::Stats() const {
   return stats;
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform

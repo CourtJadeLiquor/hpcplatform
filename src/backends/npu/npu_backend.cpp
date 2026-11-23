@@ -1,6 +1,6 @@
 #include "backends/backend_internal.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 // Placeholder backend: the NPU abstraction layer is in place so that upper
 // layers can already be written against it, but no vendor SDK is wired in yet.
@@ -13,4 +13,4 @@ Result<std::shared_ptr<Backend>> CreateNpuBackend(int device_index) {
       "(see docs/architecture.md §6.2)");
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform

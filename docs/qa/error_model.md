@@ -1,13 +1,13 @@
 # 错误模型：为什么不用异常，Status/Result 怎么用
 
-> 相关代码：`include/mycv/core/error.h`
-> 易混点：`Result::value()` 不抛异常、六种错误码怎么选、`MYCV_RETURN_IF_ERROR` 的用法。
+> 相关代码：`include/hpcplatform/core/error.h`
+> 易混点：`Result::value()` 不抛异常、六种错误码怎么选、`hpcplatform_RETURN_IF_ERROR` 的用法。
 
 ---
 
 ## 1. 为什么不用异常
 
-core 层明确**不抛异常**，错误用 `Status` / `Result<T>` 表达（[error.h](../../include/mycv/core/error.h#L21-L23) 注释写明动机）：
+core 层明确**不抛异常**，错误用 `Status` / `Result<T>` 表达（[error.h](../../include/hpcplatform/core/error.h#L21-L23) 注释写明动机）：
 
 1. 部分 NPU / 嵌入式工具链以 `-fno-exceptions` 编译，异常不可用；
 2. 异常让 C ABI 边界与跨语言绑定变复杂（为后续 Python 绑定留出空间）；
@@ -57,33 +57,33 @@ Tensor t = r.value();                             // 再取值
 
 ---
 
-## 3. `MYCV_RETURN_IF_ERROR`
+## 3. `hpcplatform_RETURN_IF_ERROR`
 
-最常用的错误传播宏（[error.h](../../include/mycv/core/error.h#L87-L91)）：
+最常用的错误传播宏（[error.h](../../include/hpcplatform/core/error.h#L87-L91)）：
 
 ```cpp
-#define MYCV_RETURN_IF_ERROR(expr)              \
+#define hpcplatform_RETURN_IF_ERROR(expr)              \
   do {                                          \
-    ::mycv::Status mycv_status = (expr);         \
-    if (!mycv_status.ok()) return mycv_status;   \
+    ::hpcplatform::Status hpcplatform_status = (expr);         \
+    if (!hpcplatform_status.ok()) return hpcplatform_status;   \
   } while (0)
 ```
 
 用法（算子公共函数里随处可见）：
 
 ```cpp
-MYCV_RETURN_IF_ERROR(ValidateInvocation(context, input));
+hpcplatform_RETURN_IF_ERROR(ValidateInvocation(context, input));
 auto kernel = FindKernel(...);
 if (!kernel.ok()) return kernel.status();   // Result 没有宏，手动查
 ```
 
-> `MYCV_RETURN_IF_ERROR` 只接返回 `Status` 的表达式；返回 `Result<T>` 的要手动 `if (!x.ok()) return x.status();`，因为还需要把 `T` 取出来。
+> `hpcplatform_RETURN_IF_ERROR` 只接返回 `Status` 的表达式；返回 `Result<T>` 的要手动 `if (!x.ok()) return x.status();`，因为还需要把 `T` 取出来。
 
 ---
 
 ## 4. 六种错误码怎么选
 
-`StatusCode`（[error.h](../../include/mycv/core/error.h#L9-L17)）：
+`StatusCode`（[error.h](../../include/hpcplatform/core/error.h#L9-L17)）：
 
 | 码 | 什么时候用 | 典型场景 |
 | --- | --- | --- |

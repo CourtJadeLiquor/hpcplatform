@@ -1,8 +1,8 @@
 // Config-driven concrete operator + descriptor for laplacian_pyramid. Compiled
-// only when MYCV_WITH_YAML is on; the default build never references these
+// only when hpcplatform_WITH_YAML is on; the default build never references these
 // symbols.
 
-#include "mycv/ops/laplacian_pyramid.h"
+#include "hpcplatform/ops/laplacian_pyramid.h"
 
 #include <climits>
 #include <cmath>
@@ -11,12 +11,12 @@
 #include <utility>
 
 #include "framework/op_descriptor.h"
-#include "mycv/core/context.h"
-#include "mycv/core/kernel_level.h"
-#include "mycv/ops/image.h"
-#include "mycv/ops/op.h"
+#include "hpcplatform/core/context.h"
+#include "hpcplatform/core/kernel_level.h"
+#include "hpcplatform/ops/image.h"
+#include "hpcplatform/ops/op.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace {
 
 struct ParsedLaplacianParams {
@@ -105,8 +105,8 @@ OpKind LaplacianPyramidOperator::kind() const {
 Result<LaplacianPyramid> LaplacianPyramidOperator::Run(
     const Tensor& input) const {
   const OpContext ctx{context_.get(), /*stream=*/nullptr, cpu_level_};
-  return mycv::BuildLaplacianPyramid(ctx, input, levels_, kernel_size_, sigma_,
+  return hpcplatform::BuildLaplacianPyramid(ctx, input, levels_, kernel_size_, sigma_,
                                      layout_);
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform

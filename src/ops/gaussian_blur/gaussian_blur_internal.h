@@ -1,5 +1,5 @@
-#ifndef MYCV_SRC_OPS_GAUSSIAN_BLUR_GAUSSIAN_BLUR_INTERNAL_H_
-#define MYCV_SRC_OPS_GAUSSIAN_BLUR_GAUSSIAN_BLUR_INTERNAL_H_
+#ifndef hpcplatform_SRC_OPS_GAUSSIAN_BLUR_GAUSSIAN_BLUR_INTERNAL_H_
+#define hpcplatform_SRC_OPS_GAUSSIAN_BLUR_GAUSSIAN_BLUR_INTERNAL_H_
 
 // Internal contract for the gaussian_blur operator directory
 // (docs/architecture.md §6.1/§7.2): parameter struct, backend kernel entry
@@ -22,10 +22,10 @@
 #include <vector>
 
 #include "framework/image_utils.h"
-#include "mycv/ops/image.h"
-#include "mycv/ops/op.h"
+#include "hpcplatform/ops/image.h"
+#include "hpcplatform/ops/op.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 // Operator parameters: kernel_size must be an odd integer >= 3 (radius
@@ -64,27 +64,27 @@ inline std::vector<double> BuildGaussianKernel(int kernel_size, double sigma) {
 Status GaussianBlurCpuNaive(const OpContext& context, const Tensor& input,
                             const Tensor* other, const void* params,
                             Tensor* output);
-#ifdef MYCV_WITH_OPENMP
+#ifdef hpcplatform_WITH_OPENMP
 Status GaussianBlurCpuOpenMP(const OpContext&, const Tensor&, const Tensor*,
                              const void*, Tensor*);
 #endif
-#ifdef MYCV_WITH_TBB
+#ifdef hpcplatform_WITH_TBB
 Status GaussianBlurCpuTbb(const OpContext&, const Tensor&, const Tensor*,
                           const void*, Tensor*);
 #endif
-#ifdef MYCV_WITH_SIMD_GENERIC
+#ifdef hpcplatform_WITH_SIMD_GENERIC
 Status GaussianBlurCpuSimd(const OpContext&, const Tensor&, const Tensor*,
                            const void*, Tensor*);
 #endif
-#ifdef MYCV_ARCH_AVX2
+#ifdef hpcplatform_ARCH_AVX2
 Status GaussianBlurCpuAvx2(const OpContext&, const Tensor&, const Tensor*,
                            const void*, Tensor*);
 #endif
-#ifdef MYCV_WITH_CUDA
+#ifdef hpcplatform_WITH_CUDA
 Status GaussianBlurCuda(const OpContext&, const Tensor&, const Tensor*,
                         const void*, Tensor*);
 #endif
-#ifdef MYCV_WITH_OPENCV
+#ifdef hpcplatform_WITH_OPENCV
 Status GaussianBlurOpenCv(const OpContext&, const Tensor&, const Tensor*,
                           const void*, Tensor*);
 #endif
@@ -95,6 +95,6 @@ Status GaussianBlurOpenCv(const OpContext&, const Tensor&, const Tensor*,
 void RegisterGaussianBlurKernels();
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_SRC_OPS_GAUSSIAN_BLUR_GAUSSIAN_BLUR_INTERNAL_H_
+#endif  // hpcplatform_SRC_OPS_GAUSSIAN_BLUR_GAUSSIAN_BLUR_INTERNAL_H_

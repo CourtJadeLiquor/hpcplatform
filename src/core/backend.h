@@ -1,15 +1,15 @@
-#ifndef MYCV_SRC_CORE_BACKEND_H_
-#define MYCV_SRC_CORE_BACKEND_H_
+#ifndef hpcplatform_SRC_CORE_BACKEND_H_
+#define hpcplatform_SRC_CORE_BACKEND_H_
 
 #include <memory>
 #include <string>
 
-#include "mycv/core/device.h"
-#include "mycv/core/dtype.h"
-#include "mycv/core/error.h"
-#include "mycv/core/kernel_level.h"
-#include "mycv/core/memory.h"
-#include "mycv/core/stream.h"
+#include "hpcplatform/core/device.h"
+#include "hpcplatform/core/dtype.h"
+#include "hpcplatform/core/error.h"
+#include "hpcplatform/core/kernel_level.h"
+#include "hpcplatform/core/memory.h"
+#include "hpcplatform/core/stream.h"
 
 // Core-internal contract: every Context is bound to one Backend, and the
 // backends layer supplies the implementations. Keeping the interface in core
@@ -17,7 +17,7 @@
 // backends depend on core, never the reverse. Operators and tests that need
 // backend capabilities include this header directly; it is never exposed
 // through the public API (docs/architecture.md §6.2).
-namespace mycv {
+namespace hpcplatform {
 
 // A Backend owns the per-device memory manager, the default stream and any
 // backend-private state (OpenCV allocator, CUDA context, NPU handle).
@@ -59,6 +59,6 @@ class Backend {
 Result<std::shared_ptr<Backend>> CreateBackend(BackendType type,
                                                int device_index = 0);
 
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_SRC_CORE_BACKEND_H_
+#endif  // hpcplatform_SRC_CORE_BACKEND_H_

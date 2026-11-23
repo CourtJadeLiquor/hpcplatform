@@ -1,14 +1,14 @@
-#ifndef MYCV_CORE_MEMORY_H_
-#define MYCV_CORE_MEMORY_H_
+#ifndef hpcplatform_CORE_MEMORY_H_
+#define hpcplatform_CORE_MEMORY_H_
 
 #include <cstddef>
 #include <functional>
 #include <memory>
 
-#include "mycv/core/device.h"
-#include "mycv/core/error.h"
+#include "hpcplatform/core/device.h"
+#include "hpcplatform/core/error.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 class Stream;
 
@@ -89,6 +89,6 @@ class MemoryManager {
   virtual MemoryStats Stats() const = 0;
 };
 
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_CORE_MEMORY_H_
+#endif  // hpcplatform_CORE_MEMORY_H_

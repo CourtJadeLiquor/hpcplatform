@@ -1,5 +1,5 @@
-#ifndef MYCV_SRC_BACKENDS_CPU_CPU_BACKEND_H_
-#define MYCV_SRC_BACKENDS_CPU_CPU_BACKEND_H_
+#ifndef hpcplatform_SRC_BACKENDS_CPU_CPU_BACKEND_H_
+#define hpcplatform_SRC_BACKENDS_CPU_CPU_BACKEND_H_
 
 #include <string>
 
@@ -7,7 +7,7 @@
 #include "backends/cpu/cpu_stream.h"
 #include "core/backend.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 class CpuBackend final : public Backend {
  public:
@@ -33,6 +33,6 @@ class CpuBackend final : public Backend {
   CpuStream stream_;
 };
 
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_SRC_BACKENDS_CPU_CPU_BACKEND_H_
+#endif  // hpcplatform_SRC_BACKENDS_CPU_CPU_BACKEND_H_

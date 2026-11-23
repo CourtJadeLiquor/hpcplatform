@@ -2,10 +2,10 @@
 #include <iomanip>
 #include <iostream>
 
-#include "mycv/mycv.h"
+#include "hpcplatform/hpcplatform.h"
 
 int main() {
-  using namespace mycv;
+  using namespace hpcplatform;
   auto context_result = Context::Create(BackendType::kNativeCpu);
   if (!context_result.ok()) {
     std::cerr << context_result.status().ToString() << '\n';

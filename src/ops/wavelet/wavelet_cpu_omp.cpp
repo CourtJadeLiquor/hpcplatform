@@ -9,7 +9,7 @@
 
 #include "wavelet_cpu.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 // Same driver as naive, with row/column loops replaced by omp parallel for.
@@ -20,4 +20,4 @@ Status WaveletCpuOpenMP(const OpContext&, const Tensor& input,
 }
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform

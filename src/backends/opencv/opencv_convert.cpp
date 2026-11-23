@@ -1,9 +1,9 @@
-#include "mycv/interop/opencv.h"
+#include "hpcplatform/interop/opencv.h"
 
 #include <cstring>
 #include <limits>
 
-namespace mycv {
+namespace hpcplatform {
 namespace {
 
 Result<DataType> DepthToDType(int depth) {
@@ -98,4 +98,4 @@ Result<cv::Mat> CopyToCvMat(const Tensor& tensor) {
   return result;
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform

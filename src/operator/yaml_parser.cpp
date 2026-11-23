@@ -1,4 +1,4 @@
-// YAML parser for the operator config. Compiled only with MYCV_WITH_YAML, so
+// YAML parser for the operator config. Compiled only with hpcplatform_WITH_YAML, so
 // this is the only translation unit that includes yaml-cpp. yaml-cpp throws
 // YAML::Exception on syntax errors; those are caught and converted to
 // kInvalidArgument, matching how the OpenCV backend isolates third-party
@@ -12,7 +12,7 @@
 
 #include <yaml-cpp/yaml.h>
 
-namespace mycv {
+namespace hpcplatform {
 namespace {
 
 // Reads a required string field from a map node. Returns kInvalidArgument if
@@ -118,4 +118,4 @@ Result<OperatorsConfig> ParseOperatorsConfig(const std::string& yaml_text) {
   return config;
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform

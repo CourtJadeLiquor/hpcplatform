@@ -6,12 +6,12 @@
 // Portable SIMD level (generic SIMD): two separable 1D convolution passes,
 // each O(H*W*K), reducing per-pixel cost from O(K^2) to O(2K). Differences from
 // naive are implementation details only: typed pointer reads based on the
-// actual dtype (no dtype switch inside the tap loop) and MYCV_CPU_IVDEP to tell
+// actual dtype (no dtype switch inside the tap loop) and hpcplatform_CPU_IVDEP to tell
 // the compiler that iterations are independent and can be auto-vectorized.
 // Accumulation order exactly matches naive (i = 0..2r, double accumulation),
 // so output is bit-exact with no integer/floating-point tolerance.
 // Prerequisite: input must be contiguous; strided views are rejected.
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 namespace {
@@ -42,7 +42,7 @@ void BlurHorizontalTyped(const T* input, const ImageInfo& info,
                                    : channels * info.h * info.w;
   const T* image = input + (n * batch_stride);
   double acc = 0.0;
-  MYCV_CPU_IVDEP
+  hpcplatform_CPU_IVDEP
   for (int i = 0; i < 2 * radius + 1; ++i) {
     const int64_t xx = ClampIndex(x + i - radius, width);
     acc += kernel[i] *
@@ -67,7 +67,7 @@ void BlurVerticalTyped(const double* tmp, const ImageInfo& info,
   int64_t c = 0;
   DecodeBlurIndex(info, linear, n, y, x, c);
   double acc = 0.0;
-  MYCV_CPU_IVDEP
+  hpcplatform_CPU_IVDEP
   for (int i = 0; i < 2 * radius + 1; ++i) {
     const int64_t yy = ClampIndex(y + i - radius, info.h);
     acc += kernel[i] * tmp[ImageLinearIndex(info, n, yy, x, c)];
@@ -92,7 +92,7 @@ Status BlurSimdTyped(const Tensor& input, const GaussianBlurParams& options,
         "GaussianBlur SIMD level requires contiguous tensors");
   }
   ImageInfo info;
-  MYCV_RETURN_IF_ERROR(PrepareBlur(input, options, &info));
+  hpcplatform_RETURN_IF_ERROR(PrepareBlur(input, options, &info));
   const std::vector<double> kernel =
       BuildGaussianKernel(options.kernel_size, options.sigma);
   const int radius = options.kernel_size / 2;
@@ -129,4 +129,4 @@ Status GaussianBlurCpuSimd(const OpContext&, const Tensor& input, const Tensor*,
 }
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform

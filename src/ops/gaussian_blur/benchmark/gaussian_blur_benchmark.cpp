@@ -18,9 +18,9 @@
 #include <memory>
 
 #include "core/backend.h"
-#include "mycv/mycv.h"
+#include "hpcplatform/hpcplatform.h"
 
-using namespace mycv;
+using namespace hpcplatform;
 
 namespace {
 

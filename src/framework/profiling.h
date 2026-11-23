@@ -1,5 +1,5 @@
-#ifndef MYCV_SRC_FRAMEWORK_PROFILING_H_
-#define MYCV_SRC_FRAMEWORK_PROFILING_H_
+#ifndef hpcplatform_SRC_FRAMEWORK_PROFILING_H_
+#define hpcplatform_SRC_FRAMEWORK_PROFILING_H_
 
 #include <chrono>
 #include <cstdint>
@@ -8,19 +8,19 @@
 #include <string>
 #include <utility>
 
-#include "mycv/core/device.h"
-#include "mycv/core/kernel_level.h"
-#include "mycv/ops/op.h"
+#include "hpcplatform/core/device.h"
+#include "hpcplatform/core/kernel_level.h"
+#include "hpcplatform/ops/op.h"
 
 // Optional operator profiling (docs/architecture.md §6.4). Compile the target
-// with -DMYCV_ENABLE_PROFILING=1 to turn the macros below into real timers;
+// with -Dhpcplatform_ENABLE_PROFILING=1 to turn the macros below into real timers;
 // the default build expands them to no-op statements, so profiling costs
 // nothing when disabled. Results feed the per-operator benchmark/ programs and
 // the numbers recorded in each operator's README.md.
 
-#if defined(MYCV_ENABLE_PROFILING) && MYCV_ENABLE_PROFILING
+#if defined(hpcplatform_ENABLE_PROFILING) && hpcplatform_ENABLE_PROFILING
 
-namespace mycv {
+namespace hpcplatform {
 namespace profiling {
 
 struct ProfileEntry {
@@ -94,25 +94,25 @@ class ScopeTimer {
 };
 
 }  // namespace profiling
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#define MYCV_PROFILE_CONCAT_(a, b) a##b
-#define MYCV_PROFILE_CONCAT(a, b) MYCV_PROFILE_CONCAT_(a, b)
+#define hpcplatform_PROFILE_CONCAT_(a, b) a##b
+#define hpcplatform_PROFILE_CONCAT(a, b) hpcplatform_PROFILE_CONCAT_(a, b)
 
 // Times the enclosing scope under `label`.
-#define MYCV_PROFILE_SCOPE(label)                                \
-  ::mycv::profiling::ScopeTimer MYCV_PROFILE_CONCAT(mycv_scope_, \
+#define hpcplatform_PROFILE_SCOPE(label)                                \
+  ::hpcplatform::profiling::ScopeTimer hpcplatform_PROFILE_CONCAT(hpcplatform_scope_, \
                                                     __LINE__)(label)
 
 // Times the enclosing scope, labeled by the dispatch triple.
-#define MYCV_PROFILE_OP(op_kind, backend, level) \
-  MYCV_PROFILE_SCOPE(::mycv::profiling::OpLabel(op_kind, backend, level))
+#define hpcplatform_PROFILE_OP(op_kind, backend, level) \
+  hpcplatform_PROFILE_SCOPE(::hpcplatform::profiling::OpLabel(op_kind, backend, level))
 
 #else  // profiling disabled: zero cost
 
-#define MYCV_PROFILE_SCOPE(label) ((void)0)
-#define MYCV_PROFILE_OP(op_kind, backend, level) ((void)0)
+#define hpcplatform_PROFILE_SCOPE(label) ((void)0)
+#define hpcplatform_PROFILE_OP(op_kind, backend, level) ((void)0)
 
-#endif  // MYCV_ENABLE_PROFILING
+#endif  // hpcplatform_ENABLE_PROFILING
 
-#endif  // MYCV_SRC_FRAMEWORK_PROFILING_H_
+#endif  // hpcplatform_SRC_FRAMEWORK_PROFILING_H_

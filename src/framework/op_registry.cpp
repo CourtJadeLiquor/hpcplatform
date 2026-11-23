@@ -5,7 +5,7 @@
 #include <string>
 #include <tuple>
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 // Defined in src/ops/register_ops.cpp: the single explicit list of operator
@@ -79,4 +79,4 @@ bool HasAnyKernel(BackendType backend, CpuKernelLevel level) {
 }
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform

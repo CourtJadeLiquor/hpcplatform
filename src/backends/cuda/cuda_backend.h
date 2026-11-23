@@ -1,5 +1,5 @@
-#ifndef MYCV_SRC_BACKENDS_CUDA_CUDA_BACKEND_H_
-#define MYCV_SRC_BACKENDS_CUDA_CUDA_BACKEND_H_
+#ifndef hpcplatform_SRC_BACKENDS_CUDA_CUDA_BACKEND_H_
+#define hpcplatform_SRC_BACKENDS_CUDA_CUDA_BACKEND_H_
 
 #include <string>
 
@@ -7,7 +7,7 @@
 #include "backends/cuda/cuda_stream.h"
 #include "core/backend.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 class CudaBackend final : public Backend {
  public:
@@ -41,6 +41,6 @@ class CudaBackend final : public Backend {
   int compute_minor_ = 0;
 };
 
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_SRC_BACKENDS_CUDA_CUDA_BACKEND_H_
+#endif  // hpcplatform_SRC_BACKENDS_CUDA_CUDA_BACKEND_H_

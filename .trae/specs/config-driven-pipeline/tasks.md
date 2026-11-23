@@ -1,14 +1,14 @@
-# mycv 配置驱动算子对象 - 实现计划
+# hpcplatform 配置驱动算子对象 - 实现计划
 
 ## Task 1：反向 名→枚举 映射工具（core 公共头增量）
 - **Status**：`pending`
 - **Priority**：high
 - **Depends On**：None
 - **Description**：
-  - `include/mycv/core/device.h`：增加 `Result<BackendType> BackendTypeFromName(const std::string&)`。
-  - `include/mycv/core/kernel_level.h`：增加 `Result<CpuKernelLevel> CpuKernelLevelFromName(const std::string&)`。
-  - `include/mycv/ops/op.h`：增加 `Result<OpKind> OpKindFromName(const std::string&)`。
-  - `include/mycv/ops/image.h`：增加 `InterpolationModeName` / `InterpolationModeFromName`、`ImageLayoutFromName`。
+  - `include/hpcplatform/core/device.h`：增加 `Result<BackendType> BackendTypeFromName(const std::string&)`。
+  - `include/hpcplatform/core/kernel_level.h`：增加 `Result<CpuKernelLevel> CpuKernelLevelFromName(const std::string&)`。
+  - `include/hpcplatform/ops/op.h`：增加 `Result<OpKind> OpKindFromName(const std::string&)`。
+  - `include/hpcplatform/ops/image.h`：增加 `InterpolationModeName` / `InterpolationModeFromName`、`ImageLayoutFromName`。
   - 均为纯值映射 inline 函数（append-only，不改枚举值），未知名返回 `kInvalidArgument`。
 - **Acceptance Criteria Addressed**：AC-3、AC-5、基础支撑 FR-2/FR-7
 - **Test Requirements**：
@@ -22,7 +22,7 @@
   - 新增 `src/framework/op_descriptor.h` + `src/framework/op_descriptor.cpp`：
     - `using ParamMap = std::map<std::string, std::string>;`。
     - 抽象基类 `OpDescriptor`：`virtual const char* Name() const = 0;`、`virtual OpKind Kind() const = 0;`、`virtual Status ValidateParams(const ParamMap&) const = 0;`、`virtual Result<std::unique_ptr<Operator>> Construct(const std::shared_ptr<Context>&, CpuKernelLevel, const ParamMap&) const = 0;`。
-    - 注意：`Operator` 是公共类型（Task 3 声明），描述符接口依赖公共头 `mycv/operator.h` —— framework 依赖公共稳定类型符合 R3。
+    - 注意：`Operator` 是公共类型（Task 3 声明），描述符接口依赖公共头 `hpcplatform/operator.h` —— framework 依赖公共稳定类型符合 R3。
     - 注册表：`void RegisterOpDescriptor(std::unique_ptr<OpDescriptor>)`、`const OpDescriptor* FindOpDescriptor(const std::string&)`，沿用 `op_registry` 的 `std::call_once` 显式注册模式。
   - 内核可用性检查由 loader 调 `FindKernel(desc->Kind(), backend, level)` 完成（复用注册机），描述符不重复实现。
 - **Acceptance Criteria Addressed**：AC-7、AC-8
@@ -34,17 +34,17 @@
 - **Priority**：high
 - **Depends On**：Task 2
 - **Description**：
-  - 新增公共头 `include/mycv/operator.h`：
+  - 新增公共头 `include/hpcplatform/operator.h`：
     - 声明 `class Operator`（元数据基类：`name/kind/backend/cpu_level/context`，持有 `shared_ptr<Context> context_` 与 `CpuKernelLevel cpu_level_`）。
     - `using OperatorMap = std::map<std::string, std::unique_ptr<Operator>>;`。
     - 声明 `Result<OperatorMap> LoadOperators(const std::string& config_path);`、`LoadOperatorsFromString(const std::string& yaml);`、`LoadOperators(const std::string& config_path, const std::shared_ptr<Context>& shared_context);`。
     - 模板 `template<class T> T* GetOperator(const OperatorMap&, const std::string& name);`（header-only）。
-  - `include/mycv/mycv.h` 增加一行 include。
-  - 顶层 `CMakeLists.txt`：增加 `option(MYCV_WITH_YAML ... OFF)`；`if(MYCV_WITH_YAML) find_package(yaml-cpp REQUIRED)` + 挂载 `src/operator` + 链接 + 定义 `MYCV_WITH_YAML=1`；未启用时编译 stub 实现使 `LoadOperators` 返回 `kUnsupported`。
+  - `include/hpcplatform/hpcplatform.h` 增加一行 include。
+  - 顶层 `CMakeLists.txt`：增加 `option(hpcplatform_WITH_YAML ... OFF)`；`if(hpcplatform_WITH_YAML) find_package(yaml-cpp REQUIRED)` + 挂载 `src/operator` + 链接 + 定义 `hpcplatform_WITH_YAML=1`；未启用时编译 stub 实现使 `LoadOperators` 返回 `kUnsupported`。
   - 新增描述符登记清单骨架 `src/operator/register_descriptors.cpp`（显式列表，v1 先空）。
 - **Acceptance Criteria Addressed**：AC-6、AC-8、FR-1/FR-8
 - **Test Requirements**：
-  - `rule` TR-3.1：默认构建调用 `LoadOperators` 返回 `kUnsupported` 且信息含 `MYCV_WITH_YAML`。证据：默认构建链接 + 测试。
+  - `rule` TR-3.1：默认构建调用 `LoadOperators` 返回 `kUnsupported` 且信息含 `hpcplatform_WITH_YAML`。证据：默认构建链接 + 测试。
 
 ## Task 4：resize 与 gaussian_blur 的 concrete Operator + 描述符
 - **Status**：`pending`
@@ -52,11 +52,11 @@
 - **Depends On**：Task 2、Task 3
 - **Description**：
   - `src/ops/resize/` 新增 `resize_operator.h/.cpp`（或在现有文件追加）：
-    - `class ResizeOperator : public Operator`，持有 `ResizeParams`（强类型）；`Result<Tensor> Run(const Tensor&) const` 内部调 `mycv::Resize`。
+    - `class ResizeOperator : public Operator`，持有 `ResizeParams`（强类型）；`Result<Tensor> Run(const Tensor&) const` 内部调 `hpcplatform::Resize`。
     - `class ResizeDescriptor : public OpDescriptor`：`ValidateParams` 校验 output_height/output_width/interpolation/layout 必填与类型；`Construct` 解析参数并 `make_unique<ResizeOperator>`。
     - `void RegisterResizeDescriptor();` 并在 `register_descriptors.cpp` 加一行。
   - `src/ops/gaussian_blur/` 同理：`GaussianBlurOperator` + `GaussianBlurDescriptor` + 登记。
-  - concrete 类的公共声明（`ResizeOperator` / `GaussianBlurOperator`）需对外可见——放在对应公共头 `include/mycv/ops/resize.h` / `gaussian_blur.h` 追加（纯增量），或新建 `include/mycv/ops/resize_operator.h`。选定：在现有公共头追加类声明（保持一个算子一个公共头）。
+  - concrete 类的公共声明（`ResizeOperator` / `GaussianBlurOperator`）需对外可见——放在对应公共头 `include/hpcplatform/ops/resize.h` / `gaussian_blur.h` 追加（纯增量），或新建 `include/hpcplatform/ops/resize_operator.h`。选定：在现有公共头追加类声明（保持一个算子一个公共头）。
 - **Acceptance Criteria Addressed**：AC-1、AC-2、AC-7
 - **Test Requirements**：
   - `rule` TR-4.1：`ResizeOperator::Run` 与直接 `Resize` 位精确一致；参数缺失/类型错 `ValidateParams` 返回 `kInvalidArgument`。证据：单元测试。
@@ -69,7 +69,7 @@
 - **Description**：
   - 新增 `src/operator/operator_config.h`：内部结构 `OperatorInstanceConfig{name, op, backend, cpu_level, device_index, ParamMap params}`、`OperatorsConfig`。
   - 新增 `src/operator/yaml_parser.cpp`：yaml-cpp 解析为 `OperatorsConfig`；字段缺失/类型错/语法错/重名 → `kInvalidArgument`。
-  - 仅 `MYCV_WITH_YAML` 时编译。
+  - 仅 `hpcplatform_WITH_YAML` 时编译。
 - **Acceptance Criteria Addressed**：AC-5、FR-2
 - **Test Requirements**：
   - `rule` TR-5.1：合法配置解析正确；缺必填/重名/语法错误返回 `kInvalidArgument`。证据：解析器单元测试。
@@ -79,9 +79,9 @@
 - **Priority**：high
 - **Depends On**：Task 4、Task 5
 - **Description**：
-  - 新增 `src/operator/load_operators.cpp`（`MYCV_WITH_YAML` 时替换 stub）：
+  - 新增 `src/operator/load_operators.cpp`（`hpcplatform_WITH_YAML` 时替换 stub）：
     - 解析 YAML → `OperatorsConfig`。
-    - 环境解析：若环境变量 `MYCV_BACKEND` 设 → 构造共享 Context（所有条目复用，忽略配置环境字段）；否则若调用方传入 `shared_context` → 复用；否则每条 `Context::Create(backend, device_index)`。
+    - 环境解析：若环境变量 `hpcplatform_BACKEND` 设 → 构造共享 Context（所有条目复用，忽略配置环境字段）；否则若调用方传入 `shared_context` → 复用；否则每条 `Context::Create(backend, device_index)`。
     - 整体 fail-fast 校验（不构造任何对象前完成）：每条 op 名可查描述符 → `ValidateParams` → `FindKernel(kind, backend, level)` 可用；`Context::Create` 成功。任一失败返回错误，`OperatorMap` 保持空。
     - 全部通过后逐条 `Construct` 填入 map，返回。
   - 非 CPU 后端 + 非 naive level → `kInvalidArgument`（与 `ValidateInvocation` 一致）。
@@ -103,7 +103,7 @@
   - 配置以字符串内联（`LoadOperatorsFromString`）避免外部路径依赖；环境变量用例在子进程或 setenv 控制。
 - **Acceptance Criteria Addressed**：AC-1 ~ AC-6
 - **Test Requirements**：
-  - `rule` TR-7.1：`tests/operator` 全部用例在默认构建 + `MYCV_WITH_YAML=ON` 构建通过。证据：ctest 输出。
+  - `rule` TR-7.1：`tests/operator` 全部用例在默认构建 + `hpcplatform_WITH_YAML=ON` 构建通过。证据：ctest 输出。
 
 ## Task 8：示例 samples/05 + 示例 YAML
 - **Status**：`pending`
@@ -112,10 +112,10 @@
 - **Description**：
   - 新增 `samples/05_config_operator.cpp`：演示 `LoadOperators` → `GetOperator` → 持有多个对象 → 用户自行调用（含一个 cpu + 一个不同参数的对比）。
   - 新增 `samples/configs/operators.yaml` 示例（中文注释）。
-  - `samples/CMakeLists.txt` 挂载（`MYCV_WITH_YAML` 门控）。
+  - `samples/CMakeLists.txt` 挂载（`hpcplatform_WITH_YAML` 门控）。
 - **Acceptance Criteria Addressed**：AC-3、G3
 - **Test Requirements**：
-  - `rule` TR-8.1：示例在 `MYCV_WITH_YAML` + CPU 构建下可编译运行并产生正确输出。证据：手动运行输出。
+  - `rule` TR-8.1：示例在 `hpcplatform_WITH_YAML` + CPU 构建下可编译运行并产生正确输出。证据：手动运行输出。
 
 ## Task 9：文档更新
 - **Status**：`pending`

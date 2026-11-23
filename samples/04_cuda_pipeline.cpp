@@ -2,10 +2,10 @@
 // and operator execution (safely skipped in non-CUDA builds).
 #include <iostream>
 
-#include "mycv/mycv.h"
+#include "hpcplatform/hpcplatform.h"
 
 int main() {
-  using namespace mycv;
+  using namespace hpcplatform;
   auto cuda_result = Context::Create(BackendType::kCUDA);
   if (!cuda_result.ok()) {
     std::cout << "SKIP: " << cuda_result.status().ToString() << '\n';

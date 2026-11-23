@@ -1,11 +1,11 @@
-#ifndef MYCV_SRC_FRAMEWORK_STATS_H_
-#define MYCV_SRC_FRAMEWORK_STATS_H_
+#ifndef hpcplatform_SRC_FRAMEWORK_STATS_H_
+#define hpcplatform_SRC_FRAMEWORK_STATS_H_
 
-#include "mycv/core/context.h"
-#include "mycv/core/device.h"
-#include "mycv/core/memory.h"
+#include "hpcplatform/core/context.h"
+#include "hpcplatform/core/device.h"
+#include "hpcplatform/core/memory.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 // Memory usage snapshot grouped by MemoryKind, for operator analysis and
@@ -39,6 +39,6 @@ inline MemorySnapshot SnapshotMemory(Context& context) {
 }
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_SRC_FRAMEWORK_STATS_H_
+#endif  // hpcplatform_SRC_FRAMEWORK_STATS_H_

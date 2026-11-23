@@ -1,5 +1,5 @@
-#ifndef MYCV_SRC_OPS_FOURIER_FOURIER_INTERNAL_H_
-#define MYCV_SRC_OPS_FOURIER_FOURIER_INTERNAL_H_
+#ifndef hpcplatform_SRC_OPS_FOURIER_FOURIER_INTERNAL_H_
+#define hpcplatform_SRC_OPS_FOURIER_FOURIER_INTERNAL_H_
 
 // Internal contract for the fourier operator directory
 // (docs/architecture.md §6.1). This file declares only the entry point and the
@@ -21,10 +21,10 @@
 //            1/(H*W) uniformly during write-back
 
 #include "framework/image_utils.h"
-#include "mycv/ops/image.h"
-#include "mycv/ops/op.h"
+#include "hpcplatform/ops/image.h"
+#include "hpcplatform/ops/op.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 struct FourierParams {
@@ -46,19 +46,19 @@ struct FourierParams {
 // serving as the byte-for-byte baseline for the other levels.
 Status FourierCpuNaive(const OpContext& context, const Tensor& input,
                        const Tensor* other, const void* params, Tensor* output);
-#ifdef MYCV_WITH_OPENMP
+#ifdef hpcplatform_WITH_OPENMP
 // CPU OpenMP level: distributes only independent rows/columns across threads;
 // accumulation order is unchanged.
 Status FourierCpuOpenMP(const OpContext& context, const Tensor& input,
                         const Tensor* other, const void* params,
                         Tensor* output);
 #endif
-#ifdef MYCV_WITH_TBB
+#ifdef hpcplatform_WITH_TBB
 // CPU TBB level: same skeleton, with oneTBB parallel_for scheduling rows/columns.
 Status FourierCpuTbb(const OpContext& context, const Tensor& input,
                      const Tensor* other, const void* params, Tensor* output);
 #endif
-#ifdef MYCV_WITH_CUDA
+#ifdef hpcplatform_WITH_CUDA
 // CUDA backend: device kernels execute the entire pipeline; the host only
 // generates the twiddle tables and launches kernels.
 Status FourierCuda(const OpContext& context, const Tensor& input,
@@ -71,6 +71,6 @@ Status FourierCuda(const OpContext& context, const Tensor& input,
 void RegisterFourierKernels();
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_SRC_OPS_FOURIER_FOURIER_INTERNAL_H_
+#endif  // hpcplatform_SRC_OPS_FOURIER_FOURIER_INTERNAL_H_

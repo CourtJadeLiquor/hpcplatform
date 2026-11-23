@@ -1,7 +1,7 @@
 # gaussian_blur 算子：可分离高斯平滑（v2 重点算子）
 
 > 本文件夹是**完备解决方案**（[架构设计 §6.1](../../../docs/architecture.md#61-算子文件夹契约新增)）：入口、全部版本实现、构建脚本、单元测试、基准、本文档。
-> 公共 API：[`include/mycv/ops/gaussian_blur.h`](../../../include/mycv/ops/gaussian_blur.h)。
+> 公共 API：[`include/hpcplatform/ops/gaussian_blur.h`](../../../include/hpcplatform/ops/gaussian_blur.h)。
 
 ## 语义
 
@@ -18,7 +18,7 @@
 | --- | --- | --- | --- |
 | native_cpu | kNaive | `gaussian_blur_cpu_naive.cpp`（真值基准） | — |
 | native_cpu | kOpenMP | `gaussian_blur_cpu_omp.cpp`（行级并行，像素内顺序不变） | 与 naive `memcmp` 位精确 |
-| native_cpu | kSimdGeneric | `gaussian_blur_cpu_simd.cpp`（类型化加载 + `MYCV_CPU_IVDEP`） | 与 naive `memcmp` 位精确 |
+| native_cpu | kSimdGeneric | `gaussian_blur_cpu_simd.cpp`（类型化加载 + `hpcplatform_CPU_IVDEP`） | 与 naive `memcmp` 位精确 |
 | native_cpu | kSimdAvx2 | `gaussian_blur_cpu_avx2.cpp`（4 通道块，c≥4 且 NHWC/HWC；其余回退标量骨架） | 与 naive `memcmp` 位精确 |
 | native_cpu | kTbb | `gaussian_blur_cpu_tbb.cpp`（像素级并行） | 与 naive `memcmp` 位精确 |
 | CUDA | kNaive | `gaussian_blur_cuda.cu`（两趟 kernel，中间缓冲 f64 Tensor） | 与 CPU 容差 1e-4 相对误差 |
@@ -32,13 +32,12 @@ SIMD/AVX2 级拒绝跨步（非连续）输入（`kUnsupported`，沿用 v1 元�
 
 ```bash
 # 全部 CPU 级别位精确 + 校验规则 + 布局一致性 + 常数图不变性
-ctest --test-dir <build> -R test_gaussian_blur --output-on-failure
+ctest --test-dir build_debug -R test_gaussian_blur --output-on-failure
 
-# 跨后端（full 配置才有）
-ctest --test-dir build -R test_gaussian_blur --output-on-failure
+# 跨后端用例随全特性树默认启用；无可用设备时自动 SKIP
 
-# 基准
-./build/src/ops/gaussian_blur/gaussian_blur_benchmark
+# 基准（Release 树）
+./build_release/src/ops/gaussian_blur/gaussian_blur_benchmark
 ```
 
 ## Profiling 数据
@@ -47,10 +46,10 @@ ctest --test-dir build -R test_gaussian_blur --output-on-failure
 `speedup` 相对同配置 CPU naive）：
 
 ```bash
-./build-default/src/ops/gaussian_blur/gaussian_blur_benchmark
+./build_release/src/ops/gaussian_blur/gaussian_blur_benchmark
 ```
 
-default Release 树，512×512，k=7，sigma=2.0（2026-11-21）：
+Release 树，512×512，k=7，sigma=2.0（2026-11-21）：
 
 | 配置 | level | u8 ms/call | u8 GB/s | f32 ms/call | f32 GB/s |
 | --- | --- | --- | --- | --- | --- |

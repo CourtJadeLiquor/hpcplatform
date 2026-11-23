@@ -9,7 +9,7 @@
 #include <malloc.h>
 #endif
 
-namespace mycv {
+namespace hpcplatform {
 namespace {
 
 void* AlignedAlloc(size_t bytes, size_t alignment) {
@@ -132,4 +132,4 @@ MemoryStats CpuMemoryManager::Stats() const {
   return stats;
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform

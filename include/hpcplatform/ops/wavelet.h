@@ -1,17 +1,17 @@
-#ifndef MYCV_OPS_WAVELET_H_
-#define MYCV_OPS_WAVELET_H_
+#ifndef hpcplatform_OPS_WAVELET_H_
+#define hpcplatform_OPS_WAVELET_H_
 
 #include <cstdint>
 #include <memory>
 #include <string>
 
-#include "mycv/core/error.h"
-#include "mycv/core/tensor.h"
-#include "mycv/operator.h"
-#include "mycv/ops/image.h"
-#include "mycv/ops/op.h"
+#include "hpcplatform/core/error.h"
+#include "hpcplatform/core/tensor.h"
+#include "hpcplatform/operator.h"
+#include "hpcplatform/ops/image.h"
+#include "hpcplatform/ops/op.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 // Orthonormal single-level 2-D discrete wavelet transform (periodic boundary).
 //
@@ -94,7 +94,7 @@ class WaveletTransformOperator : public Operator {
   OpKind kind() const override;
 
   // Decomposes `input` with the bound basis; bit-identical to calling
-  // mycv::WaveletTransform directly.
+  // hpcplatform::WaveletTransform directly.
   Result<WaveletBands> Run(const Tensor& input) const;
 
  private:
@@ -103,6 +103,6 @@ class WaveletTransformOperator : public Operator {
   const ImageLayout layout_;
 };
 
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_OPS_WAVELET_H_
+#endif  // hpcplatform_OPS_WAVELET_H_

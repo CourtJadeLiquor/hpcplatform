@@ -1,7 +1,7 @@
 // Config-driven concrete operator + descriptor for gaussian_blur. Compiled only
-// when MYCV_WITH_YAML is on; the default build never references these symbols.
+// when hpcplatform_WITH_YAML is on; the default build never references these symbols.
 
-#include "mycv/ops/gaussian_blur.h"
+#include "hpcplatform/ops/gaussian_blur.h"
 
 #include <climits>
 #include <cmath>
@@ -10,12 +10,12 @@
 #include <utility>
 
 #include "framework/op_descriptor.h"
-#include "mycv/core/context.h"
-#include "mycv/core/kernel_level.h"
-#include "mycv/ops/image.h"
-#include "mycv/ops/op.h"
+#include "hpcplatform/core/context.h"
+#include "hpcplatform/core/kernel_level.h"
+#include "hpcplatform/ops/image.h"
+#include "hpcplatform/ops/op.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace {
 
 struct ParsedGaussianBlurParams {
@@ -95,7 +95,7 @@ OpKind GaussianBlurOperator::kind() const { return OpKind::kGaussianBlur; }
 
 Result<Tensor> GaussianBlurOperator::Run(const Tensor& input) const {
   const OpContext ctx{context_.get(), /*stream=*/nullptr, cpu_level_};
-  return mycv::GaussianBlur(ctx, input, kernel_size_, sigma_, layout_);
+  return hpcplatform::GaussianBlur(ctx, input, kernel_size_, sigma_, layout_);
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform

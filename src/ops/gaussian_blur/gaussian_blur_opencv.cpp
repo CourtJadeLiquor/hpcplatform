@@ -2,7 +2,7 @@
 
 #include "backends/opencv/opencv_tensor_access.h"
 #include "framework/image_utils.h"
-#include "mycv/ops/image.h"
+#include "hpcplatform/ops/image.h"
 #include "gaussian_blur_internal.h"
 
 // OpenCV backend: delegates Gaussian blur directly to cv::GaussianBlur.
@@ -16,7 +16,7 @@
 // point accumulation order) differ from the CPU levels' per-tap double
 // accumulation, so bit exactness is not guaranteed. Compare across backends
 // with 1e-4 relative tolerance (docs/qa/testing.md §4.2).
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 // Entry point: reject NCHW and parse the image, then call cv::GaussianBlur for
@@ -27,7 +27,7 @@ namespace ops_internal {
 Status GaussianBlurOpenCv(const OpContext&, const Tensor& input, const Tensor*,
                           const void* params, Tensor* output) {
   const auto& options = *static_cast<const GaussianBlurParams*>(params);
-  MYCV_RETURN_IF_ERROR(RejectNchw(options.layout));
+  hpcplatform_RETURN_IF_ERROR(RejectNchw(options.layout));
   auto image = ParseImage(input.shape(), options.layout);
   if (!image.ok()) return image.status();
   return CvCall([&] {
@@ -46,4 +46,4 @@ Status GaussianBlurOpenCv(const OpContext&, const Tensor& input, const Tensor*,
 }
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform

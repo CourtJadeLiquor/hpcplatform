@@ -1,4 +1,4 @@
-# 配置驱动算子对象（`MYCV_WITH_YAML`）
+# 配置驱动算子对象（`hpcplatform_WITH_YAML`）
 
 让算法研究者通过一份配置文件实例化算子对象、调参、切换执行环境（实验机 CPU / 生产机 CUDA），而无需改代码。库只负责把配置变成**已绑定参数的算子对象**；执行流程由调用方自行编排，库不构建计算图，也不假设图像算法。
 
@@ -17,18 +17,18 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 启用配置驱动层（需要 yaml-cpp，例如 `apt install libyaml-cpp-dev`）：
 
 ```bash
-cmake -S . -B build -DMYCV_WITH_YAML=ON
+cmake -S . -B build -Dhpcplatform_WITH_YAML=ON
 ```
 
-未启用时，公共 API 仍可链接，但 `LoadOperators*` 返回 `kUnsupported`（消息含 `MYCV_WITH_YAML`），默认构建零回归。
+未启用时，公共 API 仍可链接，但 `LoadOperators*` 返回 `kUnsupported`（消息含 `hpcplatform_WITH_YAML`），默认构建零回归。
 
 ***
 
 ## 2. 快速开始
 
 ```cpp
-#include "mycv/mycv.h"
-using namespace mycv;
+#include "hpcplatform/hpcplatform.h"
+using namespace hpcplatform;
 
 // 从文件加载；也可用 LoadOperatorsFromString(yaml_text) 内联配置。
 auto loaded = LoadOperators("config.yaml");
@@ -89,17 +89,17 @@ operators:
 
 | 优先级 | 触发条件 | 行为 |
 | --- | --- | --- |
-| 1 | 环境变量 `MYCV_BACKEND` 非空 | 所有对象共享**同一个** `Context`；`backend` / `cpu_level` / `device_index` 全部来自环境变量，配置里的环境字段被忽略 |
+| 1 | 环境变量 `hpcplatform_BACKEND` 非空 | 所有对象共享**同一个** `Context`；`backend` / `cpu_level` / `device_index` 全部来自环境变量，配置里的环境字段被忽略 |
 | 2 | 调用 `LoadOperators(path, shared_context)` 传入非空 `shared_context` | 所有对象共享该 `Context`；配置环境字段被忽略；`cpu_level` 取 `naive` |
 | 3 | （默认） | 每个条目按自己的 `backend` / `cpu_level` / `device_index` 各自 `Context::Create`，对象各自持有独立 `Context` |
 
 环境变量：
 
-- `MYCV_BACKEND`：`native_cpu` / `opencv` / `cuda` / `npu`。
-- `MYCV_CPU_LEVEL`（可选）：省略为 `naive`。
-- `MYCV_DEVICE_INDEX`（可选）：省略为 `0`。
+- `hpcplatform_BACKEND`：`native_cpu` / `opencv` / `cuda` / `npu`。
+- `hpcplatform_CPU_LEVEL`（可选）：省略为 `naive`。
+- `hpcplatform_DEVICE_INDEX`（可选）：省略为 `0`。
 
-**无静默回退**：优先级 1 或 2 请求的后端若无法创建（未编译、设备不可用），整个 `LoadOperators` 返回错误，不会降级到配置里的后端或 CPU。例如在未编译 CUDA 的构建里设置 `MYCV_BACKEND=cuda` → 失败。
+**无静默回退**：优先级 1 或 2 请求的后端若无法创建（未编译、设备不可用），整个 `LoadOperators` 返回错误，不会降级到配置里的后端或 CPU。例如在未编译 CUDA 的构建里设置 `hpcplatform_BACKEND=cuda` → 失败。
 
 传入 `nullptr` 作为 `shared_context` → `kInvalidArgument`（不是"不共享"，而是参数错误）。
 
@@ -107,7 +107,7 @@ operators:
 
 ## 5. 对象模型
 
-- `Operator`（`include/mycv/operator.h`）是元数据基类，不含 `Run`（不假设输入输出元数）：
+- `Operator`（`include/hpcplatform/operator.h`）是元数据基类，不含 `Run`（不假设输入输出元数）：
   - `name()` / `kind()` / `backend()` / `cpu_level()` / `context()`。
   - 持有 `std::shared_ptr<Context>`，可与其他对象共享。
 - 每个具体算子在自己的公共头追加派生类（如 `ResizeOperator`、`GaussianBlurOperator`），提供**强类型** `Run(...)`，内部调用已有的公共自由函数，因此 `Run` 的结果与直接调用**位精确一致**。
@@ -148,7 +148,7 @@ operators:
 | `interpolation` | 字符串 | `nearest` / `bilinear` |
 | `layout` | 字符串 | `nhwc` / `nchw` |
 
-`Run(const Tensor& input)` 返回 `Result<Tensor>`，等价于 `mycv::Resize(ctx, input, output_height, output_width, interpolation, layout)`。
+`Run(const Tensor& input)` 返回 `Result<Tensor>`，等价于 `hpcplatform::Resize(ctx, input, output_height, output_width, interpolation, layout)`。
 
 ### `gaussian_blur`
 
@@ -158,7 +158,7 @@ operators:
 | `sigma` | 浮点数 | 有限且 `> 0` |
 | `layout` | 字符串 | `nhwc` / `nchw` |
 
-`Run(const Tensor& input)` 返回 `Result<Tensor>`，等价于 `mycv::GaussianBlur(ctx, input, kernel_size, sigma, layout)`。
+`Run(const Tensor& input)` 返回 `Result<Tensor>`，等价于 `hpcplatform::GaussianBlur(ctx, input, kernel_size, sigma, layout)`。
 
 ### `laplacian_pyramid`
 
@@ -169,7 +169,7 @@ operators:
 | `sigma` | 浮点数 | 有限且 `> 0` |
 | `layout` | 字符串 | `nhwc` / `nchw` |
 
-`Run(const Tensor& input)` 返回 `Result<LaplacianPyramid>`（`levels` 含 `levels + 1` 个张量：前 `levels` 个为带通层，最后一个为最粗残差），等价于 `mycv::BuildLaplacianPyramid(ctx, input, levels, kernel_size, sigma, layout)`。只接受 `f32` / `f64` 输入。
+`Run(const Tensor& input)` 返回 `Result<LaplacianPyramid>`（`levels` 含 `levels + 1` 个张量：前 `levels` 个为带通层，最后一个为最粗残差），等价于 `hpcplatform::BuildLaplacianPyramid(ctx, input, levels, kernel_size, sigma, layout)`。只接受 `f32` / `f64` 输入。
 
 ### `fourier_transform`
 
@@ -177,7 +177,7 @@ operators:
 | --- | --- | --- |
 | `layout` | 字符串 | `nhwc` / `nchw` |
 
-`Run(const Tensor& input)` 返回 `Result<ComplexImage>`（`real` / `imag` 两个同形张量），等价于 `mycv::FourierTransform(ctx, input, layout)`。只接受 `f32` / `f64` 输入。
+`Run(const Tensor& input)` 返回 `Result<ComplexImage>`（`real` / `imag` 两个同形张量），等价于 `hpcplatform::FourierTransform(ctx, input, layout)`。只接受 `f32` / `f64` 输入。
 
 ### `wavelet_transform`
 
@@ -186,7 +186,7 @@ operators:
 | `kind` | 字符串 | `haar` / `db4` |
 | `layout` | 字符串 | `nhwc` / `nchw` |
 
-`Run(const Tensor& input)` 返回 `Result<WaveletBands>`（`ll` / `lh` / `hl` / `hh`），等价于 `mycv::WaveletTransform(ctx, input, kind, layout)`。输入 H/W 必须为偶数，只接受 `f32` / `f64`。
+`Run(const Tensor& input)` 返回 `Result<WaveletBands>`（`ll` / `lh` / `hl` / `hh`），等价于 `hpcplatform::WaveletTransform(ctx, input, kind, layout)`。输入 H/W 必须为偶数，只接受 `f32` / `f64`。
 
 新增算子仍按同一描述符模式接入，接入步骤见 [`architecture.md`](./architecture.md) §10。
 
@@ -201,7 +201,7 @@ operators:
 ./05_config_operator samples/configs/operators.yaml
 
 # 生产机：整块切到 CUDA（需 CUDA 构建）
-MYCV_BACKEND=cuda MYCV_DEVICE_INDEX=0 ./05_config_operator samples/configs/operators.yaml
+hpcplatform_BACKEND=cuda hpcplatform_DEVICE_INDEX=0 ./05_config_operator samples/configs/operators.yaml
 ```
 
-设置 `MYCV_BACKEND` 后，配置里每个条目的 `backend` 字段都被忽略，所有对象共享同一个 CUDA `Context`。
+设置 `hpcplatform_BACKEND` 后，配置里每个条目的 `backend` 字段都被忽略，所有对象共享同一个 CUDA `Context`。

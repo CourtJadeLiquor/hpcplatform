@@ -1,5 +1,5 @@
-#ifndef MYCV_SRC_BACKENDS_CUDA_CUDA_DEVICE_UTILS_H_
-#define MYCV_SRC_BACKENDS_CUDA_CUDA_DEVICE_UTILS_H_
+#ifndef hpcplatform_SRC_BACKENDS_CUDA_CUDA_DEVICE_UTILS_H_
+#define hpcplatform_SRC_BACKENDS_CUDA_CUDA_DEVICE_UTILS_H_
 
 // Backend service header for operator CUDA implementations
 // (docs/architecture.md §6.2): device-side tensor/image descriptors, thread
@@ -16,11 +16,11 @@
 #include "backends/cuda/cuda_common.h"
 #include "backends/cuda/cuda_stream.h"
 #include "framework/image_utils.h"
-#include "mycv/core/tensor.h"
-#include "mycv/ops/image.h"
-#include "mycv/ops/op.h"
+#include "hpcplatform/core/tensor.h"
+#include "hpcplatform/ops/image.h"
+#include "hpcplatform/ops/op.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 constexpr unsigned int kThreadsPerBlock = 256;
@@ -194,6 +194,6 @@ __device__ inline void StoreImageValue(T* output, int64_t index, double value) {
 }
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_SRC_BACKENDS_CUDA_CUDA_DEVICE_UTILS_H_
+#endif  // hpcplatform_SRC_BACKENDS_CUDA_CUDA_DEVICE_UTILS_H_

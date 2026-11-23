@@ -1,19 +1,19 @@
 // Config-driven concrete operator + descriptor for resize. Compiled only when
-// MYCV_WITH_YAML is on; the default build never references these symbols.
+// hpcplatform_WITH_YAML is on; the default build never references these symbols.
 
-#include "mycv/ops/resize.h"
+#include "hpcplatform/ops/resize.h"
 
 #include <memory>
 #include <string>
 #include <utility>
 
 #include "framework/op_descriptor.h"
-#include "mycv/core/context.h"
-#include "mycv/core/kernel_level.h"
-#include "mycv/ops/image.h"
-#include "mycv/ops/op.h"
+#include "hpcplatform/core/context.h"
+#include "hpcplatform/core/kernel_level.h"
+#include "hpcplatform/ops/image.h"
+#include "hpcplatform/ops/op.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace {
 
 struct ParsedResizeParams {
@@ -100,8 +100,8 @@ OpKind ResizeOperator::kind() const { return OpKind::kResize; }
 
 Result<Tensor> ResizeOperator::Run(const Tensor& input) const {
   const OpContext ctx{context_.get(), /*stream=*/nullptr, cpu_level_};
-  return mycv::Resize(ctx, input, output_height_, output_width_,
+  return hpcplatform::Resize(ctx, input, output_height_, output_width_,
                       interpolation_, layout_);
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform

@@ -11,14 +11,14 @@
 //   ./05_config_operator                 # uses the inline config below
 //   ./05_config_operator path/to.yaml    # loads operators from a config file
 //
-// Tip: set MYCV_BACKEND (e.g. "native_cpu" or, with a CUDA build, "cuda") to
+// Tip: set hpcplatform_BACKEND (e.g. "native_cpu" or, with a CUDA build, "cuda") to
 // override the backend for every loaded operator, ignoring the config backend.
 #include <cstdint>
 #include <iostream>
 #include <string>
 #include <utility>
 
-#include "mycv/mycv.h"
+#include "hpcplatform/hpcplatform.h"
 
 namespace {
 
@@ -45,22 +45,22 @@ operators:
       layout: nhwc
 )";
 
-void PrintOperator(const mycv::Operator& op) {
+void PrintOperator(const hpcplatform::Operator& op) {
   std::cout << "  - " << op.name()
-            << "  kind=" << mycv::OpKindName(op.kind())
-            << "  backend=" << mycv::BackendTypeName(op.backend())
-            << "  cpu_level=" << mycv::CpuKernelLevelName(op.cpu_level())
+            << "  kind=" << hpcplatform::OpKindName(op.kind())
+            << "  backend=" << hpcplatform::BackendTypeName(op.backend())
+            << "  cpu_level=" << hpcplatform::CpuKernelLevelName(op.cpu_level())
             << '\n';
 }
 
 double AverageMilliseconds(int64_t total_nanoseconds, int iterations) {
-  return mycv::ToMilliseconds(total_nanoseconds) / iterations;
+  return hpcplatform::ToMilliseconds(total_nanoseconds) / iterations;
 }
 
 }  // namespace
 
 int main(int argc, char** argv) {
-  using namespace mycv;
+  using namespace hpcplatform;
 
   // Load once. Parsing the config and building the objects is a one-time cost:
   // keep it out of the hot loop and measure it on its own.

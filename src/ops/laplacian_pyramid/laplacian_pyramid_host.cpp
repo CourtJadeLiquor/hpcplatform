@@ -20,11 +20,11 @@
 #include <utility>
 
 #include "framework/image_utils.h"
-#include "mycv/ops/gaussian_blur.h"
-#include "mycv/ops/resize.h"
+#include "hpcplatform/ops/gaussian_blur.h"
+#include "hpcplatform/ops/resize.h"
 #include "laplacian_pyramid_internal.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 namespace {
 
@@ -141,4 +141,4 @@ Status LaplacianPyramidHostStage(const OpContext& context, const Tensor& input,
 }
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform

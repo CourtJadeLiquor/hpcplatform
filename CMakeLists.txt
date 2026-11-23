@@ -1,34 +1,54 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(mycv
-  VERSION 0.1.0
-  DESCRIPTION "Cross-platform operator library for research (CPU/OpenCV/CUDA/NPU)"
-  LANGUAGES CXX)
-
-option(MYCV_BUILD_TESTS "Build unit tests" ON)
-option(MYCV_BUILD_SAMPLES "Build samples" ON)
-option(MYCV_BUILD_BENCHMARKS "Build benchmark executables" ON)
-option(MYCV_ENABLE_OPENMP "Build the OpenMP CPU kernel path" ON)
-option(MYCV_ENABLE_TBB "Build the oneTBB CPU kernel path" OFF)
-option(MYCV_ENABLE_SIMD "Enable portable and instruction-set SIMD kernels" ON)
-option(MYCV_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
-option(MYCV_WITH_OPENCV "Build the OpenCV backend" OFF)
-option(MYCV_WITH_CUDA "Build the CUDA backend" OFF)
-option(MYCV_WITH_YAML "Build the YAML config-driven operator loader" OFF)
-
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-  set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
-endif()
-
+set(CMAKE_C_COMPILER "clang")
+set(CMAKE_CXX_COMPILER "clang++")
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+project(mycv
+  VERSION 0.1.0
+  DESCRIPTION "Cross-platform operator library for research (CPU/OpenCV/CUDA/NPU)"
+  LANGUAGES CXX)
+
+# Build type: -DCMAKE_BUILD_TYPE wins; when omitted it is inferred from the build
+# directory name so the two supported build trees work without extra flags:
+#   cmake -S . -B build_debug    -> Debug
+#   cmake -S . -B build_release  -> Release
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+  get_filename_component(MYCV_BUILD_DIR_NAME "${CMAKE_BINARY_DIR}" NAME)
+  if(MYCV_BUILD_DIR_NAME MATCHES "[Rr]elease")
+    set(MYCV_DEFAULT_BUILD_TYPE Release)
+  else()
+    set(MYCV_DEFAULT_BUILD_TYPE Debug)
+  endif()
+  set(CMAKE_BUILD_TYPE "${MYCV_DEFAULT_BUILD_TYPE}" CACHE STRING "Build type" FORCE)
+  message(STATUS "mycv: CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} (inferred from build directory '${MYCV_BUILD_DIR_NAME}')")
+endif()
+set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release)
+
+# Sanitizers are a development-only aid: on for Debug, off for Release.
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  set(MYCV_SANITIZERS_DEFAULT ON)
+else()
+  set(MYCV_SANITIZERS_DEFAULT OFF)
+endif()
+
+option(MYCV_BUILD_TESTS "Build unit tests" ON)
+option(MYCV_BUILD_SAMPLES "Build samples" ON)
+option(MYCV_BUILD_BENCHMARKS "Build benchmark executables" ON)
+option(MYCV_ENABLE_OPENMP "Build the OpenMP CPU kernel path" ON)
+option(MYCV_ENABLE_TBB "Build the oneTBB CPU kernel path" ON)
+option(MYCV_ENABLE_SIMD "Enable portable and instruction-set SIMD kernels" ON)
+option(MYCV_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" ${MYCV_SANITIZERS_DEFAULT})
+option(MYCV_WITH_OPENCV "Build the OpenCV backend" ON)
+option(MYCV_WITH_CUDA "Build the CUDA backend" ON)
+option(MYCV_WITH_YAML "Build the YAML config-driven operator loader" ON)
+
 if(MYCV_WITH_CUDA)
   if(NOT CMAKE_CUDA_ARCHITECTURES)
-    message(FATAL_ERROR
-      "MYCV_WITH_CUDA requires an explicit CMAKE_CUDA_ARCHITECTURES value (for example 89)")
+    set(CMAKE_CUDA_ARCHITECTURES 89)
   endif()
   enable_language(CUDA)
   set(CMAKE_CUDA_STANDARD 17)
@@ -73,7 +93,9 @@ if(MYCV_ENABLE_SANITIZERS)
   if(MSVC)
     message(FATAL_ERROR "MYCV_ENABLE_SANITIZERS currently requires GCC or Clang")
   endif()
-  target_compile_options(mycv PUBLIC -fsanitize=address,undefined -fno-omit-frame-pointer)
+  target_compile_options(mycv PUBLIC
+    $<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:-fsanitize=address,undefined>
+    $<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:-fno-omit-frame-pointer>)
   target_link_options(mycv PUBLIC -fsanitize=address,undefined)
 endif()
 
@@ -132,9 +154,8 @@ if(MYCV_WITH_CUDA)
 endif()
 
 # --- YAML config-driven operator loader (optional) ------------------------
-# Off by default so the default build stays dependency-free. When on, pulls in
-# yaml-cpp and the operator descriptors; the public LoadOperators API is always
-# declared and returns kUnsupported when this is off (see src/operator/).
+# Pulls in yaml-cpp and the operator descriptors; the public LoadOperators API
+# is always declared and returns kUnsupported when this is off (see src/operator/).
 if(MYCV_WITH_YAML)
   find_package(yaml-cpp REQUIRED)
   target_sources(mycv PRIVATE

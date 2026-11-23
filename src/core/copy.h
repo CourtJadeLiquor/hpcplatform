@@ -1,14 +1,14 @@
-#ifndef MYCV_SRC_CORE_COPY_H_
-#define MYCV_SRC_CORE_COPY_H_
+#ifndef hpcplatform_SRC_CORE_COPY_H_
+#define hpcplatform_SRC_CORE_COPY_H_
 
 #include <memory>
 
-#include "mycv/core/error.h"
+#include "hpcplatform/core/error.h"
 
 // Core-internal copy contract: declared in src/core (never exposed through the
 // public API) and implemented in src/core/copy.cpp. Callers are Context::Copy
 // and Tensor::Clone.
-namespace mycv {
+namespace hpcplatform {
 
 class Backend;
 class Stream;
@@ -26,6 +26,6 @@ Status CopyTensorData(const Backend& backend, Tensor* dst, const Tensor& src,
 // instead of dereferencing a dead allocator.
 Result<std::shared_ptr<Backend>> ResolveOwningBackend(const Tensor& tensor);
 
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_SRC_CORE_COPY_H_
+#endif  // hpcplatform_SRC_CORE_COPY_H_

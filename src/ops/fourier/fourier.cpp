@@ -12,7 +12,7 @@
 // This file performs no element-wise computation, only orchestration, so every
 // backend receives identical parameters.
 
-#include "mycv/ops/fourier.h"
+#include "hpcplatform/ops/fourier.h"
 
 #include <utility>
 
@@ -20,7 +20,7 @@
 #include "ops/common/op_common.h"
 #include "fourier_internal.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 // Registers implementations compiled into this binary: CPU naive/OpenMP/TBB
@@ -31,15 +31,15 @@ void RegisterFourierKernels() {
   const BackendType cpu = BackendType::kNativeCpu;
   RegisterKernel(OpKind::kFourierTransform, cpu, CpuKernelLevel::kNaive,
                  &FourierCpuNaive);
-#ifdef MYCV_WITH_OPENMP
+#ifdef hpcplatform_WITH_OPENMP
   RegisterKernel(OpKind::kFourierTransform, cpu, CpuKernelLevel::kOpenMP,
                  &FourierCpuOpenMP);
 #endif
-#ifdef MYCV_WITH_TBB
+#ifdef hpcplatform_WITH_TBB
   RegisterKernel(OpKind::kFourierTransform, cpu, CpuKernelLevel::kTbb,
                  &FourierCpuTbb);
 #endif
-#ifdef MYCV_WITH_CUDA
+#ifdef hpcplatform_WITH_CUDA
   RegisterKernel(OpKind::kFourierTransform, BackendType::kCUDA,
                  CpuKernelLevel::kNaive, &FourierCuda);
 #endif
@@ -75,8 +75,8 @@ Status ValidateSpectrumDType(DataType dtype) {
 // O(H*W*(H+W)) fallback for non-power-of-two sizes.
 Result<ComplexImage> FourierTransform(const OpContext& context,
                                       const Tensor& input, ImageLayout layout) {
-  MYCV_RETURN_IF_ERROR(ops_internal::ValidateInvocation(context, input));
-  MYCV_RETURN_IF_ERROR(ValidateSpectrumDType(input.dtype()));
+  hpcplatform_RETURN_IF_ERROR(ops_internal::ValidateInvocation(context, input));
+  hpcplatform_RETURN_IF_ERROR(ValidateSpectrumDType(input.dtype()));
   auto image = ops_internal::ParseImage(input.shape(), layout);
   if (!image.ok()) return image.status();
   auto kernel = ops_internal::FindKernel(OpKind::kFourierTransform,
@@ -90,7 +90,7 @@ Result<ComplexImage> FourierTransform(const OpContext& context,
       ops_internal::AllocateOutput(context, input.shape(), input.dtype());
   if (!imag.ok()) return imag.status();
   const ops_internal::FourierParams params{layout, false, &imag.value()};
-  MYCV_RETURN_IF_ERROR(
+  hpcplatform_RETURN_IF_ERROR(
       kernel.value()(context, input, nullptr, &params, &real.value()));
 
   ComplexImage result;
@@ -111,7 +111,7 @@ Result<ComplexImage> FourierTransform(const OpContext& context,
 Result<Tensor> InverseFourierTransform(const OpContext& context,
                                        const Tensor& real, const Tensor& imag,
                                        ImageLayout layout) {
-  MYCV_RETURN_IF_ERROR(ops_internal::ValidateInvocation(context, real));
+  hpcplatform_RETURN_IF_ERROR(ops_internal::ValidateInvocation(context, real));
   if (!imag.defined()) {
     return Status::InvalidArgument("imag tensor is undefined");
   }
@@ -120,7 +120,7 @@ Result<Tensor> InverseFourierTransform(const OpContext& context,
     return Status::InvalidArgument(
         "real and imag must share shape, dtype, backend and device");
   }
-  MYCV_RETURN_IF_ERROR(ValidateSpectrumDType(real.dtype()));
+  hpcplatform_RETURN_IF_ERROR(ValidateSpectrumDType(real.dtype()));
   auto image = ops_internal::ParseImage(real.shape(), layout);
   if (!image.ok()) return image.status();
   auto kernel = ops_internal::FindKernel(OpKind::kFourierTransform,
@@ -131,9 +131,9 @@ Result<Tensor> InverseFourierTransform(const OpContext& context,
       ops_internal::AllocateOutput(context, real.shape(), real.dtype());
   if (!output.ok()) return output.status();
   const ops_internal::FourierParams params{layout, true, nullptr};
-  MYCV_RETURN_IF_ERROR(
+  hpcplatform_RETURN_IF_ERROR(
       kernel.value()(context, real, &imag, &params, &output.value()));
   return output;
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform

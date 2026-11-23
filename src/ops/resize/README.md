@@ -28,10 +28,10 @@ false，分发层自动跳过；后续补齐时走各算子文件夹的 OBJECT �
 - 跨后端 f32/f64：相对容差 `1e-4`（`|a-b| <= tol*max(1,|a|)`）。
 - u8 跨后端（OpenCV/CUDA）：绝对容差 ±1（定点/舍入实现差异）。
 
-## 基准（default Release 树）
+## 基准（build_release 全特性树）
 
 ```bash
-./build-default/src/ops/resize/resize_benchmark   # stdout 为 CSV
+./build_release/src/ops/resize/resize_benchmark   # stdout 为 CSV
 ```
 
 CSV 列：`op,backend,level,dtype,mode,in_h,in_w,c,out_h,out_w,ms_per_call,gb_per_s,speedup`；

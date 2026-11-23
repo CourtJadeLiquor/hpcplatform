@@ -5,7 +5,7 @@
 #include "backends/backend_internal.h"
 #include "framework/op_registry.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 bool CpuBackend::SupportsKernelLevel(CpuKernelLevel level) const {
   // Report capabilities from the kernels that are actually linked, rather than
@@ -36,4 +36,4 @@ Result<std::shared_ptr<Backend>> CreateCpuBackend(int device_index) {
   return backend;
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform

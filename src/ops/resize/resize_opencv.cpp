@@ -16,10 +16,10 @@
 
 #include "backends/opencv/opencv_tensor_access.h"
 #include "framework/image_utils.h"
-#include "mycv/ops/image.h"
+#include "hpcplatform/ops/image.h"
 #include "resize_internal.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 // OpenCV backend entry point: input is the source tensor, options contains the
@@ -30,7 +30,7 @@ namespace ops_internal {
 Status ResizeOpenCv(const OpContext&, const Tensor& input, const Tensor*,
                     const void* params, Tensor* output) {
   const auto& options = *static_cast<const ResizeParams*>(params);
-  MYCV_RETURN_IF_ERROR(RejectNchw(options.layout));
+  hpcplatform_RETURN_IF_ERROR(RejectNchw(options.layout));
   auto image = ParseImage(input.shape(), options.layout);
   if (!image.ok()) return image.status();
   ImageInfo output_info = image.value();
@@ -59,4 +59,4 @@ Status ResizeOpenCv(const OpContext&, const Tensor& input, const Tensor*,
 }
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform

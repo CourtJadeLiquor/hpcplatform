@@ -20,11 +20,11 @@
 #include <utility>
 
 #include "backends/cuda/cuda_device_utils.h"
-#include "mycv/ops/gaussian_blur.h"
-#include "mycv/ops/resize.h"
+#include "hpcplatform/ops/gaussian_blur.h"
+#include "hpcplatform/ops/resize.h"
 #include "laplacian_pyramid_internal.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 namespace {
 
@@ -110,7 +110,7 @@ Status LaplacianPyramidCudaStage(const OpContext& context, const Tensor& input,
   if (!up.ok()) return up.status();
   // The suboperator output up already matches current level dimensions, so only
   // element-wise subtraction remains.
-  MYCV_RETURN_IF_ERROR(LaunchSubtract(input, up.value(), output,
+  hpcplatform_RETURN_IF_ERROR(LaunchSubtract(input, up.value(), output,
                                       stream_result.value()->handle()));
 
   *options.next_gaussian = std::move(next.value());
@@ -118,4 +118,4 @@ Status LaplacianPyramidCudaStage(const OpContext& context, const Tensor& input,
 }
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform

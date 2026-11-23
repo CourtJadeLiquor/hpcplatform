@@ -1,17 +1,17 @@
-#ifndef MYCV_OPS_GAUSSIAN_BLUR_H_
-#define MYCV_OPS_GAUSSIAN_BLUR_H_
+#ifndef hpcplatform_OPS_GAUSSIAN_BLUR_H_
+#define hpcplatform_OPS_GAUSSIAN_BLUR_H_
 
 #include <cstdint>
 #include <memory>
 #include <string>
 
-#include "mycv/core/error.h"
-#include "mycv/core/tensor.h"
-#include "mycv/ops/image.h"
-#include "mycv/ops/op.h"
-#include "mycv/operator.h"
+#include "hpcplatform/core/error.h"
+#include "hpcplatform/core/tensor.h"
+#include "hpcplatform/ops/image.h"
+#include "hpcplatform/ops/op.h"
+#include "hpcplatform/operator.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 // Separable Gaussian smoothing: horizontal then vertical passes; output shape
 // matches the input shape; supports u8/f32/f64.
@@ -26,7 +26,7 @@ namespace mycv {
 //   is rounded back to u8 (half away from zero).
 //
 // `layout` selects the interpretation of rank-3/rank-4 tensors (HW/HWC/CHW/
-// NHWC/NCHW, see mycv/ops/image.h); OpenCV accepts HW/HWC/NHWC only.
+// NHWC/NCHW, see hpcplatform/ops/image.h); OpenCV accepts HW/HWC/NHWC only.
 Result<Tensor> GaussianBlur(const OpContext& context, const Tensor& input,
                             int kernel_size, double sigma,
                             ImageLayout layout = ImageLayout::kNHWC);
@@ -44,7 +44,7 @@ class GaussianBlurOperator : public Operator {
   OpKind kind() const override;
 
   // Blurs `input` with the bound parameters. Output shape equals the input
-  // shape; result is bit-identical to calling mycv::GaussianBlur directly.
+  // shape; result is bit-identical to calling hpcplatform::GaussianBlur directly.
   Result<Tensor> Run(const Tensor& input) const;
 
  private:
@@ -54,6 +54,6 @@ class GaussianBlurOperator : public Operator {
   const ImageLayout layout_;
 };
 
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_OPS_GAUSSIAN_BLUR_H_
+#endif  // hpcplatform_OPS_GAUSSIAN_BLUR_H_

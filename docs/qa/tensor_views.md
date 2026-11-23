@@ -1,6 +1,6 @@
 # Tensor 视图：为什么零拷贝，stride/offset 怎么算
 
-> 相关代码：`include/mycv/core/tensor.h`、`src/core/tensor.cpp`、`src/core/tensor_iterator.h`
+> 相关代码：`include/hpcplatform/core/tensor.h`、`src/core/tensor.cpp`、`src/core/tensor_iterator.h`
 
 ---
 
@@ -24,13 +24,13 @@ Tensor {
 
 ## 2. 最容易搞错的一点：stride 的单位是【元素】，不是字节
 
-`Tensor::Stride(dim)` 返回的是**元素数**，不是字节数（[tensor.h](../../include/mycv/core/tensor.h#L85-L86) 注释明确写了 "Stride in elements (not bytes)"）。
+`Tensor::Stride(dim)` 返回的是**元素数**，不是字节数（[tensor.h](../../include/hpcplatform/core/tensor.h#L85-L86) 注释明确写了 "Stride in elements (not bytes)"）。
 
 这里有一组**单位必须分清**的约定（实测自 `src/core/tensor.cpp`）：
 
 - `strides_` / `Stride(dim)`：单位是**元素**。`Slice` 里算偏移就是 `begin * Stride(dim)`（元素）。
 - `offset_`：单位是**字节**。`Slice` 最终写的是 `offset_ += begin * Stride(dim) * ElementSize()`（[tensor.cpp](../../src/core/tensor.cpp#L107-L108)）。
-- `Tensor::data()`：返回 `buffer_->data() + offset_`，即**已定位到视图起点的字节指针**（[tensor.h](../../include/mycv/core/tensor.h#L53-L55)）。
+- `Tensor::data()`：返回 `buffer_->data() + offset_`，即**已定位到视图起点的字节指针**（[tensor.h](../../include/hpcplatform/core/tensor.h#L53-L55)）。
 - `Tensor::Data<T>()`：`reinterpret_cast<T*>(data())`，即视图起点的**元素指针**。
 
 所以写内核的正确姿势：用 `tensor.Data<T>()` 拿元素起点指针，用 `tensor.Stride(dim)`（元素）做索引，`ptr[i * stride]` 直接寻址。**不要**拿 `data()`（字节）再自己乘 `sizeof(T)`——`offset_` 已经是字节，混算会错位。

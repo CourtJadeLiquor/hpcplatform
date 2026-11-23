@@ -1,4 +1,4 @@
-# mycv 问答与易错点（QA）
+# hpcplatform 问答与易错点（QA）
 
 > 文档视角：**学习者与贡献者**——回答"这个模块为什么这么设计、关键组件是什么、它怎么和全局串起来、我该怎么调用/测试/扩展"。
 > 配套阅读：[架构设计](../architecture.md) 给出 v2 目标架构全貌，扩展指南见其 §11。
@@ -18,7 +18,7 @@
 | [`context_copy.md`](./context_copy.md) | `Context::Copy` 拷贝的是字节还是元素？跨后端怎么选路？什么时候同步？ |
 | [`cuda_stream_visibility.md`](./cuda_stream_visibility.md) | 为什么 Wrap 进来的 CUDA 内存数据不对？non-blocking 流和外部内存的可见性责任在谁？ |
 | [`error_model.md`](./error_model.md) | 为什么不用异常？`Status` / `Result` 怎么用？六种错误码怎么选？ |
-| [`testing.md`](./testing.md) | 三棵构建树怎么跑？怎么写对拍测试？容差怎么定？ |
+| [`testing.md`](./testing.md) | 全特性构建树怎么跑？怎么用 GoogleTest/CTest 写对拍测试？容差怎么定？ |
 
 > 扩展指南（加算子 / 加后端实现 / 加 CPU 优化版本）统一由[架构设计 §11](../architecture.md) 承载，不再单独成文。
 

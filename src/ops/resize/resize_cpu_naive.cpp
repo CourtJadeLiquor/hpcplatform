@@ -4,7 +4,7 @@
 
 #include "resize_cpu.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 // The kernel table defines the entry signature: OpContext and the second input
 // tensor are irrelevant to this single-input elementwise operator and remain
@@ -15,4 +15,4 @@ Status ResizeCpuNaive(const OpContext&, const Tensor& input, const Tensor*,
                          output);
 }
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform

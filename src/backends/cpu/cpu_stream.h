@@ -1,9 +1,9 @@
-#ifndef MYCV_SRC_BACKENDS_CPU_CPU_STREAM_H_
-#define MYCV_SRC_BACKENDS_CPU_CPU_STREAM_H_
+#ifndef hpcplatform_SRC_BACKENDS_CPU_CPU_STREAM_H_
+#define hpcplatform_SRC_BACKENDS_CPU_CPU_STREAM_H_
 
-#include "mycv/core/stream.h"
+#include "hpcplatform/core/stream.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 // CPU execution is synchronous: the stream exists to keep one uniform API
 // across backends, not to provide concurrency.
@@ -19,6 +19,6 @@ class CpuStream final : public Stream {
   Device device_;
 };
 
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_SRC_BACKENDS_CPU_CPU_STREAM_H_
+#endif  // hpcplatform_SRC_BACKENDS_CPU_CPU_STREAM_H_

@@ -5,13 +5,13 @@
 // the actual resize kernels (CPU shares resize_cpu.h; CUDA/OpenCV are separate).
 // This file contains no interpolation formulas.
 
-#include "mycv/ops/resize.h"
+#include "hpcplatform/ops/resize.h"
 
 #include "framework/image_utils.h"
 #include "ops/common/op_common.h"
 #include "resize_internal.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 // Kernel registration: naive is mandatory for CPU; OpenMP/TBB are registered
@@ -21,18 +21,18 @@ namespace ops_internal {
 void RegisterResizeKernels() {
   const BackendType cpu = BackendType::kNativeCpu;
   RegisterKernel(OpKind::kResize, cpu, CpuKernelLevel::kNaive, &ResizeCpuNaive);
-#ifdef MYCV_WITH_OPENMP
+#ifdef hpcplatform_WITH_OPENMP
   RegisterKernel(OpKind::kResize, cpu, CpuKernelLevel::kOpenMP,
                  &ResizeCpuOpenMP);
 #endif
-#ifdef MYCV_WITH_TBB
+#ifdef hpcplatform_WITH_TBB
   RegisterKernel(OpKind::kResize, cpu, CpuKernelLevel::kTbb, &ResizeCpuTbb);
 #endif
-#ifdef MYCV_WITH_CUDA
+#ifdef hpcplatform_WITH_CUDA
   RegisterKernel(OpKind::kResize, BackendType::kCUDA, CpuKernelLevel::kNaive,
                  &ResizeCuda);
 #endif
-#ifdef MYCV_WITH_OPENCV
+#ifdef hpcplatform_WITH_OPENCV
   RegisterKernel(OpKind::kResize, BackendType::kOpenCV, CpuKernelLevel::kNaive,
                  &ResizeOpenCv);
 #endif
@@ -52,7 +52,7 @@ void RegisterResizeKernels() {
 Result<Tensor> Resize(const OpContext& context, const Tensor& input,
                       int64_t output_height, int64_t output_width,
                       InterpolationMode interpolation, ImageLayout layout) {
-  MYCV_RETURN_IF_ERROR(ops_internal::ValidateInvocation(context, input));
+  hpcplatform_RETURN_IF_ERROR(ops_internal::ValidateInvocation(context, input));
   auto image = ops_internal::ParseImage(input.shape(), layout);
   if (!image.ok()) return image.status();
   // dtype allowlist shared by all three backends.
@@ -74,9 +74,9 @@ Result<Tensor> Resize(const OpContext& context, const Tensor& input,
   const ops_internal::ResizeParams params{output_height, output_width,
                                           interpolation, layout};
   // Single-input operator: pass nullptr as the second tensor.
-  MYCV_RETURN_IF_ERROR(
+  hpcplatform_RETURN_IF_ERROR(
       kernel.value()(context, input, nullptr, &params, &output.value()));
   return output;
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform

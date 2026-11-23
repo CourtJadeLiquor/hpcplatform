@@ -1,6 +1,6 @@
 // Tests validate Laplacian pyramid level counts, reconstruction error, and the
 // composed resize/gaussian_blur behavior.
-#include "test_framework.h"
+#include "test_utils.h"
 
 #include <algorithm>
 #include <cmath>
@@ -11,11 +11,11 @@
 #include <vector>
 
 #include "core/backend.h"
-#include "mycv/mycv.h"
+#include "hpcplatform/hpcplatform.h"
 
 namespace {
 
-using namespace mycv;
+using namespace hpcplatform;
 
 constexpr int kKernelSize = 5;
 constexpr double kSigma = 1.2;
@@ -39,7 +39,7 @@ Tensor MakeImage(int64_t n, int64_t h, int64_t w, int64_t c,
   auto context = GetCpuContext();
   if (!context) return Tensor{};
   auto image = context->AllocateTensor(shape, DataType::kFloat32);
-  MYCV_EXPECT_TRUE(image.ok());
+  EXPECT_TRUE(image.ok());
   if (!image.ok()) return Tensor{};
   float* data = image.value().Data<float>();
   for (int64_t i = 0; i < image.value().Numel(); ++i) {
@@ -52,7 +52,7 @@ Tensor Subtract(const Tensor& fine, const Tensor& coarse) {
   auto context = GetCpuContext();
   if (!context) return Tensor{};
   auto output = context->AllocateTensor(fine.shape(), DataType::kFloat32);
-  MYCV_EXPECT_TRUE(output.ok());
+  EXPECT_TRUE(output.ok());
   if (!output.ok()) return Tensor{};
   const float* a = fine.Data<float>();
   const float* b = coarse.Data<float>();
@@ -85,13 +85,13 @@ bool Near(const Tensor& a, const Tensor& b, double tolerance) {
 Result<Tensor> CopyTo(Context& destination, const Tensor& source) {
   auto output = destination.AllocateTensor(source.shape(), source.dtype());
   if (!output.ok()) return output.status();
-  MYCV_RETURN_IF_ERROR(destination.Copy(&output.value(), source));
+  hpcplatform_RETURN_IF_ERROR(destination.Copy(&output.value(), source));
   return output;
 }
 
 }  // namespace
 
-MYCV_TEST(LaplacianPyramidShapesAndLevelCount) {
+TEST(hpcplatform, LaplacianPyramidShapesAndLevelCount) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
   struct Case {
     ImageLayout layout;
@@ -103,9 +103,9 @@ MYCV_TEST(LaplacianPyramidShapesAndLevelCount) {
     auto input = MakeImage(item.n, 9, 11, item.c, item.layout);
     auto result = BuildLaplacianPyramid(CpuOpContext(*context), input, 3,
                                         kKernelSize, kSigma, item.layout);
-    MYCV_EXPECT_TRUE(result.ok());
+    EXPECT_TRUE(result.ok());
     if (!result.ok()) continue;
-    MYCV_EXPECT_EQ(result.value().levels.size(), size_t{4});
+    EXPECT_EQ(result.value().levels.size(), size_t{4});
     if (result.value().levels.size() != 4) continue;
     // 9x11 -> 5x6 -> 3x3 -> 2x2; only the last stage is 2x2, so the request
     // is legal and every band keeps the dtype/backend of the input.
@@ -123,21 +123,21 @@ MYCV_TEST(LaplacianPyramidShapesAndLevelCount) {
               : Shape{item.n, item.c, expected_h[i], expected_w[i]};
       shapes_ok = shapes_ok && level.shape() == expected;
     }
-    MYCV_EXPECT_TRUE(shapes_ok);
+    EXPECT_TRUE(shapes_ok);
   }
 }
 
-MYCV_TEST(LaplacianPyramidConstantImageHasZeroBands) {
+TEST(hpcplatform, LaplacianPyramidConstantImageHasZeroBands) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
   auto input = context->AllocateTensor(Shape{1, 7, 9, 2}, DataType::kFloat32);
-  MYCV_EXPECT_TRUE(input.ok());
+  EXPECT_TRUE(input.ok());
   if (!input.ok()) return;
   std::fill(input.value().Data<float>(),
             input.value().Data<float>() + input.value().Numel(), 0.25f);
 
   auto result = BuildLaplacianPyramid(CpuOpContext(*context), input.value(), 2,
                                       kKernelSize, 1.0);
-  MYCV_EXPECT_TRUE(result.ok());
+  EXPECT_TRUE(result.ok());
   if (!result.ok()) return;
   // Blur/downsample/upsample all preserve a constant image, so every band is
   // zero and the coarse residual is the constant itself.
@@ -149,22 +149,22 @@ MYCV_TEST(LaplacianPyramidConstantImageHasZeroBands) {
       bands_zero = std::fabs(band[j]) <= 1e-6f;
     }
   }
-  MYCV_EXPECT_TRUE(bands_zero);
+  EXPECT_TRUE(bands_zero);
   const Tensor& coarsest = result.value().levels.back();
   bool coarse_constant = true;
   for (int64_t i = 0; i < coarsest.Numel() && coarse_constant; ++i) {
     coarse_constant = std::fabs(coarsest.Data<float>()[i] - 0.25f) <= 1e-6f;
   }
-  MYCV_EXPECT_TRUE(coarse_constant);
+  EXPECT_TRUE(coarse_constant);
 }
 
-MYCV_TEST(LaplacianPyramidMatchesReferenceComposition) {
+TEST(hpcplatform, LaplacianPyramidMatchesReferenceComposition) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
   const OpContext op_context = CpuOpContext(*context);
   auto input = MakeImage(1, 8, 8, 2, ImageLayout::kNHWC);
   auto result = BuildLaplacianPyramid(op_context, input, 3, kKernelSize, kSigma,
                                       ImageLayout::kNHWC);
-  MYCV_EXPECT_TRUE(result.ok());
+  EXPECT_TRUE(result.ok());
   if (!result.ok()) return;
 
   // Independent composition written with the public single-level ops.
@@ -174,29 +174,29 @@ MYCV_TEST(LaplacianPyramidMatchesReferenceComposition) {
     const int64_t w = gaussian.shape().Dim(2);
     auto blurred = GaussianBlur(op_context, gaussian, kKernelSize, kSigma,
                                 ImageLayout::kNHWC);
-    MYCV_EXPECT_TRUE(blurred.ok());
+    EXPECT_TRUE(blurred.ok());
     if (!blurred.ok()) return;
     auto next = Resize(op_context, blurred.value(), (h + 1) / 2, (w + 1) / 2,
                        InterpolationMode::kNearest, ImageLayout::kNHWC);
-    MYCV_EXPECT_TRUE(next.ok());
+    EXPECT_TRUE(next.ok());
     if (!next.ok()) return;
     auto up = Resize(op_context, next.value(), h, w,
                      InterpolationMode::kBilinear, ImageLayout::kNHWC);
-    MYCV_EXPECT_TRUE(up.ok());
+    EXPECT_TRUE(up.ok());
     if (!up.ok()) return;
     const Tensor expected = Subtract(gaussian, up.value());
-    MYCV_EXPECT_TRUE(BitExact(expected, result.value().levels[level]));
+    EXPECT_TRUE(BitExact(expected, result.value().levels[level]));
     gaussian = next.value();
   }
-  MYCV_EXPECT_TRUE(BitExact(gaussian, result.value().levels.back()));
+  EXPECT_TRUE(BitExact(gaussian, result.value().levels.back()));
 }
 
-MYCV_TEST(LaplacianPyramidCpuLevelsAreBitExact) {
+TEST(hpcplatform, LaplacianPyramidCpuLevelsAreBitExact) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
   auto input = MakeImage(1, 17, 19, 3, ImageLayout::kNHWC);
   auto reference = BuildLaplacianPyramid(CpuOpContext(*context), input, 2,
                                          kKernelSize, kSigma);
-  MYCV_EXPECT_TRUE(reference.ok());
+  EXPECT_TRUE(reference.ok());
   if (!reference.ok()) return;
   for (CpuKernelLevel level :
        {CpuKernelLevel::kOpenMP, CpuKernelLevel::kSimdGeneric,
@@ -211,56 +211,56 @@ MYCV_TEST(LaplacianPyramidCpuLevelsAreBitExact) {
     if (!actual.ok() && actual.status().code() == StatusCode::kUnsupported) {
       continue;
     }
-    MYCV_EXPECT_TRUE(actual.ok());
+    EXPECT_TRUE(actual.ok());
     if (!actual.ok()) continue;
-    MYCV_EXPECT_EQ(actual.value().levels.size(),
+    EXPECT_EQ(actual.value().levels.size(),
                    reference.value().levels.size());
     bool identical = true;
     for (size_t i = 0; i < actual.value().levels.size() && identical; ++i) {
       identical =
           BitExact(actual.value().levels[i], reference.value().levels[i]);
     }
-    MYCV_EXPECT_TRUE(identical);
+    EXPECT_TRUE(identical);
   }
 }
 
-MYCV_TEST(LaplacianPyramidRejectsInvalidParameters) {
+TEST(hpcplatform, LaplacianPyramidRejectsInvalidParameters) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
   const OpContext op_context = CpuOpContext(*context);
   auto valid = MakeImage(1, 8, 8, 3, ImageLayout::kNHWC);
 
   auto bad_levels = BuildLaplacianPyramid(op_context, valid, 0);
-  MYCV_EXPECT_EQ(bad_levels.status().code(), StatusCode::kInvalidArgument);
+  EXPECT_EQ(bad_levels.status().code(), StatusCode::kInvalidArgument);
   auto even_kernel = BuildLaplacianPyramid(op_context, valid, 1, 4, 1.0);
-  MYCV_EXPECT_EQ(even_kernel.status().code(), StatusCode::kInvalidArgument);
+  EXPECT_EQ(even_kernel.status().code(), StatusCode::kInvalidArgument);
   auto bad_sigma = BuildLaplacianPyramid(op_context, valid, 1, 5, 0.0);
-  MYCV_EXPECT_EQ(bad_sigma.status().code(), StatusCode::kInvalidArgument);
+  EXPECT_EQ(bad_sigma.status().code(), StatusCode::kInvalidArgument);
   auto null_context = BuildLaplacianPyramid(OpContext{}, valid, 1);
-  MYCV_EXPECT_EQ(null_context.status().code(), StatusCode::kInvalidArgument);
+  EXPECT_EQ(null_context.status().code(), StatusCode::kInvalidArgument);
 
   auto u8 = context->AllocateTensor(Shape{1, 8, 8, 3}, DataType::kUInt8);
-  MYCV_EXPECT_TRUE(u8.ok());
+  EXPECT_TRUE(u8.ok());
   if (u8.ok()) {
     // Signed bands cannot be stored in u8.
     auto unsupported = BuildLaplacianPyramid(op_context, u8.value(), 1);
-    MYCV_EXPECT_EQ(unsupported.status().code(), StatusCode::kUnsupported);
+    EXPECT_EQ(unsupported.status().code(), StatusCode::kUnsupported);
   }
   auto rank5 =
       context->AllocateTensor(Shape{1, 1, 2, 2, 2}, DataType::kFloat32);
-  MYCV_EXPECT_TRUE(rank5.ok());
+  EXPECT_TRUE(rank5.ok());
   if (rank5.ok()) {
     auto bad_rank = BuildLaplacianPyramid(op_context, rank5.value(), 1);
-    MYCV_EXPECT_EQ(bad_rank.status().code(), StatusCode::kInvalidArgument);
+    EXPECT_EQ(bad_rank.status().code(), StatusCode::kInvalidArgument);
   }
   auto tiny = context->AllocateTensor(Shape{1, 1, 1}, DataType::kFloat32);
-  MYCV_EXPECT_TRUE(tiny.ok());
+  EXPECT_TRUE(tiny.ok());
   if (tiny.ok()) {
     auto too_deep = BuildLaplacianPyramid(op_context, tiny.value(), 1);
-    MYCV_EXPECT_EQ(too_deep.status().code(), StatusCode::kInvalidArgument);
+    EXPECT_EQ(too_deep.status().code(), StatusCode::kInvalidArgument);
   }
 }
 
-#ifdef MYCV_WITH_OPENCV
+#ifdef hpcplatform_WITH_OPENCV
 namespace {
 
 std::shared_ptr<Context> GetOpenCvContext() {
@@ -277,35 +277,35 @@ std::shared_ptr<Context> GetOpenCvContext() {
 
 }  // namespace
 
-MYCV_TEST(LaplacianPyramidOpenCvMatchesCpuFloat) {
+TEST(hpcplatform, LaplacianPyramidOpenCvMatchesCpuFloat) {
   auto cpu = Context::Create(BackendType::kNativeCpu).value();
   auto opencv = GetOpenCvContext();
   if (!opencv) return;
   auto input = MakeImage(1, 24, 32, 3, ImageLayout::kNHWC);
   auto reference =
       BuildLaplacianPyramid(CpuOpContext(*cpu), input, 2, kKernelSize, kSigma);
-  MYCV_EXPECT_TRUE(reference.ok());
+  EXPECT_TRUE(reference.ok());
   if (!reference.ok()) return;
   auto device = CopyTo(*opencv, input);
-  MYCV_EXPECT_TRUE(device.ok());
+  EXPECT_TRUE(device.ok());
   if (!device.ok()) return;
   auto actual = BuildLaplacianPyramid(CpuOpContext(*opencv), device.value(), 2,
                                       kKernelSize, kSigma);
-  MYCV_EXPECT_TRUE(actual.ok());
+  EXPECT_TRUE(actual.ok());
   if (!actual.ok()) return;
-  MYCV_EXPECT_EQ(actual.value().levels.size(), reference.value().levels.size());
+  EXPECT_EQ(actual.value().levels.size(), reference.value().levels.size());
   bool equivalent = true;
   for (size_t i = 0; i < actual.value().levels.size() && equivalent; ++i) {
     auto back = CopyTo(*cpu, actual.value().levels[i]);
-    MYCV_EXPECT_TRUE(back.ok());
+    EXPECT_TRUE(back.ok());
     if (!back.ok()) return;
     equivalent = Near(reference.value().levels[i], back.value(), 1e-4);
   }
-  MYCV_EXPECT_TRUE(equivalent);
+  EXPECT_TRUE(equivalent);
 }
 #endif
 
-#ifdef MYCV_WITH_CUDA
+#ifdef hpcplatform_WITH_CUDA
 namespace {
 
 std::shared_ptr<Context> GetCudaContext() {
@@ -322,32 +322,32 @@ std::shared_ptr<Context> GetCudaContext() {
 
 }  // namespace
 
-MYCV_TEST(LaplacianPyramidCudaMatchesCpuFloat) {
+TEST(hpcplatform, LaplacianPyramidCudaMatchesCpuFloat) {
   auto cpu = Context::Create(BackendType::kNativeCpu).value();
   auto cuda = GetCudaContext();
   if (!cuda) return;
   auto input = MakeImage(1, 24, 32, 3, ImageLayout::kNHWC);
   auto reference =
       BuildLaplacianPyramid(CpuOpContext(*cpu), input, 2, kKernelSize, kSigma);
-  MYCV_EXPECT_TRUE(reference.ok());
+  EXPECT_TRUE(reference.ok());
   if (!reference.ok()) return;
   auto device = CopyTo(*cuda, input);
-  MYCV_EXPECT_TRUE(device.ok());
+  EXPECT_TRUE(device.ok());
   if (!device.ok()) return;
   auto actual = BuildLaplacianPyramid(CpuOpContext(*cuda), device.value(), 2,
                                       kKernelSize, kSigma);
-  MYCV_EXPECT_TRUE(actual.ok());
+  EXPECT_TRUE(actual.ok());
   if (!actual.ok()) return;
-  MYCV_EXPECT_EQ(actual.value().levels.size(), reference.value().levels.size());
+  EXPECT_EQ(actual.value().levels.size(), reference.value().levels.size());
   bool equivalent = true;
   for (size_t i = 0; i < actual.value().levels.size() && equivalent; ++i) {
     auto back = CopyTo(*cpu, actual.value().levels[i]);
-    MYCV_EXPECT_TRUE(back.ok());
+    EXPECT_TRUE(back.ok());
     if (!back.ok()) return;
     equivalent = Near(reference.value().levels[i], back.value(), 1e-4);
   }
-  MYCV_EXPECT_TRUE(equivalent);
+  EXPECT_TRUE(equivalent);
 }
 #endif
 
-MYCV_TEST_MAIN()
+

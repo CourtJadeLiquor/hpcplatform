@@ -4,7 +4,7 @@
 
 #include "fourier_cpu.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 // Sequentially executes the row and column 1-D transforms of every (n, c)
@@ -19,4 +19,4 @@ Status FourierCpuNaive(const OpContext&, const Tensor& input,
 }
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform

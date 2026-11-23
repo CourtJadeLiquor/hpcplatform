@@ -1,21 +1,21 @@
-#ifndef MYCV_SRC_FRAMEWORK_DTYPE_DISPATCH_H_
-#define MYCV_SRC_FRAMEWORK_DTYPE_DISPATCH_H_
+#ifndef hpcplatform_SRC_FRAMEWORK_DTYPE_DISPATCH_H_
+#define hpcplatform_SRC_FRAMEWORK_DTYPE_DISPATCH_H_
 
-#include "mycv/core/dtype.h"
-#include "mycv/core/error.h"
+#include "hpcplatform/core/dtype.h"
+#include "hpcplatform/core/error.h"
 
 // Loop-vectorization hint for portable SIMD kernels, kept next to the image
 // dtype dispatch so image kernels get both with a single include. The guard
 // below avoids double definition; DispatchImageDType dispatches u8/f32/f64.
-#ifndef MYCV_CPU_IVDEP
+#ifndef hpcplatform_CPU_IVDEP
 #if defined(__GNUC__) && !defined(__clang__)
-#define MYCV_CPU_IVDEP _Pragma("GCC ivdep")
+#define hpcplatform_CPU_IVDEP _Pragma("GCC ivdep")
 #else
-#define MYCV_CPU_IVDEP
+#define hpcplatform_CPU_IVDEP
 #endif
 #endif
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 template <typename T>
@@ -42,6 +42,6 @@ Status DispatchImageDType(DataType dtype, Fn&& fn) {
 }
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_SRC_FRAMEWORK_DTYPE_DISPATCH_H_
+#endif  // hpcplatform_SRC_FRAMEWORK_DTYPE_DISPATCH_H_

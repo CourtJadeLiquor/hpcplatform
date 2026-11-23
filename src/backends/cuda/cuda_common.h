@@ -1,13 +1,13 @@
-#ifndef MYCV_SRC_BACKENDS_CUDA_CUDA_COMMON_H_
-#define MYCV_SRC_BACKENDS_CUDA_CUDA_COMMON_H_
+#ifndef hpcplatform_SRC_BACKENDS_CUDA_CUDA_COMMON_H_
+#define hpcplatform_SRC_BACKENDS_CUDA_CUDA_COMMON_H_
 
 #include <cuda_runtime_api.h>
 
 #include <string>
 
-#include "mycv/core/error.h"
+#include "hpcplatform/core/error.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 inline Status CudaStatus(cudaError_t error, const char* operation) {
   if (error == cudaSuccess) return Status::Ok();
@@ -17,6 +17,6 @@ inline Status CudaStatus(cudaError_t error, const char* operation) {
   return Status::Internal(message);
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_SRC_BACKENDS_CUDA_CUDA_COMMON_H_
+#endif  // hpcplatform_SRC_BACKENDS_CUDA_CUDA_COMMON_H_

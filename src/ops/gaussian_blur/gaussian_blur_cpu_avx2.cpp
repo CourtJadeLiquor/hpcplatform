@@ -4,7 +4,7 @@
 
 #include "gaussian_blur_cpu.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 namespace {
@@ -133,7 +133,7 @@ Status BlurAvx2Impl(const Tensor& input, const GaussianBlurParams& options,
         "GaussianBlur AVX2 level requires contiguous tensors");
   }
   ImageInfo info;
-  MYCV_RETURN_IF_ERROR(PrepareBlur(input, options, &info));
+  hpcplatform_RETURN_IF_ERROR(PrepareBlur(input, options, &info));
   if (!Avx2Applicable(info)) {
     return BlurNaiveImpl(input, options, output);
   }
@@ -185,4 +185,4 @@ Status GaussianBlurCpuAvx2(const OpContext&, const Tensor& input, const Tensor*,
 }
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform

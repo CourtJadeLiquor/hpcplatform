@@ -1,5 +1,5 @@
-#ifndef MYCV_CORE_TENSOR_H_
-#define MYCV_CORE_TENSOR_H_
+#ifndef hpcplatform_CORE_TENSOR_H_
+#define hpcplatform_CORE_TENSOR_H_
 
 #include <array>
 #include <cstddef>
@@ -8,13 +8,13 @@
 #include <string>
 #include <vector>
 
-#include "mycv/core/device.h"
-#include "mycv/core/dtype.h"
-#include "mycv/core/error.h"
-#include "mycv/core/memory.h"
-#include "mycv/core/shape.h"
+#include "hpcplatform/core/device.h"
+#include "hpcplatform/core/dtype.h"
+#include "hpcplatform/core/error.h"
+#include "hpcplatform/core/memory.h"
+#include "hpcplatform/core/shape.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 class Backend;
 class Context;
@@ -99,7 +99,7 @@ class Tensor {
   Result<Tensor> Reshape(const Shape& shape) const;
   // Deep copy: allocates a new Buffer on the backend, preserving metadata.
   Result<Tensor> Clone() const;
-  // Type conversion lives in ops: use mycv::Cast(OpContext, tensor, dtype) so
+  // Type conversion lives in ops: use hpcplatform::Cast(OpContext, tensor, dtype) so
   // the registered SIMD / OpenCV / CUDA kernels actually run.
 
   // Backend that allocated this tensor's buffer. Set only by the allocation
@@ -130,6 +130,6 @@ class Tensor {
   BackendType backend_ = BackendType::kNativeCpu;
 };
 
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_CORE_TENSOR_H_
+#endif  // hpcplatform_CORE_TENSOR_H_

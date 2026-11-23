@@ -2,42 +2,37 @@
 # §6.1). Everything is gated by the same compile-time switches as the root
 # project; optional-backend implementations live in this folder.
 
-target_sources(mycv PRIVATE
+target_sources(hpcplatform PRIVATE
   resize.cpp
   resize_cpu_naive.cpp)
 
-if(MYCV_ENABLE_OPENMP)
-  target_sources(mycv PRIVATE resize_cpu_omp.cpp)
+if(hpcplatform_ENABLE_OPENMP)
+  target_sources(hpcplatform PRIVATE resize_cpu_omp.cpp)
 endif()
 
-if(MYCV_ENABLE_TBB)
-  target_sources(mycv PRIVATE resize_cpu_tbb.cpp)
+if(hpcplatform_ENABLE_TBB)
+  target_sources(hpcplatform PRIVATE resize_cpu_tbb.cpp)
 endif()
 
-if(MYCV_WITH_OPENCV)
-  target_sources(mycv PRIVATE resize_opencv.cpp)
+if(hpcplatform_WITH_OPENCV)
+  target_sources(hpcplatform PRIVATE resize_opencv.cpp)
 endif()
 
-if(MYCV_WITH_CUDA)
-  target_sources(mycv PRIVATE resize_cuda.cu)
+if(hpcplatform_WITH_CUDA)
+  target_sources(hpcplatform PRIVATE resize_cuda.cu)
 endif()
 
-if(MYCV_WITH_YAML)
-  target_sources(mycv PRIVATE resize_operator.cpp)
+if(hpcplatform_WITH_YAML)
+  target_sources(hpcplatform PRIVATE resize_operator.cpp)
 endif()
 
-if(MYCV_BUILD_TESTS)
-  add_executable(test_resize tests/test_resize.cpp)
-  target_link_libraries(test_resize PRIVATE mycv)
-  target_include_directories(test_resize PRIVATE
-    ${CMAKE_SOURCE_DIR}/tests
-    ${CMAKE_SOURCE_DIR}/src)
-  add_test(NAME test_resize COMMAND test_resize)
+if(hpcplatform_BUILD_TESTS)
+  hpcplatform_add_test(test_resize tests/test_resize.cpp)
 endif()
 
-if(MYCV_BUILD_BENCHMARKS)
+if(hpcplatform_BUILD_BENCHMARKS)
   add_executable(resize_benchmark benchmark/resize_benchmark.cpp)
-  target_link_libraries(resize_benchmark PRIVATE mycv)
+  target_link_libraries(resize_benchmark PRIVATE hpcplatform)
   target_include_directories(resize_benchmark PRIVATE
     ${CMAKE_SOURCE_DIR}/tests
     ${CMAKE_SOURCE_DIR}/src)

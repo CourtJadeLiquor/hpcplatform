@@ -1,12 +1,12 @@
-#ifndef MYCV_CORE_DEVICE_H_
-#define MYCV_CORE_DEVICE_H_
+#ifndef hpcplatform_CORE_DEVICE_H_
+#define hpcplatform_CORE_DEVICE_H_
 
 #include <cstdint>
 #include <string>
 
-#include "mycv/core/error.h"
+#include "hpcplatform/core/error.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 // Backend type: implementation provider. Selection is explicit, with no runtime
 // detection or fallback.
@@ -93,6 +93,6 @@ struct Device {
   }
 };
 
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_CORE_DEVICE_H_
+#endif  // hpcplatform_CORE_DEVICE_H_

@@ -1,11 +1,11 @@
-#ifndef MYCV_SRC_BACKENDS_BACKEND_INTERNAL_H_
-#define MYCV_SRC_BACKENDS_BACKEND_INTERNAL_H_
+#ifndef hpcplatform_SRC_BACKENDS_BACKEND_INTERNAL_H_
+#define hpcplatform_SRC_BACKENDS_BACKEND_INTERNAL_H_
 
 #include <memory>
 
 #include "core/backend.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 // Backend-specific creators implemented in each backend folder. The public
 // entry point CreateBackend (declared in core/backend.h) dispatches to them.
@@ -18,6 +18,6 @@ Result<std::shared_ptr<Backend>> CreateNpuBackend(int device_index);
 Status CudaCopyBuffer(Buffer* dst, size_t dst_offset, const Buffer* src,
                       size_t src_offset, size_t bytes, Stream* stream);
 
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_SRC_BACKENDS_BACKEND_INTERNAL_H_
+#endif  // hpcplatform_SRC_BACKENDS_BACKEND_INTERNAL_H_

@@ -13,7 +13,7 @@
 //   Top level L_n = G_n
 // Reconstruction: G_i = L_i + upsample(G_{i+1}).
 
-#include "mycv/ops/laplacian_pyramid.h"
+#include "hpcplatform/ops/laplacian_pyramid.h"
 
 #include <cmath>
 #include <utility>
@@ -22,7 +22,7 @@
 #include "ops/common/op_common.h"
 #include "laplacian_pyramid_internal.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 // Register CPU naive (plus OpenMP/TBB when enabled in the build), CUDA, and
@@ -33,19 +33,19 @@ void RegisterLaplacianPyramidKernels() {
   const BackendType cpu = BackendType::kNativeCpu;
   RegisterKernel(OpKind::kLaplacianPyramid, cpu, CpuKernelLevel::kNaive,
                  &LaplacianPyramidHostStage);
-#ifdef MYCV_WITH_OPENMP
+#ifdef hpcplatform_WITH_OPENMP
   RegisterKernel(OpKind::kLaplacianPyramid, cpu, CpuKernelLevel::kOpenMP,
                  &LaplacianPyramidHostStage);
 #endif
-#ifdef MYCV_WITH_TBB
+#ifdef hpcplatform_WITH_TBB
   RegisterKernel(OpKind::kLaplacianPyramid, cpu, CpuKernelLevel::kTbb,
                  &LaplacianPyramidHostStage);
 #endif
-#ifdef MYCV_WITH_CUDA
+#ifdef hpcplatform_WITH_CUDA
   RegisterKernel(OpKind::kLaplacianPyramid, BackendType::kCUDA,
                  CpuKernelLevel::kNaive, &LaplacianPyramidCudaStage);
 #endif
-#ifdef MYCV_WITH_OPENCV
+#ifdef hpcplatform_WITH_OPENCV
   // OpenCV tensors reside in host memory, so the host composition (including
   // element-wise subtraction) also works for this backend.
   RegisterKernel(OpKind::kLaplacianPyramid, BackendType::kOpenCV,
@@ -72,7 +72,7 @@ Result<LaplacianPyramid> BuildLaplacianPyramid(const OpContext& context,
                                                const Tensor& input, int levels,
                                                int kernel_size, double sigma,
                                                ImageLayout layout) {
-  MYCV_RETURN_IF_ERROR(ops_internal::ValidateInvocation(context, input));
+  hpcplatform_RETURN_IF_ERROR(ops_internal::ValidateInvocation(context, input));
   if (levels < 1) {
     return Status::InvalidArgument("LaplacianPyramid levels must be >= 1");
   }
@@ -114,7 +114,7 @@ Result<LaplacianPyramid> BuildLaplacianPyramid(const OpContext& context,
     Tensor next;
     const ops_internal::LaplacianPyramidParams params{kernel_size, sigma,
                                                       layout, &next};
-    MYCV_RETURN_IF_ERROR(
+    hpcplatform_RETURN_IF_ERROR(
         kernel.value()(context, source, nullptr, &params, &laplacian.value()));
     if (!next.defined()) {
       return Status::Internal(
@@ -131,4 +131,4 @@ Result<LaplacianPyramid> BuildLaplacianPyramid(const OpContext& context,
   return pyramid;
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform

@@ -1,11 +1,11 @@
-#include "mycv/core/context.h"
+#include "hpcplatform/core/context.h"
 
 #include "core/backend.h"
 
 #include <string>
 #include <utility>
 
-namespace mycv {
+namespace hpcplatform {
 
 BackendType Context::backend_type() const {
   return backend_->type();
@@ -47,4 +47,4 @@ Result<Tensor> Context::Wrap(void* data, const Shape& shape, DataType dtype,
   return Tensor::Wrap(backend_, data, shape, dtype, kind, std::move(deleter));
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform

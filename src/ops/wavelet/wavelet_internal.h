@@ -1,5 +1,5 @@
-#ifndef MYCV_SRC_OPS_WAVELET_WAVELET_INTERNAL_H_
-#define MYCV_SRC_OPS_WAVELET_WAVELET_INTERNAL_H_
+#ifndef hpcplatform_SRC_OPS_WAVELET_WAVELET_INTERNAL_H_
+#define hpcplatform_SRC_OPS_WAVELET_WAVELET_INTERNAL_H_
 
 // Internal contract for the wavelet operator directory (docs/architecture.md §6.1).
 // The entry point performs all allocation; backends only read source planes and
@@ -21,11 +21,11 @@
 #include <vector>
 
 #include "framework/image_utils.h"
-#include "mycv/ops/image.h"
-#include "mycv/ops/op.h"
-#include "mycv/ops/wavelet.h"
+#include "hpcplatform/ops/image.h"
+#include "hpcplatform/ops/op.h"
+#include "hpcplatform/ops/wavelet.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 struct WaveletParams {
@@ -78,20 +78,20 @@ inline std::vector<double> WaveletHighPass(const std::vector<double>& low) {
 // serves as the byte-exact baseline for the other levels.
 Status WaveletCpuNaive(const OpContext& context, const Tensor& input,
                        const Tensor* other, const void* params, Tensor* output);
-#ifdef MYCV_WITH_OPENMP
+#ifdef hpcplatform_WITH_OPENMP
 // CPU OpenMP level: distributes only independent rows/columns across threads,
 // preserving the accumulation order.
 Status WaveletCpuOpenMP(const OpContext& context, const Tensor& input,
                         const Tensor* other, const void* params,
                         Tensor* output);
 #endif
-#ifdef MYCV_WITH_TBB
+#ifdef hpcplatform_WITH_TBB
 // CPU TBB level: uses the same skeleton, with oneTBB parallel_for scheduling
 // rows and columns.
 Status WaveletCpuTbb(const OpContext& context, const Tensor& input,
                      const Tensor* other, const void* params, Tensor* output);
 #endif
-#ifdef MYCV_WITH_CUDA
+#ifdef hpcplatform_WITH_CUDA
 // CUDA backend: one thread per output sample, with the entire pipeline executed
 // by device kernels.
 Status WaveletCuda(const OpContext& context, const Tensor& input,
@@ -104,6 +104,6 @@ Status WaveletCuda(const OpContext& context, const Tensor& input,
 void RegisterWaveletKernels();
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_SRC_OPS_WAVELET_WAVELET_INTERNAL_H_
+#endif  // hpcplatform_SRC_OPS_WAVELET_WAVELET_INTERNAL_H_

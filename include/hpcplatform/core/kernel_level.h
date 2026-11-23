@@ -1,12 +1,12 @@
-#ifndef MYCV_CORE_KERNEL_LEVEL_H_
-#define MYCV_CORE_KERNEL_LEVEL_H_
+#ifndef hpcplatform_CORE_KERNEL_LEVEL_H_
+#define hpcplatform_CORE_KERNEL_LEVEL_H_
 
 #include <cstdint>
 #include <string>
 
-#include "mycv/core/error.h"
+#include "hpcplatform/core/error.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 // Selects which CPU implementation of an op runs. This is an explicit,
 // compile-time-enabled knob (no auto-tuning, no CPU feature probing).
@@ -57,6 +57,6 @@ inline bool IsSimdKernelLevel(CpuKernelLevel level) {
          level == CpuKernelLevel::kSimdNeon;
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_CORE_KERNEL_LEVEL_H_
+#endif  // hpcplatform_CORE_KERNEL_LEVEL_H_

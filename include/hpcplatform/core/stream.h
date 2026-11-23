@@ -1,10 +1,10 @@
-#ifndef MYCV_CORE_STREAM_H_
-#define MYCV_CORE_STREAM_H_
+#ifndef hpcplatform_CORE_STREAM_H_
+#define hpcplatform_CORE_STREAM_H_
 
-#include "mycv/core/device.h"
-#include "mycv/core/error.h"
+#include "hpcplatform/core/device.h"
+#include "hpcplatform/core/error.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 // Execution stream abstraction. CPU backends are synchronous and report
 // synchronous() == true; CUDA/NPU backends wrap their native queues.
@@ -20,6 +20,6 @@ class Stream {
   virtual bool synchronous() const { return true; }
 };
 
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_CORE_STREAM_H_
+#endif  // hpcplatform_CORE_STREAM_H_

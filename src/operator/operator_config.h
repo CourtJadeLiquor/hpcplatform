@@ -1,5 +1,5 @@
-#ifndef MYCV_SRC_OPERATOR_OPERATOR_CONFIG_H_
-#define MYCV_SRC_OPERATOR_OPERATOR_CONFIG_H_
+#ifndef hpcplatform_SRC_OPERATOR_OPERATOR_CONFIG_H_
+#define hpcplatform_SRC_OPERATOR_OPERATOR_CONFIG_H_
 
 #include <map>
 #include <string>
@@ -7,7 +7,7 @@
 
 #include "framework/op_descriptor.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 // One named operator instance as written in the config. Environment fields are
 // kept as raw strings here; they are validated and resolved to typed values by
@@ -29,9 +29,9 @@ struct OperatorsConfig {
 // Parses a YAML document (already read into a string) into an OperatorsConfig.
 // Syntax errors, missing required fields, wrong types, or duplicate instance
 // names yield kInvalidArgument. Defined in yaml_parser.cpp (compiled only with
-// MYCV_WITH_YAML).
+// hpcplatform_WITH_YAML).
 Result<OperatorsConfig> ParseOperatorsConfig(const std::string& yaml_text);
 
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_SRC_OPERATOR_OPERATOR_CONFIG_H_
+#endif  // hpcplatform_SRC_OPERATOR_OPERATOR_CONFIG_H_

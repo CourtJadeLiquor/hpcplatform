@@ -1,6 +1,6 @@
 // Performance tests for resize: multiple timed iterations after warm-up, with
 // profiling/stats checks for timing aggregation and memory peak/leak statistics.
-#include "test_framework.h"
+#include "test_utils.h"
 
 #include <chrono>
 #include <cstdint>
@@ -8,11 +8,11 @@
 
 #include "framework/profiling.h"
 #include "framework/stats.h"
-#include "mycv/mycv.h"
+#include "hpcplatform/hpcplatform.h"
 
 namespace {
 
-using namespace mycv;
+using namespace hpcplatform;
 
 constexpr int64_t kInputHeight = 512;
 constexpr int64_t kInputWidth = 512;
@@ -27,7 +27,7 @@ OpContext CpuOpContext(Context& context) {
   return op_context;
 }
 
-MYCV_TEST(ResizePerformanceAndMemorySnapshot) {
+TEST(hpcplatform, ResizePerformanceAndMemorySnapshot) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
   auto input =
       context
@@ -42,19 +42,19 @@ MYCV_TEST(ResizePerformanceAndMemorySnapshot) {
 
   const OpContext op_context = CpuOpContext(*context);
   // Warm-up: exclude first allocation, page faults, and cold-cache effects from timing.
-  MYCV_EXPECT_OK(
+  hpcplatform_EXPECT_OK(
       Resize(op_context, input, kInputHeight / 2, kInputWidth / 2).status());
 
   const ops_internal::MemorySnapshot before =
       ops_internal::SnapshotMemory(*context);
   const auto start = std::chrono::steady_clock::now();
   {
-    MYCV_PROFILE_OP(OpKind::kResize, BackendType::kNativeCpu,
+    hpcplatform_PROFILE_OP(OpKind::kResize, BackendType::kNativeCpu,
                     CpuKernelLevel::kNaive);
     for (int i = 0; i < kIterations; ++i) {
       auto output =
           Resize(op_context, input, kInputHeight / 2, kInputWidth / 2);
-      MYCV_EXPECT_TRUE(output.ok());
+      EXPECT_TRUE(output.ok());
     }
   }
   const auto stop = std::chrono::steady_clock::now();
@@ -63,13 +63,13 @@ MYCV_TEST(ResizePerformanceAndMemorySnapshot) {
   const ops_internal::MemorySnapshot after =
       ops_internal::SnapshotMemory(*context);
 
-  MYCV_EXPECT_TRUE(elapsed_ms > 0.0);
-  MYCV_EXPECT_TRUE(after.host.peak_bytes >=
+  EXPECT_TRUE(elapsed_ms > 0.0);
+  EXPECT_TRUE(after.host.peak_bytes >=
                    before.host.allocated_bytes + kOutputBytes);
   // Outputs are released each iteration: active allocations and counts return to baseline; cached blocks are excluded.
-  MYCV_EXPECT_EQ(after.host.allocated_bytes, before.host.allocated_bytes);
-  MYCV_EXPECT_EQ(after.host.allocation_count, before.host.allocation_count);
-  MYCV_EXPECT_EQ(after.device.allocated_bytes, static_cast<size_t>(0));
+  EXPECT_EQ(after.host.allocated_bytes, before.host.allocated_bytes);
+  EXPECT_EQ(after.host.allocation_count, before.host.allocation_count);
+  EXPECT_EQ(after.device.allocated_bytes, static_cast<size_t>(0));
 
   std::cout << "  [ PERF ] resize " << kInputWidth << "x" << kInputHeight
             << " -> " << kInputWidth / 2 << "x" << kInputHeight / 2 << ": "
@@ -77,12 +77,12 @@ MYCV_TEST(ResizePerformanceAndMemorySnapshot) {
             << static_cast<double>(after.host.peak_bytes) / (1024.0 * 1024.0)
             << " MB\n";
 
-#if defined(MYCV_ENABLE_PROFILING) && MYCV_ENABLE_PROFILING
+#if defined(hpcplatform_ENABLE_PROFILING) && hpcplatform_ENABLE_PROFILING
   const profiling::ProfileEntry entry =
       profiling::ProfileReport(profiling::OpLabel(
           OpKind::kResize, BackendType::kNativeCpu, CpuKernelLevel::kNaive));
-  MYCV_EXPECT_EQ(entry.hit_count, static_cast<uint64_t>(1));
-  MYCV_EXPECT_TRUE(entry.total_nanoseconds > 0);
+  EXPECT_EQ(entry.hit_count, static_cast<uint64_t>(1));
+  EXPECT_TRUE(entry.total_nanoseconds > 0);
   std::cout << "  [ PROFILE ] resize/native_cpu/naive: "
             << static_cast<double>(entry.total_nanoseconds) / 1e6
             << " ms total\n";
@@ -91,4 +91,4 @@ MYCV_TEST(ResizePerformanceAndMemorySnapshot) {
 
 }  // namespace
 
-MYCV_TEST_MAIN()
+

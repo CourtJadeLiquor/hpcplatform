@@ -1,0 +1,17 @@
+{
+    // CodeLLDB does not auto-generate launch configs. The program/cwd below are
+    // resolved from the launch target selected in the CMake Tools status bar
+    // ("CMake: Set Launch/Debug Target"), then build it with CMake Tools.
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug CMake launch target",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${command:cmake.launchTargetPath}",
+            "args": [],
+            "cwd": "${command:cmake.launchTargetDirectory}",
+            "terminal": "integrated"
+        }
+    ]
+}

@@ -1,11 +1,11 @@
-#ifndef MYCV_SRC_BACKENDS_OPENCV_OPENCV_BACKEND_H_
-#define MYCV_SRC_BACKENDS_OPENCV_OPENCV_BACKEND_H_
+#ifndef hpcplatform_SRC_BACKENDS_OPENCV_OPENCV_BACKEND_H_
+#define hpcplatform_SRC_BACKENDS_OPENCV_OPENCV_BACKEND_H_
 
 #include "backends/cpu/cpu_stream.h"
 #include "backends/opencv/opencv_memory_manager.h"
 #include "core/backend.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 class OpenCvBackend final : public Backend {
  public:
@@ -39,6 +39,6 @@ class OpenCvBackend final : public Backend {
   CpuStream stream_;
 };
 
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_SRC_BACKENDS_OPENCV_OPENCV_BACKEND_H_
+#endif  // hpcplatform_SRC_BACKENDS_OPENCV_OPENCV_BACKEND_H_

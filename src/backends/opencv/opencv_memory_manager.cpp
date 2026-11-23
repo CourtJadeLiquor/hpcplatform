@@ -6,7 +6,7 @@
 
 #include <opencv2/core.hpp>
 
-namespace mycv {
+namespace hpcplatform {
 
 Result<std::shared_ptr<Buffer>> OpenCvMemoryManager::Allocate(
     size_t bytes, size_t alignment) {
@@ -79,4 +79,4 @@ MemoryStats OpenCvMemoryManager::Stats() const {
   return stats;
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform

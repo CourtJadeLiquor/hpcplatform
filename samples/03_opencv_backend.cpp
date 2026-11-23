@@ -3,10 +3,10 @@
 
 #include <opencv2/core.hpp>
 
-#include "mycv/mycv.h"
+#include "hpcplatform/hpcplatform.h"
 
 int main() {
-  using namespace mycv;
+  using namespace hpcplatform;
   auto context_result = Context::Create(BackendType::kOpenCV);
   if (!context_result.ok()) {
     std::cerr << context_result.status().ToString() << '\n';

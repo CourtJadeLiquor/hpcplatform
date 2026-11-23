@@ -1,12 +1,12 @@
-#ifndef MYCV_OPS_IMAGE_H_
-#define MYCV_OPS_IMAGE_H_
+#ifndef hpcplatform_OPS_IMAGE_H_
+#define hpcplatform_OPS_IMAGE_H_
 
 #include <cstdint>
 #include <string>
 
-#include "mycv/core/error.h"
+#include "hpcplatform/core/error.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 // Interpolation mode: nearest neighbor or bilinear.
 enum class InterpolationMode : uint8_t {
@@ -51,6 +51,6 @@ inline Result<ImageLayout> ImageLayoutFromName(const std::string& name) {
   return Status::InvalidArgument("unknown layout name: " + name);
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_OPS_IMAGE_H_
+#endif  // hpcplatform_OPS_IMAGE_H_

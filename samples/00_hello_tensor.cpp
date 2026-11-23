@@ -1,10 +1,10 @@
 // Minimal public API example demonstrating Tensor creation, filling, views, and printing.
 #include <iostream>
 
-#include "mycv/mycv.h"
+#include "hpcplatform/hpcplatform.h"
 
 int main() {
-  using namespace mycv;
+  using namespace hpcplatform;
 
   auto context_result = Context::Create(BackendType::kNativeCpu);
   if (!context_result.ok()) {
@@ -13,7 +13,7 @@ int main() {
     return 1;
   }
   auto context = context_result.value();
-  std::cout << "mycv " << MYCV_VERSION_STRING << " | " << context->Describe()
+  std::cout << "hpcplatform " << hpcplatform_VERSION_STRING << " | " << context->Describe()
             << "\n";
 
   auto tensor_result = context->AllocateTensor(Shape{2, 3}, DataType::kFloat32);

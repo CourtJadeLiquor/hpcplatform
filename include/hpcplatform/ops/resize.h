@@ -1,17 +1,17 @@
-#ifndef MYCV_OPS_RESIZE_H_
-#define MYCV_OPS_RESIZE_H_
+#ifndef hpcplatform_OPS_RESIZE_H_
+#define hpcplatform_OPS_RESIZE_H_
 
 #include <cstdint>
 #include <memory>
 #include <string>
 
-#include "mycv/core/error.h"
-#include "mycv/core/tensor.h"
-#include "mycv/ops/image.h"
-#include "mycv/ops/op.h"
-#include "mycv/operator.h"
+#include "hpcplatform/core/error.h"
+#include "hpcplatform/core/tensor.h"
+#include "hpcplatform/ops/image.h"
+#include "hpcplatform/ops/op.h"
+#include "hpcplatform/operator.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 // Resizes an image to output_height x output_width.
 //
@@ -40,7 +40,7 @@ class ResizeOperator : public Operator {
   OpKind kind() const override;
 
   // Resizes `input` with the bound parameters. Result is bit-identical to
-  // calling the free function mycv::Resize with the same arguments.
+  // calling the free function hpcplatform::Resize with the same arguments.
   Result<Tensor> Run(const Tensor& input) const;
 
  private:
@@ -51,6 +51,6 @@ class ResizeOperator : public Operator {
   const ImageLayout layout_;
 };
 
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_OPS_RESIZE_H_
+#endif  // hpcplatform_OPS_RESIZE_H_

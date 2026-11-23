@@ -1,20 +1,20 @@
 // Config-driven concrete operator + descriptor for wavelet_transform. Compiled
-// only when MYCV_WITH_YAML is on; the default build never references these
+// only when hpcplatform_WITH_YAML is on; the default build never references these
 // symbols.
 
-#include "mycv/ops/wavelet.h"
+#include "hpcplatform/ops/wavelet.h"
 
 #include <memory>
 #include <string>
 #include <utility>
 
 #include "framework/op_descriptor.h"
-#include "mycv/core/context.h"
-#include "mycv/core/kernel_level.h"
-#include "mycv/ops/image.h"
-#include "mycv/ops/op.h"
+#include "hpcplatform/core/context.h"
+#include "hpcplatform/core/kernel_level.h"
+#include "hpcplatform/ops/image.h"
+#include "hpcplatform/ops/op.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace {
 
 struct ParsedWaveletParams {
@@ -81,7 +81,7 @@ OpKind WaveletTransformOperator::kind() const {
 
 Result<WaveletBands> WaveletTransformOperator::Run(const Tensor& input) const {
   const OpContext ctx{context_.get(), /*stream=*/nullptr, cpu_level_};
-  return mycv::WaveletTransform(ctx, input, kind_, layout_);
+  return hpcplatform::WaveletTransform(ctx, input, kind_, layout_);
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform

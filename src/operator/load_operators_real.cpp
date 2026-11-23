@@ -1,4 +1,4 @@
-// Real implementation of LoadOperators, compiled only when MYCV_WITH_YAML is
+// Real implementation of LoadOperators, compiled only when hpcplatform_WITH_YAML is
 // on. The always-compiled stub in load_operators.cpp forwards to the two
 // entry points defined here (external linkage, matching the forward decls).
 //
@@ -25,13 +25,13 @@
 
 #include "framework/op_descriptor.h"
 #include "framework/op_registry.h"
-#include "mycv/core/context.h"
-#include "mycv/core/device.h"
-#include "mycv/core/error.h"
-#include "mycv/core/kernel_level.h"
-#include "mycv/operator.h"
+#include "hpcplatform/core/context.h"
+#include "hpcplatform/core/device.h"
+#include "hpcplatform/core/error.h"
+#include "hpcplatform/core/kernel_level.h"
+#include "hpcplatform/operator.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace {
 
 // Parses a non-negative integer from an env value (no exceptions).
@@ -42,7 +42,7 @@ Result<int> ParseDeviceIndex(const std::string& value) {
   if (end == value.c_str() || *end != '\0' || errno == ERANGE || parsed < 0 ||
       parsed > INT_MAX) {
     return Status::InvalidArgument(
-        "MYCV_DEVICE_INDEX must be a non-negative integer: " + value);
+        "hpcplatform_DEVICE_INDEX must be a non-negative integer: " + value);
   }
   return static_cast<int>(parsed);
 }
@@ -57,27 +57,27 @@ struct Env {
   std::shared_ptr<Context> context;
 };
 
-// Priority (high -> low): MYCV_BACKEND env var, caller-provided shared context,
+// Priority (high -> low): hpcplatform_BACKEND env var, caller-provided shared context,
 // per-entry config. An env-requested backend that cannot be created fails the
 // whole load (no fallback), per spec.
 Result<Env> ResolveTopLevelEnv(
     const std::shared_ptr<Context>* shared_context) {
   Env env;
 
-  const char* env_backend = std::getenv("MYCV_BACKEND");
+  const char* env_backend = std::getenv("hpcplatform_BACKEND");
   if (env_backend != nullptr && env_backend[0] != '\0') {
     auto backend = BackendTypeFromName(env_backend);
     if (!backend.ok()) return backend.status();
     env.backend = backend.value();
 
-    const char* env_level = std::getenv("MYCV_CPU_LEVEL");
+    const char* env_level = std::getenv("hpcplatform_CPU_LEVEL");
     if (env_level != nullptr && env_level[0] != '\0') {
       auto level = CpuKernelLevelFromName(env_level);
       if (!level.ok()) return level.status();
       env.cpu_level = level.value();
     }
 
-    const char* env_device = std::getenv("MYCV_DEVICE_INDEX");
+    const char* env_device = std::getenv("hpcplatform_DEVICE_INDEX");
     if (env_device != nullptr && env_device[0] != '\0') {
       auto device = ParseDeviceIndex(env_device);
       if (!device.ok()) return device.status();
@@ -126,7 +126,7 @@ Result<std::vector<ResolvedEntry>> ValidateAll(const OperatorsConfig& config,
     if (r.desc == nullptr) {
       return Status::InvalidArgument("unknown op: " + entry.op);
     }
-    MYCV_RETURN_IF_ERROR(r.desc->ValidateParams(entry.params));
+    hpcplatform_RETURN_IF_ERROR(r.desc->ValidateParams(entry.params));
 
     if (env.shared) {
       r.context = env.context;
@@ -198,4 +198,4 @@ Result<OperatorMap> LoadOperatorsFromFile(
   return LoadOperatorsFromText(buffer.str(), shared_context);
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform

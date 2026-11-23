@@ -1,5 +1,5 @@
-#ifndef MYCV_SRC_OPS_FOURIER_FOURIER_CPU_H_
-#define MYCV_SRC_OPS_FOURIER_FOURIER_CPU_H_
+#ifndef hpcplatform_SRC_OPS_FOURIER_FOURIER_CPU_H_
+#define hpcplatform_SRC_OPS_FOURIER_FOURIER_CPU_H_
 
 // Shared CPU skeleton for the fourier operator
 // (docs/architecture.md §6.1/§7.2). The 2-D transform is separable: each (n, c)
@@ -24,13 +24,13 @@
 #include <cstdint>
 #include <vector>
 
-#ifdef MYCV_WITH_TBB
+#ifdef hpcplatform_WITH_TBB
 #include <tbb/parallel_for.h>
 #endif
 
 #include "fourier_internal.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 // Execution policy: each translation unit selects one, keeping the shared plane
@@ -44,7 +44,7 @@ struct SequentialRunner {
   }
 };
 
-#ifdef MYCV_WITH_OPENMP
+#ifdef hpcplatform_WITH_OPENMP
 // OpenMP policy: distributes independent rows/columns across omp parallel for
 // with the default static scheduling.
 struct OpenMPRunner {
@@ -57,7 +57,7 @@ struct OpenMPRunner {
 };
 #endif
 
-#ifdef MYCV_WITH_TBB
+#ifdef hpcplatform_WITH_TBB
 // TBB policy: parallel_for automatically partitions work and balances load.
 struct TbbRunner {
   template <typename Fn>
@@ -313,6 +313,6 @@ inline Status FourierImpl(const Tensor& input, const Tensor* imag_input,
 }
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_SRC_OPS_FOURIER_FOURIER_CPU_H_
+#endif  // hpcplatform_SRC_OPS_FOURIER_FOURIER_CPU_H_

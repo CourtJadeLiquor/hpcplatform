@@ -1,13 +1,13 @@
 # Context::Copy：拷贝的是元素不是字节，怎么选路、何时同步
 
-> 相关代码：`src/core/copy.cpp`、`include/mycv/core/context.h`、`src/core/backend.h`
+> 相关代码：`src/core/copy.cpp`、`include/hpcplatform/core/context.h`、`src/core/backend.h`
 > 易混点：Copy 到底拷了什么、跨后端怎么决定谁来拷、拷完能不能立刻用。
 
 ---
 
 ## 1. Copy 拷贝的是【逻辑元素】，不是裸字节
 
-`Context::Copy(dst, src)` 的契约是：把 `src` 的**逻辑元素**搬到 `dst`（[context.h](../../include/mycv/core/context.h#L53-L55) 注释："Copies logical elements, including non-contiguous views"）。
+`Context::Copy(dst, src)` 的契约是：把 `src` 的**逻辑元素**搬到 `dst`（[context.h](../../include/hpcplatform/core/context.h#L53-L55) 注释："Copies logical elements, including non-contiguous views"）。
 
 这意味着：
 

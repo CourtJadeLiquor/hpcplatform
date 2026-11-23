@@ -4,7 +4,7 @@
 
 #include "backends/backend_internal.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 Result<std::shared_ptr<Backend>> CreateOpenCvBackend(int device_index) {
   std::shared_ptr<Backend> backend =
@@ -12,4 +12,4 @@ Result<std::shared_ptr<Backend>> CreateOpenCvBackend(int device_index) {
   return backend;
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform

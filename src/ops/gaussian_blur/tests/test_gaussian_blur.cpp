@@ -12,10 +12,10 @@
 
 #include "core/backend.h"
 #include "framework/image_utils.h"
-#include "mycv/mycv.h"
-#include "test_framework.h"
+#include "hpcplatform/hpcplatform.h"
+#include "test_utils.h"
 
-using namespace mycv;
+using namespace hpcplatform;
 using ops_internal::ImageByteOffset;
 using ops_internal::ImageInfo;
 using ops_internal::ParseImage;
@@ -61,7 +61,7 @@ std::shared_ptr<Context> GetCpuContext() {
 Result<Tensor> CopyTo(Context& destination, const Tensor& source) {
   auto output = destination.AllocateTensor(source.shape(), source.dtype());
   if (!output.ok()) return output.status();
-  MYCV_RETURN_IF_ERROR(destination.Copy(&output.value(), source));
+  hpcplatform_RETURN_IF_ERROR(destination.Copy(&output.value(), source));
   return output;
 }
 
@@ -149,22 +149,22 @@ ImageInfo InfoOf(const Tensor& tensor, ImageLayout layout) {
 
 }  // namespace
 
-MYCV_TEST(GaussianBlurRejectsBadKernelSize) {
+TEST(hpcplatform, GaussianBlurRejectsBadKernelSize) {
   auto op_context = MakeOpContext();
   if (op_context.context == nullptr) return;
   auto image = MakeImage<uint8_t>(1, 8, 8, 3, ImageLayout::kNHWC, 4);
-  MYCV_EXPECT_FALSE(GaussianBlur(op_context, image, 4, kSigma).ok());
-  MYCV_EXPECT_FALSE(GaussianBlur(op_context, image, 1, kSigma).ok());
-  MYCV_EXPECT_FALSE(GaussianBlur(op_context, image, -3, kSigma).ok());
-  MYCV_EXPECT_FALSE(GaussianBlur(op_context, image, 3, 0.0).ok());
-  MYCV_EXPECT_FALSE(GaussianBlur(op_context, image, 3, -1.0).ok());
-  MYCV_EXPECT_FALSE(GaussianBlur(op_context, image, 3,
+  EXPECT_FALSE(GaussianBlur(op_context, image, 4, kSigma).ok());
+  EXPECT_FALSE(GaussianBlur(op_context, image, 1, kSigma).ok());
+  EXPECT_FALSE(GaussianBlur(op_context, image, -3, kSigma).ok());
+  EXPECT_FALSE(GaussianBlur(op_context, image, 3, 0.0).ok());
+  EXPECT_FALSE(GaussianBlur(op_context, image, 3, -1.0).ok());
+  EXPECT_FALSE(GaussianBlur(op_context, image, 3,
                                  std::numeric_limits<double>::infinity())
                         .ok());
-  MYCV_EXPECT_FALSE(GaussianBlur(op_context, image, 3, std::nan("")).ok());
+  EXPECT_FALSE(GaussianBlur(op_context, image, 3, std::nan("")).ok());
 }
 
-MYCV_TEST(GaussianBlurRejectsUnsupportedDType) {
+TEST(hpcplatform, GaussianBlurRejectsUnsupportedDType) {
   auto op_context = MakeOpContext();
   if (op_context.context == nullptr) return;
   const Shape shape({4, 4, 3});
@@ -173,10 +173,10 @@ MYCV_TEST(GaussianBlurRejectsUnsupportedDType) {
   if (!f16.ok()) return;
   auto result = GaussianBlur(op_context, f16.value(), kKernelSize, kSigma,
                              ImageLayout::kNHWC);
-  MYCV_EXPECT_FALSE(result.ok());
+  EXPECT_FALSE(result.ok());
 }
 
-MYCV_TEST(GaussianBlurCpuLevelsAreBitExact) {
+TEST(hpcplatform, GaussianBlurCpuLevelsAreBitExact) {
   auto op_context = MakeOpContext();
   if (op_context.context == nullptr) return;
   const auto levels = AvailableLevels();
@@ -192,7 +192,7 @@ MYCV_TEST(GaussianBlurCpuLevelsAreBitExact) {
         MakeImage<float>(1, 9, 11, 4, Case.layout, Case.rank);
     auto reference = GaussianBlur(op_context, reference_tensor, kKernelSize,
                                   kSigma, Case.layout);
-    MYCV_EXPECT_TRUE(reference.ok());
+    EXPECT_TRUE(reference.ok());
     if (!reference.ok()) return;
     for (CpuKernelLevel level : levels) {
       if (level == CpuKernelLevel::kNaive) continue;
@@ -200,9 +200,9 @@ MYCV_TEST(GaussianBlurCpuLevelsAreBitExact) {
       level_context.cpu_level = level;
       auto result = GaussianBlur(level_context, reference_tensor, kKernelSize,
                                  kSigma, Case.layout);
-      MYCV_EXPECT_TRUE(result.ok());
+      EXPECT_TRUE(result.ok());
       if (!result.ok()) continue;
-      MYCV_EXPECT_TRUE(std::memcmp(reference.value().data(),
+      EXPECT_TRUE(std::memcmp(reference.value().data(),
                                    result.value().data(),
                                    reference.value().ByteSize()) == 0);
     }
@@ -212,7 +212,7 @@ MYCV_TEST(GaussianBlurCpuLevelsAreBitExact) {
       MakeImage<uint8_t>(1, 9, 11, 4, ImageLayout::kNHWC, 4);
   auto reference = GaussianBlur(op_context, reference_tensor, kKernelSize,
                                 kSigma, ImageLayout::kNHWC);
-  MYCV_EXPECT_TRUE(reference.ok());
+  EXPECT_TRUE(reference.ok());
   if (!reference.ok()) return;
   for (CpuKernelLevel level : levels) {
     if (level == CpuKernelLevel::kNaive) continue;
@@ -220,22 +220,22 @@ MYCV_TEST(GaussianBlurCpuLevelsAreBitExact) {
     level_context.cpu_level = level;
     auto result = GaussianBlur(level_context, reference_tensor, kKernelSize,
                                kSigma, ImageLayout::kNHWC);
-    MYCV_EXPECT_TRUE(result.ok());
+    EXPECT_TRUE(result.ok());
     if (!result.ok()) continue;
-    MYCV_EXPECT_TRUE(std::memcmp(reference.value().data(),
+    EXPECT_TRUE(std::memcmp(reference.value().data(),
                                  result.value().data(),
                                  reference.value().ByteSize()) == 0);
   }
 }
 
-MYCV_TEST(GaussianBlurLayoutsAgree) {
+TEST(hpcplatform, GaussianBlurLayoutsAgree) {
   auto op_context = MakeOpContext();
   if (op_context.context == nullptr) return;
   const int64_t n = 2, h = 6, w = 7, c = 3;
   auto reference = GaussianBlur(
       op_context, MakeImage<float>(n, h, w, c, ImageLayout::kNHWC, 4),
       kKernelSize, kSigma, ImageLayout::kNHWC);
-  MYCV_EXPECT_TRUE(reference.ok());
+  EXPECT_TRUE(reference.ok());
   if (!reference.ok()) return;
   const ImageInfo reference_info =
       InfoOf(reference.value(), ImageLayout::kNHWC);
@@ -246,7 +246,7 @@ MYCV_TEST(GaussianBlurLayoutsAgree) {
     auto result =
         GaussianBlur(op_context, MakeImage<float>(n, h, w, c, layout, rank),
                      kKernelSize, kSigma, layout);
-    MYCV_EXPECT_TRUE(result.ok());
+    EXPECT_TRUE(result.ok());
     if (!result.ok()) continue;
     const ImageInfo info = InfoOf(result.value(), layout);
     const int64_t images = rank == 4 ? n : 1;
@@ -262,29 +262,29 @@ MYCV_TEST(GaussianBlurLayoutsAgree) {
         }
       }
     }
-    MYCV_EXPECT_TRUE(all_equal);
+    EXPECT_TRUE(all_equal);
   }
 }
 
-MYCV_TEST(GaussianBlurConstantImageStaysConstant) {
+TEST(hpcplatform, GaussianBlurConstantImageStaysConstant) {
   auto op_context = MakeOpContext();
   if (op_context.context == nullptr) return;
   auto context = Context::Create(BackendType::kNativeCpu);
   const Shape shape({1, 5, 6, 3});
   auto image = context.value()->AllocateTensor(shape, DataType::kUInt8);
-  MYCV_EXPECT_TRUE(image.ok());
+  EXPECT_TRUE(image.ok());
   if (!image.ok()) return;
   std::memset(image.value().data(), 37, image.value().ByteSize());
   auto result = GaussianBlur(op_context, image.value(), kKernelSize, kSigma,
                              ImageLayout::kNHWC);
-  MYCV_EXPECT_TRUE(result.ok());
+  EXPECT_TRUE(result.ok());
   if (!result.ok()) return;
   const uint8_t* data = static_cast<const uint8_t*>(result.value().data());
   bool constant = true;
   for (int64_t i = 0; i < result.value().Numel() && constant; ++i) {
     constant = data[i] == 37;
   }
-  MYCV_EXPECT_TRUE(constant);
+  EXPECT_TRUE(constant);
 }
 
 namespace {
@@ -307,7 +307,7 @@ double Variance(const Tensor& tensor) {
 
 }  // namespace
 
-MYCV_TEST(GaussianBlurImpulseResponseMatchesSeparableKernel) {
+TEST(hpcplatform, GaussianBlurImpulseResponseMatchesSeparableKernel) {
   auto op_context = MakeOpContext();
   if (op_context.context == nullptr) return;
   constexpr int64_t kSize = 9;
@@ -317,7 +317,7 @@ MYCV_TEST(GaussianBlurImpulseResponseMatchesSeparableKernel) {
   if (!context) return;
   auto image =
       context->AllocateTensor(Shape{1, kSize, kSize, 1}, DataType::kFloat64);
-  MYCV_EXPECT_TRUE(image.ok());
+  EXPECT_TRUE(image.ok());
   if (!image.ok()) return;
   std::memset(image.value().data(), 0, image.value().ByteSize());
   auto* pixels = static_cast<double*>(image.value().data());
@@ -325,7 +325,7 @@ MYCV_TEST(GaussianBlurImpulseResponseMatchesSeparableKernel) {
 
   auto result = GaussianBlur(op_context, image.value(), kK, kSigmaTest,
                              ImageLayout::kNHWC);
-  MYCV_EXPECT_TRUE(result.ok());
+  EXPECT_TRUE(result.ok());
   if (!result.ok()) return;
 
   // Independent oracle: normalised 1-D kernel, response = k[i] * k[j].
@@ -352,17 +352,17 @@ MYCV_TEST(GaussianBlurImpulseResponseMatchesSeparableKernel) {
       matches = std::fabs(expected - output[y * kSize + x]) <= 1e-12;
     }
   }
-  MYCV_EXPECT_TRUE(matches);
-  MYCV_EXPECT_EQ(result.value().dtype(), DataType::kFloat64);
+  EXPECT_TRUE(matches);
+  EXPECT_EQ(result.value().dtype(), DataType::kFloat64);
 }
 
-MYCV_TEST(GaussianBlurRank2Float64ConstantStaysConstant) {
+TEST(hpcplatform, GaussianBlurRank2Float64ConstantStaysConstant) {
   auto op_context = MakeOpContext();
   if (op_context.context == nullptr) return;
   auto context = GetCpuContext();
   if (!context) return;
   auto image = context->AllocateTensor(Shape{7, 7}, DataType::kFloat64);
-  MYCV_EXPECT_TRUE(image.ok());
+  EXPECT_TRUE(image.ok());
   if (!image.ok()) return;
   auto* pixels = static_cast<double*>(image.value().data());
   for (int64_t i = 0; i < image.value().Numel(); ++i)
@@ -370,20 +370,20 @@ MYCV_TEST(GaussianBlurRank2Float64ConstantStaysConstant) {
 
   auto result =
       GaussianBlur(op_context, image.value(), 3, 1.0, ImageLayout::kNHWC);
-  MYCV_EXPECT_TRUE(result.ok());
+  EXPECT_TRUE(result.ok());
   if (!result.ok()) return;
   // Rank-2 HW keeps its shape and dtype.
-  MYCV_EXPECT_TRUE(result.value().shape() == Shape({7, 7}));
-  MYCV_EXPECT_EQ(result.value().dtype(), DataType::kFloat64);
+  EXPECT_TRUE(result.value().shape() == Shape({7, 7}));
+  EXPECT_EQ(result.value().dtype(), DataType::kFloat64);
   const double* output = static_cast<const double*>(result.value().data());
   bool constant = true;
   for (int64_t i = 0; i < result.value().Numel() && constant; ++i) {
     constant = std::fabs(output[i] - 0.5) <= 1e-12;
   }
-  MYCV_EXPECT_TRUE(constant);
+  EXPECT_TRUE(constant);
 }
 
-MYCV_TEST(GaussianBlurLargerSigmaReducesVariance) {
+TEST(hpcplatform, GaussianBlurLargerSigmaReducesVariance) {
   auto op_context = MakeOpContext();
   if (op_context.context == nullptr) return;
   auto context = GetCpuContext();
@@ -399,16 +399,16 @@ MYCV_TEST(GaussianBlurLargerSigmaReducesVariance) {
   const double original = Variance(image);
   auto mild = GaussianBlur(op_context, image, 3, 0.5, ImageLayout::kNHWC);
   auto strong = GaussianBlur(op_context, image, 9, 3.0, ImageLayout::kNHWC);
-  MYCV_EXPECT_TRUE(mild.ok());
-  MYCV_EXPECT_TRUE(strong.ok());
+  EXPECT_TRUE(mild.ok());
+  EXPECT_TRUE(strong.ok());
   if (!mild.ok() || !strong.ok()) return;
   const double mild_variance = Variance(mild.value());
   const double strong_variance = Variance(strong.value());
-  MYCV_EXPECT_TRUE(mild_variance < original);
-  MYCV_EXPECT_TRUE(strong_variance < mild_variance);
+  EXPECT_TRUE(mild_variance < original);
+  EXPECT_TRUE(strong_variance < mild_variance);
 }
 
-MYCV_TEST(GaussianBlurVectorizedLevelsRejectStridedInput) {
+TEST(hpcplatform, GaussianBlurVectorizedLevelsRejectStridedInput) {
   auto op_context = MakeOpContext();
   if (op_context.context == nullptr) return;
   auto context = GetCpuContext();
@@ -419,13 +419,13 @@ MYCV_TEST(GaussianBlurVectorizedLevelsRejectStridedInput) {
     base.Data<float>()[i] = static_cast<float>(i % 13);
   }
   auto strided = base.Slice(1, 1, 9);
-  MYCV_EXPECT_TRUE(strided.ok());
+  EXPECT_TRUE(strided.ok());
   if (!strided.ok()) return;
 
   // Scalar path handles views.
   auto naive =
       GaussianBlur(op_context, strided.value(), 3, 1.0, ImageLayout::kNHWC);
-  MYCV_EXPECT_TRUE(naive.ok());
+  EXPECT_TRUE(naive.ok());
 
   for (CpuKernelLevel level :
        {CpuKernelLevel::kSimdGeneric, CpuKernelLevel::kSimdAvx2}) {
@@ -434,11 +434,11 @@ MYCV_TEST(GaussianBlurVectorizedLevelsRejectStridedInput) {
     level_context.cpu_level = level;
     auto result = GaussianBlur(level_context, strided.value(), 3, 1.0,
                                ImageLayout::kNHWC);
-    MYCV_EXPECT_EQ(result.status().code(), StatusCode::kUnsupported);
+    EXPECT_EQ(result.status().code(), StatusCode::kUnsupported);
   }
 }
 
-#ifdef MYCV_WITH_CUDA
+#ifdef hpcplatform_WITH_CUDA
 namespace {
 
 std::shared_ptr<Context> GetCudaContext() {
@@ -455,7 +455,7 @@ std::shared_ptr<Context> GetCudaContext() {
 
 }  // namespace
 
-MYCV_TEST(GaussianBlurCudaMatchesCpu) {
+TEST(hpcplatform, GaussianBlurCudaMatchesCpu) {
   auto op_context = MakeOpContext();
   if (op_context.context == nullptr) return;
   auto cuda_context = GetCudaContext();
@@ -463,21 +463,21 @@ MYCV_TEST(GaussianBlurCudaMatchesCpu) {
   auto source_tensor = MakeImage<float>(1, 24, 32, 3, ImageLayout::kNHWC, 4);
   auto reference = GaussianBlur(op_context, source_tensor, kKernelSize, kSigma,
                                 ImageLayout::kNHWC);
-  MYCV_EXPECT_TRUE(reference.ok());
+  EXPECT_TRUE(reference.ok());
   if (!reference.ok()) return;
   OpContext cuda_op = op_context;
   cuda_op.context = cuda_context.get();
   auto cpu_context = GetCpuContext();
   if (!cpu_context) return;
   auto copied = CopyTo(*cuda_context, source_tensor);
-  MYCV_EXPECT_TRUE(copied.ok());
+  EXPECT_TRUE(copied.ok());
   if (!copied.ok()) return;
   auto result = GaussianBlur(cuda_op, copied.value(), kKernelSize, kSigma,
                              ImageLayout::kNHWC);
-  MYCV_EXPECT_TRUE(result.ok());
+  EXPECT_TRUE(result.ok());
   if (!result.ok()) return;
   auto back = CopyTo(*cpu_context, result.value());
-  MYCV_EXPECT_TRUE(back.ok());
+  EXPECT_TRUE(back.ok());
   if (!back.ok()) return;
   const ImageInfo info = InfoOf(reference.value(), ImageLayout::kNHWC);
   const ImageInfo result_info = InfoOf(back.value(), ImageLayout::kNHWC);
@@ -491,10 +491,10 @@ MYCV_TEST(GaussianBlurCudaMatchesCpu) {
       }
     }
   }
-  MYCV_EXPECT_TRUE(equivalent);
+  EXPECT_TRUE(equivalent);
 }
 
-MYCV_TEST(GaussianBlurCudaMatchesCpuU8) {
+TEST(hpcplatform, GaussianBlurCudaMatchesCpuU8) {
   auto op_context = MakeOpContext();
   if (op_context.context == nullptr) return;
   auto cuda_context = GetCudaContext();
@@ -504,19 +504,19 @@ MYCV_TEST(GaussianBlurCudaMatchesCpuU8) {
   auto source_tensor = MakeImage<uint8_t>(1, 17, 23, 3, ImageLayout::kNHWC, 4);
   auto reference = GaussianBlur(op_context, source_tensor, kKernelSize, kSigma,
                                 ImageLayout::kNHWC);
-  MYCV_EXPECT_TRUE(reference.ok());
+  EXPECT_TRUE(reference.ok());
   if (!reference.ok()) return;
   OpContext cuda_op = op_context;
   cuda_op.context = cuda_context.get();
   auto copied = CopyTo(*cuda_context, source_tensor);
-  MYCV_EXPECT_TRUE(copied.ok());
+  EXPECT_TRUE(copied.ok());
   if (!copied.ok()) return;
   auto result = GaussianBlur(cuda_op, copied.value(), kKernelSize, kSigma,
                              ImageLayout::kNHWC);
-  MYCV_EXPECT_TRUE(result.ok());
+  EXPECT_TRUE(result.ok());
   if (!result.ok()) return;
   auto back = CopyTo(*cpu_context, result.value());
-  MYCV_EXPECT_TRUE(back.ok());
+  EXPECT_TRUE(back.ok());
   if (!back.ok()) return;
   // u8 cross-backend: ±1 absolute (documented in README.md).
   bool within_one = true;
@@ -526,11 +526,11 @@ MYCV_TEST(GaussianBlurCudaMatchesCpuU8) {
                   static_cast<double>(reference.value().Data<uint8_t>()[i])) <=
         1.0;
   }
-  MYCV_EXPECT_TRUE(within_one);
+  EXPECT_TRUE(within_one);
 }
 #endif
 
-#ifdef MYCV_WITH_OPENCV
+#ifdef hpcplatform_WITH_OPENCV
 namespace {
 
 std::shared_ptr<Context> GetOpenCvContext() {
@@ -547,7 +547,7 @@ std::shared_ptr<Context> GetOpenCvContext() {
 
 }  // namespace
 
-MYCV_TEST(GaussianBlurOpenCvMatchesCpu) {
+TEST(hpcplatform, GaussianBlurOpenCvMatchesCpu) {
   auto op_context = MakeOpContext();
   if (op_context.context == nullptr) return;
   auto opencv_context = GetOpenCvContext();
@@ -555,21 +555,21 @@ MYCV_TEST(GaussianBlurOpenCvMatchesCpu) {
   auto source_tensor = MakeImage<uint8_t>(1, 24, 32, 3, ImageLayout::kNHWC, 4);
   auto reference = GaussianBlur(op_context, source_tensor, kKernelSize, kSigma,
                                 ImageLayout::kNHWC);
-  MYCV_EXPECT_TRUE(reference.ok());
+  EXPECT_TRUE(reference.ok());
   if (!reference.ok()) return;
   OpContext opencv_op = op_context;
   opencv_op.context = opencv_context.get();
   auto cpu_context = GetCpuContext();
   if (!cpu_context) return;
   auto copied = CopyTo(*opencv_context, source_tensor);
-  MYCV_EXPECT_TRUE(copied.ok());
+  EXPECT_TRUE(copied.ok());
   if (!copied.ok()) return;
   auto result = GaussianBlur(opencv_op, copied.value(), kKernelSize, kSigma,
                              ImageLayout::kNHWC);
-  MYCV_EXPECT_TRUE(result.ok());
+  EXPECT_TRUE(result.ok());
   if (!result.ok()) return;
   auto back = CopyTo(*cpu_context, result.value());
-  MYCV_EXPECT_TRUE(back.ok());
+  EXPECT_TRUE(back.ok());
   if (!back.ok()) return;
   const ImageInfo info = InfoOf(reference.value(), ImageLayout::kNHWC);
   const ImageInfo result_info = InfoOf(back.value(), ImageLayout::kNHWC);
@@ -584,10 +584,10 @@ MYCV_TEST(GaussianBlurOpenCvMatchesCpu) {
       }
     }
   }
-  MYCV_EXPECT_TRUE(equivalent);
+  EXPECT_TRUE(equivalent);
 }
 
-MYCV_TEST(GaussianBlurOpenCvMatchesCpuFloat) {
+TEST(hpcplatform, GaussianBlurOpenCvMatchesCpuFloat) {
   auto op_context = MakeOpContext();
   if (op_context.context == nullptr) return;
   auto opencv_context = GetOpenCvContext();
@@ -597,19 +597,19 @@ MYCV_TEST(GaussianBlurOpenCvMatchesCpuFloat) {
   auto source_tensor = MakeImage<float>(1, 17, 23, 3, ImageLayout::kNHWC, 4);
   auto reference = GaussianBlur(op_context, source_tensor, kKernelSize, kSigma,
                                 ImageLayout::kNHWC);
-  MYCV_EXPECT_TRUE(reference.ok());
+  EXPECT_TRUE(reference.ok());
   if (!reference.ok()) return;
   OpContext opencv_op = op_context;
   opencv_op.context = opencv_context.get();
   auto copied = CopyTo(*opencv_context, source_tensor);
-  MYCV_EXPECT_TRUE(copied.ok());
+  EXPECT_TRUE(copied.ok());
   if (!copied.ok()) return;
   auto result = GaussianBlur(opencv_op, copied.value(), kKernelSize, kSigma,
                              ImageLayout::kNHWC);
-  MYCV_EXPECT_TRUE(result.ok());
+  EXPECT_TRUE(result.ok());
   if (!result.ok()) return;
   auto back = CopyTo(*cpu_context, result.value());
-  MYCV_EXPECT_TRUE(back.ok());
+  EXPECT_TRUE(back.ok());
   if (!back.ok()) return;
   const ImageInfo info = InfoOf(reference.value(), ImageLayout::kNHWC);
   const ImageInfo result_info = InfoOf(back.value(), ImageLayout::kNHWC);
@@ -623,8 +623,8 @@ MYCV_TEST(GaussianBlurOpenCvMatchesCpuFloat) {
       }
     }
   }
-  MYCV_EXPECT_TRUE(equivalent);
+  EXPECT_TRUE(equivalent);
 }
 #endif
 
-MYCV_TEST_MAIN();
+

@@ -4,7 +4,7 @@
 
 #include "wavelet_cpu.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 // Sequentially executes row/column filter banks for every (n, c) plane.
@@ -17,4 +17,4 @@ Status WaveletCpuNaive(const OpContext&, const Tensor& input,
 }
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform

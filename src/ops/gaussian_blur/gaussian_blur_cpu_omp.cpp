@@ -4,7 +4,7 @@
 // then vertical), reducing per-pixel cost from O(K^2) to O(2K). This file only
 // connects the entry point to BlurOpenMPImpl in the shared skeleton; see that
 // function's comments for the parallel strategy.
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 // Entry point: validate/parse, then execute both blur passes. Parallelize over
@@ -19,4 +19,4 @@ Status GaussianBlurCpuOpenMP(const OpContext&, const Tensor& input,
 }
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform

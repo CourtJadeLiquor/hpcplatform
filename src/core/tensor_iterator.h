@@ -1,15 +1,15 @@
-#ifndef MYCV_CORE_TENSOR_ITERATOR_H_
-#define MYCV_CORE_TENSOR_ITERATOR_H_
+#ifndef hpcplatform_CORE_TENSOR_ITERATOR_H_
+#define hpcplatform_CORE_TENSOR_ITERATOR_H_
 
 #include <cstddef>
 #include <cstdint>
 
-#include "mycv/core/tensor.h"
+#include "hpcplatform/core/tensor.h"
 
 // Core-internal utility: walks the logical row-major elements of any strided
-// Tensor. Lives in src/core (not include/mycv) because it is an implementation
+// Tensor. Lives in src/core (not include/hpcplatform) because it is an implementation
 // detail of the copy path and future element-wise kernels, not public API.
-namespace mycv {
+namespace hpcplatform {
 
 // Iterates logical row-major elements of any strided Tensor. ByteOffset() is
 // relative to Tensor::data(), so it also works for sliced views.
@@ -51,6 +51,6 @@ class TensorIterator {
   int64_t linear_index_ = 0;
 };
 
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_CORE_TENSOR_ITERATOR_H_
+#endif  // hpcplatform_CORE_TENSOR_ITERATOR_H_

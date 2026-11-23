@@ -2,7 +2,7 @@
 // CopyTensorData and Context::Copy. This is library implementation (not a test
 // helper): Context::Copy and Tensor::Clone are its two callers.
 
-#include "mycv/core/context.h"
+#include "hpcplatform/core/context.h"
 
 #include <cstring>
 #include <string>
@@ -11,7 +11,7 @@
 #include "core/copy.h"
 #include "core/tensor_iterator.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 // host-to-host copy
 Status Backend::CopyBuffer(Buffer* dst, size_t dst_offset, const Buffer* src,
@@ -135,7 +135,7 @@ Status CopyTensorData(const Backend& backend, Tensor* dst, const Tensor& src,
     TensorIterator src_iterator(src);
     const size_t element_size = src.ElementSize();
     while (src_iterator.valid()) {
-      MYCV_RETURN_IF_ERROR(executor->CopyBuffer(
+      hpcplatform_RETURN_IF_ERROR(executor->CopyBuffer(
           dst->buffer().get(), dst->offset() + dst_iterator.ByteOffset(),
           src.buffer().get(), src.offset() + src_iterator.ByteOffset(),
           element_size, copy_stream));
@@ -150,4 +150,4 @@ Status Context::Copy(Tensor* dst, const Tensor& src, Stream* stream) {
   return CopyTensorData(*backend_, dst, src, stream);
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform

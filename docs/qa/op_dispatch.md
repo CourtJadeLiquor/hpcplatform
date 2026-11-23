@@ -1,7 +1,7 @@
 # 算子分发：我的算子到底跑的是哪个实现
 
 > 相关代码：`src/framework/op_registry.{h,cpp}`、`src/ops/common/op_common.h`、`src/ops/register_ops.cpp`
-> 这是全库最容易"以为跑了 A 其实跑了 B"的地方，也是 mycv 最在意的地方。
+> 这是全库最容易"以为跑了 A 其实跑了 B"的地方，也是 hpcplatform 最在意的地方。
 
 ---
 
@@ -71,7 +71,7 @@
 
 ## 4. 为什么不做"自动降级到 naive"
 
-这是 mycv 的核心立场（[架构设计](../architecture.md) §1"显式优先于隐式"），也是最常被挑战的设计：
+这是 hpcplatform 的核心立场（[架构设计](../architecture.md) §1"显式优先于隐式"），也是最常被挑战的设计：
 
 - 如果请求 AVX2 但没编，自动跑 naive——功能上"能用"，但你**以为在测 AVX2 的性能，实际测的是 naive**，实验结论作废。
 - 科研场景下，"静默换实现"比"报错"危险得多：报错你立刻知道，静默你可能发表了错误数字。
@@ -84,7 +84,7 @@
 内核表在第一次 `FindKernel` 时通过 `std::call_once` 填充（[op_registry.cpp](../../src/framework/op_registry.cpp#L35-L54)）。每个算子的 `Register*Kernels()` 里，每个版本都用 `#ifdef` 包住：
 
 ```cpp
-#ifdef MYCV_ARCH_AVX2
+#ifdef hpcplatform_ARCH_AVX2
 RegisterKernel(kAdd, kNativeCpu, kSimdAvx2, &AddCpuAvx2);
 #endif
 ```
@@ -95,7 +95,7 @@ RegisterKernel(kAdd, kNativeCpu, kSimdAvx2, &AddCpuAvx2);
 
 ## 6. 快速自检：我怎么知道实际跑了哪个
 
-- **编译期**：看构建时开了哪些宏（`build/CMakeCache.txt` 里的 `MYCV_WITH_OPENMP` / `MYCV_ENABLE_TBB` / `MYCV_ARCH_AVX2` 等）。
+- **编译期**：看构建时开了哪些宏（`build/CMakeCache.txt` 里的 `hpcplatform_WITH_OPENMP` / `hpcplatform_ENABLE_TBB` / `hpcplatform_ARCH_AVX2` 等）。
 - **运行期**：`Backend::SupportsKernelLevel(level)` 告诉你这个后端/构建能不能跑某 level（由编译宏 + 已注册内核共同决定，不虚报）。
 - **行为验证**：`tests/consistency/test_cpu_kernels.cpp` 拿 naive 当 oracle 逐位对拍其他版本——如果某版本结果与 naive 不一致（元素级应为 bit-exact），测试会红。
 

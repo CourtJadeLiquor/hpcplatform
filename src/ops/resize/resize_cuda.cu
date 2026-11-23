@@ -25,10 +25,10 @@
 #include <cstdint>
 
 #include "backends/cuda/cuda_device_utils.h"
-#include "mycv/ops/image.h"
+#include "hpcplatform/ops/image.h"
 #include "resize_internal.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 namespace {
 
@@ -153,4 +153,4 @@ Status ResizeCuda(const OpContext& context, const Tensor& input, const Tensor*,
 }
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform

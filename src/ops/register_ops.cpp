@@ -14,7 +14,7 @@
 
 #include "framework/op_registry.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 void RegisterResizeKernels();
@@ -36,4 +36,4 @@ void RegisterAllKernels() {
 }
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform

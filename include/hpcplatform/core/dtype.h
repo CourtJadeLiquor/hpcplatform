@@ -1,10 +1,10 @@
-#ifndef MYCV_CORE_DTYPE_H_
-#define MYCV_CORE_DTYPE_H_
+#ifndef hpcplatform_CORE_DTYPE_H_
+#define hpcplatform_CORE_DTYPE_H_
 
 #include <cstddef>
 #include <cstdint>
 
-namespace mycv {
+namespace hpcplatform {
 
 // Element types supported by the core. Backends may support only a subset;
 // availability is queried at op level.
@@ -27,6 +27,6 @@ const char* DTypeName(DataType dtype);
 // Returns true for floating-point types (f16/f32/f64).
 bool IsFloatingPoint(DataType dtype);
 
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_CORE_DTYPE_H_
+#endif  // hpcplatform_CORE_DTYPE_H_

@@ -1,8 +1,8 @@
-#include "mycv/core/shape.h"
+#include "hpcplatform/core/shape.h"
 
 #include <sstream>
 
-namespace mycv {
+namespace hpcplatform {
 
 std::string Shape::ToString() const {
   if (rank_ == 0) return "scalar";
@@ -14,4 +14,4 @@ std::string Shape::ToString() const {
   return oss.str();
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform

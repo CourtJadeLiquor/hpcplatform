@@ -52,7 +52,7 @@
 
 - 公共头与实现：`add` / `mul` / `cast` / `normalize` / `crop` / `transpose` / `warp_affine`。
 - `Context::backend()` 公共访问器：后端能力不再对调用者暴露。
-- 公共头 `include/mycv/backends/backend.h`：`Backend` 转为 core 内部契约。
+- 公共头 `include/hpcplatform/backends/backend.h`：`Backend` 转为 core 内部契约。
 
 **行为/兼容性变更**
 
@@ -67,7 +67,7 @@
 | `src/ops/image_utils.h`            | `src/framework/image_utils.h`       |
 | `src/ops/op_common.h`              | `src/ops/common/op_common.h`        |
 | `src/ops/cpu_resize.h`             | `src/ops/resize/resize_cpu.h`       |
-| `include/mycv/backends/backend.h`  | `src/core/backend.h`                |
+| `include/hpcplatform/backends/backend.h`  | `src/core/backend.h`                |
 | `src/backends/service.h`           | `src/core/backend.h`                |
 | `src/backends/backend_copy.cpp`    | `src/core/copy.cpp`                 |
 | `src/backends/backend_factory.cpp` | `src/backends/factory.cpp`          |
@@ -85,9 +85,9 @@
 
 ### 构建与测试
 
-- 可选后端仍由 `MYCV_WITH_CUDA`、`MYCV_WITH_OPENCV`、`MYCV_WITH_TBB`、`MYCV_WITH_OPENMP`、`MYCV_WITH_SIMD_GENERIC` 门控。
+- 可选后端由 `hpcplatform_WITH_CUDA`、`hpcplatform_WITH_OPENCV`、`hpcplatform_WITH_YAML` 以及 `hpcplatform_ENABLE_TBB`、`hpcplatform_ENABLE_OPENMP`、`hpcplatform_ENABLE_SIMD` 门控（均为默认 ON）。
 - AVX2 翻译单元使用独立 OBJECT 库，避免 `-mavx2` 影响整个静态库。
-- 测试基线：默认构建、全后端构建、ASan 构建三棵树全部通过。
+- 测试基线（历史）：默认 / 全后端 / ASan 三棵树。**已废弃**：现为单一全特性构建树（`build_debug` / `build_release`）+ GoogleTest + CTest，见 [`docs/qa/testing.md`](../qa/testing.md)。
 
 ***
 

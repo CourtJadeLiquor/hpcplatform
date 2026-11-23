@@ -1,10 +1,10 @@
-#ifndef MYCV_CORE_TIMING_H_
-#define MYCV_CORE_TIMING_H_
+#ifndef hpcplatform_CORE_TIMING_H_
+#define hpcplatform_CORE_TIMING_H_
 
 #include <chrono>
 #include <cstdint>
 
-namespace mycv {
+namespace hpcplatform {
 
 // Monotonic clock for wall-clock measurements. steady_clock is not affected by
 // system time adjustments (NTP, manual clock changes), so it is the right
@@ -65,6 +65,6 @@ class ScopedTimer {
   SteadyClock::time_point start_;
 };
 
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_CORE_TIMING_H_
+#endif  // hpcplatform_CORE_TIMING_H_

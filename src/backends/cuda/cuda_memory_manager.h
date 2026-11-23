@@ -1,5 +1,5 @@
-#ifndef MYCV_SRC_BACKENDS_CUDA_CUDA_MEMORY_MANAGER_H_
-#define MYCV_SRC_BACKENDS_CUDA_CUDA_MEMORY_MANAGER_H_
+#ifndef hpcplatform_SRC_BACKENDS_CUDA_CUDA_MEMORY_MANAGER_H_
+#define hpcplatform_SRC_BACKENDS_CUDA_CUDA_MEMORY_MANAGER_H_
 
 #include <atomic>
 #include <cstddef>
@@ -7,9 +7,9 @@
 #include <mutex>
 #include <vector>
 
-#include "mycv/core/memory.h"
+#include "hpcplatform/core/memory.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 struct CudaBlock {
   void* raw = nullptr;
@@ -49,6 +49,6 @@ class CudaMemoryManager final : public MemoryManager {
   std::shared_ptr<CudaAllocatorState> state_;
 };
 
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_SRC_BACKENDS_CUDA_CUDA_MEMORY_MANAGER_H_
+#endif  // hpcplatform_SRC_BACKENDS_CUDA_CUDA_MEMORY_MANAGER_H_

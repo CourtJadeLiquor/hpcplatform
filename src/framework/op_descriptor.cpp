@@ -8,7 +8,7 @@
 #include <string>
 #include <utility>
 
-namespace mycv {
+namespace hpcplatform {
 namespace {
 
 using DescriptorMap = std::map<std::string, std::unique_ptr<OpDescriptor>>;
@@ -21,11 +21,11 @@ DescriptorMap& MutableRegistry() {
 std::once_flag g_register_once;
 
 // Lazily registers every operator descriptor exactly once. The manifest call is
-// compiled out when MYCV_WITH_YAML is off so a default build never references
+// compiled out when hpcplatform_WITH_YAML is off so a default build never references
 // operator descriptors (keeping the link closed and the default build minimal).
 void EnsureRegistered() {
   std::call_once(g_register_once, []() {
-#ifdef MYCV_WITH_YAML
+#ifdef hpcplatform_WITH_YAML
     RegisterAllOpDescriptors();
 #endif
   });
@@ -91,4 +91,4 @@ Result<std::string> ParamGetString(const ParamMap& params,
   return it->second;
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform

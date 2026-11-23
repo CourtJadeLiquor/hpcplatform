@@ -5,7 +5,7 @@
 正向输出实部与虚部两个张量，逆向按 1/(H*W) 归一化后返回实部，保证
 “正向 → 逆向”是单位增益。
 
-- 公共头：[`include/mycv/ops/fourier.h`](../../../include/mycv/ops/fourier.h)
+- 公共头：[`include/hpcplatform/ops/fourier.h`](../../../include/hpcplatform/ops/fourier.h)
 - 入口与注册：[`fourier.cpp`](fourier.cpp)
 - 共享 CPU 骨架：[`fourier_cpu.h`](fourier_cpu.h)
 - 测试：[`tests/test_fourier.cpp`](tests/test_fourier.cpp)
@@ -176,13 +176,13 @@ CUDA 在 H 或 W 不是 2 的幂时还要一对乒乓缓冲，即 32*H*W 字节�
 ## 6. 接口与示例
 
 ```cpp
-#include "mycv/mycv.h"
+#include "hpcplatform/hpcplatform.h"
 
-mycv::OpContext ctx;              // context / stream / cpu_level
-auto spectrum = mycv::FourierTransform(ctx, image);   // ComplexImage{real, imag}
+hpcplatform::OpContext ctx;              // context / stream / cpu_level
+auto spectrum = hpcplatform::FourierTransform(ctx, image);   // ComplexImage{real, imag}
 auto magnitude = /* sqrt(real^2 + imag^2) 由调用方决定 */;
 
-auto restored = mycv::InverseFourierTransform(ctx, spectrum.value().real,
+auto restored = hpcplatform::InverseFourierTransform(ctx, spectrum.value().real,
                                               spectrum.value().imag);
 // restored 与 image 在 1e-5（f32）/ 1e-9（f64）内一致
 ```
@@ -209,14 +209,12 @@ real/imag 的 shape、dtype、backend、device 完全一致。
 | `FourierCudaMatchesCpu` | radix-2（16×12）、非 2 的幂（9×7）、NCHW（8×10×2）三种尺寸与 CPU 频谱对拍，`1e-4` |
 | `FourierCudaRoundTripIsIdentity` | CUDA 上正向 + 逆向往返回到原图（`1e-4`） |
 
-CUDA 用例在 `MYCV_WITH_CUDA` 且设备可用时执行；设备不可用时打印 SKIP 而不是失败。
+CUDA 用例在 `hpcplatform_WITH_CUDA` 且设备可用时执行；设备不可用时打印 SKIP 而不是失败。
 
-三棵构建树的验收结果：
+全特性构建树（`build_debug`，GoogleTest + CTest）：
 
-```
-build-default        11/11
-build-release-full   13/13
-build-asan           12/12
+```bash
+ctest --test-dir build_debug -R test_fourier --output-on-failure   # 11/11
 ```
 
 ## 8. 基准

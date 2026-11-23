@@ -4,15 +4,15 @@
 // avoiding duplicate checks in each operator; AllocateOutput delegates output
 // allocation to Context, ensuring the same backend/device as the input.
 
-#ifndef MYCV_SRC_OPS_COMMON_OP_COMMON_H_
-#define MYCV_SRC_OPS_COMMON_OP_COMMON_H_
+#ifndef hpcplatform_SRC_OPS_COMMON_OP_COMMON_H_
+#define hpcplatform_SRC_OPS_COMMON_OP_COMMON_H_
 
 #include <string>
 
 #include "framework/op_registry.h"
-#include "mycv/core/context.h"
+#include "hpcplatform/core/context.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 // Validate an operator invocation and return the first failure:
@@ -53,6 +53,6 @@ inline Result<Tensor> AllocateOutput(const OpContext& context,
 }
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_SRC_OPS_COMMON_OP_COMMON_H_
+#endif  // hpcplatform_SRC_OPS_COMMON_OP_COMMON_H_

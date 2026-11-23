@@ -1,6 +1,6 @@
 // Tests for CUDA backend creation, capability queries, and H2D/D2H/D2D copy
 // paths, including fallback behavior when no GPU is available.
-#include "test_framework.h"
+#include "test_utils.h"
 
 #include <algorithm>
 #include <cmath>
@@ -12,11 +12,11 @@
 
 #include <cuda_runtime_api.h>
 
-#include "mycv/mycv.h"
+#include "hpcplatform/hpcplatform.h"
 
 namespace {
 
-using namespace mycv;
+using namespace hpcplatform;
 
 std::shared_ptr<Context> GetCudaContext() {
   static auto result = Context::Create(BackendType::kCUDA);
@@ -40,32 +40,32 @@ OpContext Ops(Context& context, CpuKernelLevel level = CpuKernelLevel::kNaive) {
 Result<Tensor> CopyTo(Context& destination, const Tensor& source) {
   auto output = destination.AllocateTensor(source.shape(), source.dtype());
   if (!output.ok()) return output.status();
-  MYCV_RETURN_IF_ERROR(destination.Copy(&output.value(), source));
+  hpcplatform_RETURN_IF_ERROR(destination.Copy(&output.value(), source));
   return output;
 }
 
 void ExpectEquivalent(const Tensor& expected, const Tensor& actual,
                       Context& native, double tolerance = 1e-4) {
-  MYCV_EXPECT_TRUE(actual.shape() == expected.shape());
-  MYCV_EXPECT_EQ(actual.dtype(), expected.dtype());
+  EXPECT_TRUE(actual.shape() == expected.shape());
+  EXPECT_EQ(actual.dtype(), expected.dtype());
   if (actual.shape() != expected.shape() || actual.dtype() != expected.dtype())
     return;
   auto host = CopyTo(native, actual);
-  MYCV_EXPECT_TRUE(host.ok());
+  EXPECT_TRUE(host.ok());
   if (!host.ok()) return;
   for (int64_t i = 0; i < expected.Numel(); ++i) {
     if (expected.dtype() == DataType::kFloat32) {
       const double lhs = expected.Data<float>()[i];
       const double rhs = host.value().Data<float>()[i];
-      MYCV_EXPECT_TRUE(std::fabs(lhs - rhs) <=
+      EXPECT_TRUE(std::fabs(lhs - rhs) <=
                        tolerance * std::max(1.0, std::fabs(lhs)));
     } else if (expected.dtype() == DataType::kFloat64) {
       const double lhs = expected.Data<double>()[i];
       const double rhs = host.value().Data<double>()[i];
-      MYCV_EXPECT_TRUE(std::fabs(lhs - rhs) <=
+      EXPECT_TRUE(std::fabs(lhs - rhs) <=
                        tolerance * std::max(1.0, std::fabs(lhs)));
     } else {
-      MYCV_EXPECT_EQ(std::memcmp(expected.data(), host.value().data(),
+      EXPECT_EQ(std::memcmp(expected.data(), host.value().data(),
                                  expected.ByteSize()),
                      0);
       return;
@@ -73,7 +73,7 @@ void ExpectEquivalent(const Tensor& expected, const Tensor& actual,
   }
 }
 
-MYCV_TEST(CudaCopyRoundTripAndMemoryLifetime) {
+TEST(hpcplatform, CudaCopyRoundTripAndMemoryLifetime) {
   auto cuda = GetCudaContext();
   if (!cuda) return;
   auto native = Context::Create(BackendType::kNativeCpu).value();
@@ -81,19 +81,19 @@ MYCV_TEST(CudaCopyRoundTripAndMemoryLifetime) {
   for (int i = 0; i < 35; ++i)
     input.Data<float>()[i] = static_cast<float>(i) * 0.5f;
   auto device = CopyTo(*cuda, input);
-  MYCV_EXPECT_TRUE(device.ok());
+  EXPECT_TRUE(device.ok());
   if (!device.ok()) return;
-  MYCV_EXPECT_EQ(device.value().buffer()->kind(), MemoryKind::kDevice);
-  MYCV_EXPECT_FALSE(cuda->stream().synchronous());
+  EXPECT_EQ(device.value().buffer()->kind(), MemoryKind::kDevice);
+  EXPECT_FALSE(cuda->stream().synchronous());
   auto output = CopyTo(*native, device.value());
-  MYCV_EXPECT_TRUE(output.ok());
+  EXPECT_TRUE(output.ok());
   if (output.ok()) {
-    MYCV_EXPECT_EQ(
+    EXPECT_EQ(
         std::memcmp(input.data(), output.value().data(), input.ByteSize()), 0);
   }
 }
 
-MYCV_TEST(CudaTensorCanOutliveItsContext) {
+TEST(hpcplatform, CudaTensorCanOutliveItsContext) {
   if (!GetCudaContext()) return;
   auto native = Context::Create(BackendType::kNativeCpu).value();
   auto input = native->AllocateTensor(Shape{8}, DataType::kFloat32).value();
@@ -102,23 +102,23 @@ MYCV_TEST(CudaTensorCanOutliveItsContext) {
   Tensor device;
   {
     auto local_result = Context::Create(BackendType::kCUDA);
-    MYCV_EXPECT_TRUE(local_result.ok());
+    EXPECT_TRUE(local_result.ok());
     if (!local_result.ok()) return;
     auto local = local_result.value();
     auto allocated = CopyTo(*local, input);
-    MYCV_EXPECT_TRUE(allocated.ok());
+    EXPECT_TRUE(allocated.ok());
     if (!allocated.ok()) return;
     device = allocated.value();
   }
   auto output = CopyTo(*native, device);
-  MYCV_EXPECT_TRUE(output.ok());
+  EXPECT_TRUE(output.ok());
   if (output.ok()) {
-    MYCV_EXPECT_EQ(
+    EXPECT_EQ(
         std::memcmp(input.data(), output.value().data(), input.ByteSize()), 0);
   }
 }
 
-MYCV_TEST(CudaCloneReusesTheOwningContext) {
+TEST(hpcplatform, CudaCloneReusesTheOwningContext) {
   auto cuda = GetCudaContext();
   if (!cuda) return;
   auto native = Context::Create(BackendType::kNativeCpu).value();
@@ -126,30 +126,30 @@ MYCV_TEST(CudaCloneReusesTheOwningContext) {
   for (int i = 0; i < 16; ++i)
     host.Data<float>()[i] = static_cast<float>(i);
   auto uploaded = CopyTo(*cuda, host);
-  MYCV_EXPECT_TRUE(uploaded.ok());
+  EXPECT_TRUE(uploaded.ok());
   if (!uploaded.ok()) return;
   Tensor device = uploaded.value();
 
   const size_t allocations_before = cuda->memory().Stats().allocation_count;
   auto clone = device.Clone();
-  MYCV_EXPECT_TRUE(clone.ok());
+  EXPECT_TRUE(clone.ok());
   if (!clone.ok()) return;
   // Clone must allocate from the tensor's own context, not a throwaway one.
-  MYCV_EXPECT_EQ(cuda->memory().Stats().allocation_count,
+  EXPECT_EQ(cuda->memory().Stats().allocation_count,
                  allocations_before + 1);
-  MYCV_EXPECT_EQ(clone.value().backend(), BackendType::kCUDA);
+  EXPECT_EQ(clone.value().backend(), BackendType::kCUDA);
 
   auto downloaded = CopyTo(*native, clone.value());
-  MYCV_EXPECT_TRUE(downloaded.ok());
+  EXPECT_TRUE(downloaded.ok());
   if (downloaded.ok()) {
     for (int i = 0; i < 16; ++i) {
-      MYCV_EXPECT_EQ(downloaded.value().Data<float>()[i],
+      EXPECT_EQ(downloaded.value().Data<float>()[i],
                      static_cast<float>(i));
     }
   }
 }
 
-MYCV_TEST(CudaRejectsNonContiguousDeviceCopy) {
+TEST(hpcplatform, CudaRejectsNonContiguousDeviceCopy) {
   auto cuda = GetCudaContext();
   if (!cuda) return;
   auto source = cuda->AllocateTensor(Shape{4, 4}, DataType::kFloat32).value();
@@ -157,11 +157,11 @@ MYCV_TEST(CudaRejectsNonContiguousDeviceCopy) {
       cuda->AllocateTensor(Shape{4, 2}, DataType::kFloat32).value();
 
   auto narrowed_result = source.Slice(1, 0, 2);
-  MYCV_EXPECT_TRUE(narrowed_result.ok());
+  EXPECT_TRUE(narrowed_result.ok());
   if (!narrowed_result.ok()) return;
   auto status = cuda->Copy(&destination, narrowed_result.value());
   // Explicit refusal beats a per-element synchronous GPU copy.
-  MYCV_EXPECT_EQ(status.code(), StatusCode::kUnsupported);
+  EXPECT_EQ(status.code(), StatusCode::kUnsupported);
 }
 
 // --- End-to-end pipeline: resize -> gaussian_blur. The point of this test is
@@ -221,7 +221,7 @@ double StageMeanRelative(const Tensor& actual_host,
                    : 0.0;
 }
 
-MYCV_TEST(CudaPipelineNeverTouchesHost) {
+TEST(hpcplatform, CudaPipelineNeverTouchesHost) {
   auto native = Context::Create(BackendType::kNativeCpu).value();
   auto cuda_result = Context::Create(BackendType::kCUDA);
   if (!cuda_result.ok()) {
@@ -248,76 +248,76 @@ MYCV_TEST(CudaPipelineNeverTouchesHost) {
 
   // Exactly one upload before the chain. Everything below must stay on device.
   auto uploaded = CopyTo(*cuda, input);
-  MYCV_EXPECT_TRUE(uploaded.ok());
+  EXPECT_TRUE(uploaded.ok());
   if (!uploaded.ok()) return;
 
   const size_t allocations_before = cuda->memory().Stats().allocation_count;
 
   std::vector<Tensor> device_stages;
   auto output = RunImageChain(Ops(*cuda), uploaded.value(), &device_stages);
-  MYCV_EXPECT_TRUE(output.ok());
+  EXPECT_TRUE(output.ok());
   if (!output.ok()) return;
 
   // Two operators -> two device allocations on this context. The blur's f64
   // intermediate also lands here but is released before the call returns, so
   // it does not show up in the steady-state count. Any hidden host staging
   // buffer (or an extra live device temporary) would fail the test.
-  MYCV_EXPECT_EQ(device_stages.size(), static_cast<size_t>(2));
-  MYCV_EXPECT_EQ(cuda->memory().Stats().allocation_count,
+  EXPECT_EQ(device_stages.size(), static_cast<size_t>(2));
+  EXPECT_EQ(cuda->memory().Stats().allocation_count,
                  allocations_before + 2);
 
   // Every intermediate is resident on the GPU.
   for (const Tensor& stage : device_stages) {
-    MYCV_EXPECT_EQ(stage.backend(), BackendType::kCUDA);
-    MYCV_EXPECT_EQ(stage.device().type, DeviceType::kGPU);
-    MYCV_EXPECT_EQ(stage.buffer()->kind(), MemoryKind::kDevice);
+    EXPECT_EQ(stage.backend(), BackendType::kCUDA);
+    EXPECT_EQ(stage.device().type, DeviceType::kGPU);
+    EXPECT_EQ(stage.buffer()->kind(), MemoryKind::kDevice);
   }
 
   // Correctness against the native CPU chain, after a single copy-back per
   // stage. Same tolerance as the pipeline benchmark.
   std::vector<Tensor> reference_stages;
   auto reference = RunImageChain(Ops(*native), input, &reference_stages);
-  MYCV_EXPECT_TRUE(reference.ok());
+  EXPECT_TRUE(reference.ok());
   if (!reference.ok()) return;
-  MYCV_EXPECT_EQ(reference_stages.size(), device_stages.size());
+  EXPECT_EQ(reference_stages.size(), device_stages.size());
 
   for (size_t i = 0; i < device_stages.size(); ++i) {
     auto downloaded = CopyTo(*native, device_stages[i]);
-    MYCV_EXPECT_TRUE(downloaded.ok());
+    EXPECT_TRUE(downloaded.ok());
     if (!downloaded.ok()) return;
-    MYCV_EXPECT_TRUE(
+    EXPECT_TRUE(
         StageMeanRelative(downloaded.value(), reference_stages[i]) <= 1e-3);
   }
 }
 
-MYCV_TEST(CudaMemoryStatsReturnToZeroWithCaching) {
+TEST(hpcplatform, CudaMemoryStatsReturnToZeroWithCaching) {
   auto cuda = GetCudaContext();
   if (!cuda) return;
   {
     auto first = cuda->AllocateTensor(Shape{64}, DataType::kFloat32).value();
     auto second = cuda->AllocateTensor(Shape{32}, DataType::kUInt8).value();
-    MYCV_EXPECT_EQ(cuda->memory().Stats().allocation_count,
+    EXPECT_EQ(cuda->memory().Stats().allocation_count,
                    static_cast<size_t>(2));
-    MYCV_EXPECT_EQ(cuda->memory().Stats().allocated_bytes,
+    EXPECT_EQ(cuda->memory().Stats().allocated_bytes,
                    first.ByteSize() + second.ByteSize());
   }
-  MYCV_EXPECT_EQ(cuda->memory().Stats().allocation_count,
+  EXPECT_EQ(cuda->memory().Stats().allocation_count,
                  static_cast<size_t>(0));
-  MYCV_EXPECT_EQ(cuda->memory().Stats().allocated_bytes,
+  EXPECT_EQ(cuda->memory().Stats().allocated_bytes,
                  static_cast<size_t>(0));
   auto reused = cuda->AllocateTensor(Shape{64}, DataType::kFloat32);
-  MYCV_EXPECT_TRUE(reused.ok());
+  EXPECT_TRUE(reused.ok());
 }
 
-MYCV_TEST(CudaRejectsCpuOptimizationLevel) {
+TEST(hpcplatform, CudaRejectsCpuOptimizationLevel) {
   auto cuda = GetCudaContext();
   if (!cuda) return;
   auto input = cuda->AllocateTensor(Shape{2, 2}, DataType::kFloat32).value();
   auto output = Resize(Ops(*cuda, CpuKernelLevel::kSimdAvx2), input, 2, 2);
-  MYCV_EXPECT_EQ(output.status().code(), StatusCode::kInvalidArgument);
+  EXPECT_EQ(output.status().code(), StatusCode::kInvalidArgument);
 }
 
-MYCV_TEST(CudaOperatorsMatchNativeCpu) {
+TEST(hpcplatform, CudaOperatorsMatchNativeCpu) {
   auto cuda = GetCudaContext();
   if (!cuda) return;
   auto native = Context::Create(BackendType::kNativeCpu).value();
@@ -330,18 +330,18 @@ MYCV_TEST(CudaOperatorsMatchNativeCpu) {
 
   auto reference_resize = Resize(Ops(*native), input, 3, 4).value();
   auto actual_resize = Resize(Ops(*cuda), device_input, 3, 4);
-  MYCV_EXPECT_TRUE(actual_resize.ok());
+  EXPECT_TRUE(actual_resize.ok());
   if (actual_resize.ok())
     ExpectEquivalent(reference_resize, actual_resize.value(), *native);
 
   auto reference_blur = GaussianBlur(Ops(*native), input, 3, 1.0).value();
   auto actual_blur = GaussianBlur(Ops(*cuda), device_input, 3, 1.0);
-  MYCV_EXPECT_TRUE(actual_blur.ok());
+  EXPECT_TRUE(actual_blur.ok());
   if (actual_blur.ok())
     ExpectEquivalent(reference_blur, actual_blur.value(), *native);
 }
 
-MYCV_TEST(CudaSupportsStridedInputsAndNchw) {
+TEST(hpcplatform, CudaSupportsStridedInputsAndNchw) {
   auto cuda = GetCudaContext();
   if (!cuda) return;
   auto native = Context::Create(BackendType::kNativeCpu).value();
@@ -353,7 +353,7 @@ MYCV_TEST(CudaSupportsStridedInputsAndNchw) {
   auto device_slice = device_base.Slice(1, 1, 4).value();
   auto expected = Resize(Ops(*native), slice, 2, 3).value();
   auto actual = Resize(Ops(*cuda), device_slice, 2, 3);
-  MYCV_EXPECT_TRUE(actual.ok());
+  EXPECT_TRUE(actual.ok());
   if (actual.ok()) ExpectEquivalent(expected, actual.value(), *native);
 
   auto nchw =
@@ -366,18 +366,18 @@ MYCV_TEST(CudaSupportsStridedInputsAndNchw) {
                              .value();
   auto actual_resize = Resize(Ops(*cuda), device_nchw, 4, 4,
                               InterpolationMode::kNearest, ImageLayout::kNCHW);
-  MYCV_EXPECT_TRUE(actual_resize.ok());
+  EXPECT_TRUE(actual_resize.ok());
   if (actual_resize.ok())
     ExpectEquivalent(expected_resize, actual_resize.value(), *native);
 }
 
-MYCV_TEST(CudaWrapAdoptsExternalDeviceMemory) {
+TEST(hpcplatform, CudaWrapAdoptsExternalDeviceMemory) {
   auto cuda = GetCudaContext();
   if (!cuda) return;
   auto native = Context::Create(BackendType::kNativeCpu).value();
 
   // Build reference data on the host, then upload to a device allocation that
-  // mycv did NOT make — stand-in for a pointer from another runtime
+  // hpcplatform did NOT make — stand-in for a pointer from another runtime
   // (cv::cuda::GpuMat, a raw cudaMalloc, an NPU buffer mapped to device, ...).
   constexpr int64_t kCount = 8;
   auto host = native->AllocateTensor(Shape{2, 4}, DataType::kFloat32).value();
@@ -386,14 +386,14 @@ MYCV_TEST(CudaWrapAdoptsExternalDeviceMemory) {
   }
 
   void* device_ptr = nullptr;
-  MYCV_EXPECT_EQ(cudaMalloc(&device_ptr, host.ByteSize()), cudaSuccess);
+  EXPECT_EQ(cudaMalloc(&device_ptr, host.ByteSize()), cudaSuccess);
   if (device_ptr == nullptr) return;
-  MYCV_EXPECT_EQ(cudaMemcpy(device_ptr, host.data(), host.ByteSize(),
+  EXPECT_EQ(cudaMemcpy(device_ptr, host.data(), host.ByteSize(),
                             cudaMemcpyHostToDevice),
                  cudaSuccess);
   // The external runtime produced this memory on the default stream; make it
-  // visible to mycv's non-blocking stream before the kernel reads it.
-  MYCV_EXPECT_EQ(cudaDeviceSynchronize(), cudaSuccess);
+  // visible to hpcplatform's non-blocking stream before the kernel reads it.
+  EXPECT_EQ(cudaDeviceSynchronize(), cudaSuccess);
 
   const size_t allocations_before = cuda->memory().Stats().allocation_count;
   auto freed = std::make_shared<int>(0);
@@ -404,7 +404,7 @@ MYCV_TEST(CudaWrapAdoptsExternalDeviceMemory) {
                                 cudaFree(p);
                                 ++(*freed);
                               });
-    MYCV_EXPECT_TRUE(wrapped.ok());
+    EXPECT_TRUE(wrapped.ok());
     if (!wrapped.ok()) {
       cudaFree(device_ptr);
       return;
@@ -412,32 +412,32 @@ MYCV_TEST(CudaWrapAdoptsExternalDeviceMemory) {
     const Tensor& t = wrapped.value();
     // Wrap aliases the external device pointer and records no manager
     // allocation — the whole point of zero-copy adoption.
-    MYCV_EXPECT_EQ(t.buffer()->kind(), MemoryKind::kDevice);
-    MYCV_EXPECT_EQ(t.data(), device_ptr);
-    MYCV_EXPECT_EQ(cuda->memory().Stats().allocation_count, allocations_before);
-    MYCV_EXPECT_EQ(*freed, 0);
+    EXPECT_EQ(t.buffer()->kind(), MemoryKind::kDevice);
+    EXPECT_EQ(t.data(), device_ptr);
+    EXPECT_EQ(cuda->memory().Stats().allocation_count, allocations_before);
+    EXPECT_EQ(*freed, 0);
 
     // Zero-copy device input: feed the adopted pointer straight into a GPU op.
     // Identity resize reads the borrowed device memory via the kernel.
     auto result = Resize(Ops(*cuda), t, 2, 4);
-    MYCV_EXPECT_TRUE(result.ok());
+    EXPECT_TRUE(result.ok());
     if (!result.ok()) return;
 
     auto downloaded = CopyTo(*native, result.value());
-    MYCV_EXPECT_TRUE(downloaded.ok());
+    EXPECT_TRUE(downloaded.ok());
     if (downloaded.ok()) {
       for (int64_t i = 0; i < kCount; ++i) {
-        MYCV_EXPECT_EQ(downloaded.value().Data<float>()[i],
+        EXPECT_EQ(downloaded.value().Data<float>()[i],
                        host.Data<float>()[i]);
       }
     }
   }
   // Last reference released -> the adopted cudaFree deleter ran exactly once,
   // and nothing the manager tracked leaked.
-  MYCV_EXPECT_EQ(*freed, 1);
-  MYCV_EXPECT_EQ(cuda->memory().Stats().allocation_count, allocations_before);
+  EXPECT_EQ(*freed, 1);
+  EXPECT_EQ(cuda->memory().Stats().allocation_count, allocations_before);
 }
 
 }  // namespace
 
-MYCV_TEST_MAIN()
+

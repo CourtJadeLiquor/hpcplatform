@@ -1,13 +1,13 @@
-#ifndef MYCV_SRC_FRAMEWORK_OP_REGISTRY_H_
-#define MYCV_SRC_FRAMEWORK_OP_REGISTRY_H_
+#ifndef hpcplatform_SRC_FRAMEWORK_OP_REGISTRY_H_
+#define hpcplatform_SRC_FRAMEWORK_OP_REGISTRY_H_
 
-#include "mycv/core/device.h"
-#include "mycv/core/error.h"
-#include "mycv/core/kernel_level.h"
-#include "mycv/core/tensor.h"
-#include "mycv/ops/op.h"
+#include "hpcplatform/core/device.h"
+#include "hpcplatform/core/error.h"
+#include "hpcplatform/core/kernel_level.h"
+#include "hpcplatform/core/tensor.h"
+#include "hpcplatform/ops/op.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 // Kernel function signature: other is for binary operators; params points to the
@@ -32,6 +32,6 @@ bool HasKernel(OpKind op, BackendType backend, CpuKernelLevel level);
 bool HasAnyKernel(BackendType backend, CpuKernelLevel level);
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_SRC_FRAMEWORK_OP_REGISTRY_H_
+#endif  // hpcplatform_SRC_FRAMEWORK_OP_REGISTRY_H_

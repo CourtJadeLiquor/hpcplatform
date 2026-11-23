@@ -1,74 +1,74 @@
 // Tests for backend factory selection, CPU backend capabilities
 // (dtype/copy/stream), and operator-context execution-level constraints.
-#include "test_framework.h"
+#include "test_utils.h"
 
 #include "core/backend.h"
-#include "mycv/core/context.h"
-#include "mycv/ops/op.h"
+#include "hpcplatform/core/context.h"
+#include "hpcplatform/ops/op.h"
 
 namespace {
 
-using namespace mycv;
+using namespace hpcplatform;
 
-MYCV_TEST(CpuBackendIsExplicitlySelected) {
+TEST(hpcplatform, CpuBackendIsExplicitlySelected) {
   auto backend = CreateBackend(BackendType::kNativeCpu, 0);
-  MYCV_EXPECT_TRUE(backend.ok());
-  MYCV_EXPECT_EQ(backend.value()->type(), BackendType::kNativeCpu);
-  MYCV_EXPECT_EQ(backend.value()->device().type, DeviceType::kCPU);
-  MYCV_EXPECT_TRUE(
+  EXPECT_TRUE(backend.ok());
+  EXPECT_EQ(backend.value()->type(), BackendType::kNativeCpu);
+  EXPECT_EQ(backend.value()->device().type, DeviceType::kCPU);
+  EXPECT_TRUE(
       backend.value()->SupportsKernelLevel(CpuKernelLevel::kNaive));
   if (backend.value()->SupportsKernelLevel(CpuKernelLevel::kSimdAvx2)) {
-    MYCV_EXPECT_TRUE(backend.value()->Describe().find("simd_avx2") !=
+    EXPECT_TRUE(backend.value()->Describe().find("simd_avx2") !=
                      std::string::npos);
   }
-  MYCV_EXPECT_TRUE(backend.value()->Describe().find("naive") !=
+  EXPECT_TRUE(backend.value()->Describe().find("naive") !=
                    std::string::npos);
 }
 
-MYCV_TEST(UnavailableBackendsFailWithoutFallback) {
+TEST(hpcplatform, UnavailableBackendsFailWithoutFallback) {
   const BackendType unavailable[] = {
-#ifndef MYCV_WITH_OPENCV
+#ifndef hpcplatform_WITH_OPENCV
       BackendType::kOpenCV,
 #endif
-#ifndef MYCV_WITH_CUDA
+#ifndef hpcplatform_WITH_CUDA
       BackendType::kCUDA,
 #endif
       BackendType::kNPU};
   for (BackendType type : unavailable) {
     auto backend = CreateBackend(type);
-    MYCV_EXPECT_FALSE(backend.ok());
-    MYCV_EXPECT_EQ(backend.status().code(), StatusCode::kUnsupported);
-    MYCV_EXPECT_TRUE(Context::Create(type).ok() == false);
+    EXPECT_FALSE(backend.ok());
+    EXPECT_EQ(backend.status().code(), StatusCode::kUnsupported);
+    EXPECT_TRUE(Context::Create(type).ok() == false);
   }
 }
 
-#ifdef MYCV_WITH_OPENCV
-MYCV_TEST(OpenCvBackendIsExplicitlySelected) {
+#ifdef hpcplatform_WITH_OPENCV
+TEST(hpcplatform, OpenCvBackendIsExplicitlySelected) {
   auto backend = CreateBackend(BackendType::kOpenCV, 0);
-  MYCV_EXPECT_TRUE(backend.ok());
-  MYCV_EXPECT_EQ(backend.value()->device().type, DeviceType::kCPU);
-  MYCV_EXPECT_TRUE(
+  EXPECT_TRUE(backend.ok());
+  EXPECT_EQ(backend.value()->device().type, DeviceType::kCPU);
+  EXPECT_TRUE(
       backend.value()->SupportsKernelLevel(CpuKernelLevel::kNaive));
-  MYCV_EXPECT_FALSE(
+  EXPECT_FALSE(
       backend.value()->SupportsKernelLevel(CpuKernelLevel::kOpenMP));
 }
 #endif
 
-MYCV_TEST(OpContextDefaultsToNaiveCpu) {
+TEST(hpcplatform, OpContextDefaultsToNaiveCpu) {
   const OpContext op_context;
-  MYCV_EXPECT_TRUE(op_context.context == nullptr);
-  MYCV_EXPECT_TRUE(op_context.stream == nullptr);
-  MYCV_EXPECT_EQ(op_context.cpu_level, CpuKernelLevel::kNaive);
-  MYCV_EXPECT_TRUE(IsSimdKernelLevel(CpuKernelLevel::kSimdGeneric));
-  MYCV_EXPECT_FALSE(IsSimdKernelLevel(CpuKernelLevel::kOpenMP));
+  EXPECT_TRUE(op_context.context == nullptr);
+  EXPECT_TRUE(op_context.stream == nullptr);
+  EXPECT_EQ(op_context.cpu_level, CpuKernelLevel::kNaive);
+  EXPECT_TRUE(IsSimdKernelLevel(CpuKernelLevel::kSimdGeneric));
+  EXPECT_FALSE(IsSimdKernelLevel(CpuKernelLevel::kOpenMP));
 }
 
-MYCV_TEST(CpuStreamIsSynchronous) {
+TEST(hpcplatform, CpuStreamIsSynchronous) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
-  MYCV_EXPECT_TRUE(context->stream().synchronous());
-  MYCV_EXPECT_OK(context->Synchronize());
+  EXPECT_TRUE(context->stream().synchronous());
+  hpcplatform_EXPECT_OK(context->Synchronize());
 }
 
 }  // namespace
 
-MYCV_TEST_MAIN()
+

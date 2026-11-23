@@ -1,5 +1,5 @@
-#ifndef MYCV_SRC_OPS_RESIZE_RESIZE_INTERNAL_H_
-#define MYCV_SRC_OPS_RESIZE_RESIZE_INTERNAL_H_
+#ifndef hpcplatform_SRC_OPS_RESIZE_RESIZE_INTERNAL_H_
+#define hpcplatform_SRC_OPS_RESIZE_RESIZE_INTERNAL_H_
 
 // Internal contract for the resize operator directory (docs/architecture.md §6.1):
 // declares the resize parameter struct, backend kernel entry points, and the
@@ -7,10 +7,10 @@
 // not exposed through the public API.
 
 #include "framework/image_utils.h"
-#include "mycv/ops/image.h"
-#include "mycv/ops/op.h"
+#include "hpcplatform/ops/image.h"
+#include "hpcplatform/ops/op.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 // All parameters for a resize invocation: target height/width, interpolation
@@ -29,22 +29,22 @@ struct ResizeParams {
 // bit-exact results for the same input.
 Status ResizeCpuNaive(const OpContext& context, const Tensor& input,
                       const Tensor* other, const void* params, Tensor* output);
-#ifdef MYCV_WITH_OPENMP
+#ifdef hpcplatform_WITH_OPENMP
 Status ResizeCpuOpenMP(const OpContext&, const Tensor&, const Tensor*,
                        const void*, Tensor*);
 #endif
-#ifdef MYCV_WITH_TBB
+#ifdef hpcplatform_WITH_TBB
 Status ResizeCpuTbb(const OpContext&, const Tensor&, const Tensor*, const void*,
                     Tensor*);
 #endif
 // Optional backend entry points: CUDA and OpenCV use the same signatures as
 // the CPU entries and accept only kNaive (see ValidateInvocation's restrictions
 // on non-CPU backends).
-#ifdef MYCV_WITH_CUDA
+#ifdef hpcplatform_WITH_CUDA
 Status ResizeCuda(const OpContext&, const Tensor&, const Tensor*, const void*,
                   Tensor*);
 #endif
-#ifdef MYCV_WITH_OPENCV
+#ifdef hpcplatform_WITH_OPENCV
 Status ResizeOpenCv(const OpContext&, const Tensor&, const Tensor*, const void*,
                     Tensor*);
 #endif
@@ -55,6 +55,6 @@ Status ResizeOpenCv(const OpContext&, const Tensor&, const Tensor*, const void*,
 void RegisterResizeKernels();
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_SRC_OPS_RESIZE_RESIZE_INTERNAL_H_
+#endif  // hpcplatform_SRC_OPS_RESIZE_RESIZE_INTERNAL_H_

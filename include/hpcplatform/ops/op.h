@@ -1,14 +1,14 @@
-#ifndef MYCV_OPS_OP_H_
-#define MYCV_OPS_OP_H_
+#ifndef hpcplatform_OPS_OP_H_
+#define hpcplatform_OPS_OP_H_
 
 #include <cstdint>
 #include <string>
 
-#include "mycv/core/context.h"
-#include "mycv/core/kernel_level.h"
-#include "mycv/core/stream.h"
+#include "hpcplatform/core/context.h"
+#include "hpcplatform/core/kernel_level.h"
+#include "hpcplatform/core/stream.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 // Execution descriptor for each operator call: owning Context, optional stream,
 // and CPU kernel level.
@@ -56,6 +56,6 @@ inline Result<OpKind> OpKindFromName(const std::string& name) {
   return Status::InvalidArgument("unknown operator name: " + name);
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_OPS_OP_H_
+#endif  // hpcplatform_OPS_OP_H_

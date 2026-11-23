@@ -1,5 +1,5 @@
-#ifndef MYCV_CORE_SHAPE_H_
-#define MYCV_CORE_SHAPE_H_
+#ifndef hpcplatform_CORE_SHAPE_H_
+#define hpcplatform_CORE_SHAPE_H_
 
 #include <array>
 #include <cstdint>
@@ -7,9 +7,9 @@
 #include <string>
 #include <vector>
 
-#include "mycv/core/error.h"
+#include "hpcplatform/core/error.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 // Fixed-capacity shape descriptor (no heap allocation in hot paths).
 // Precondition: no more than kMaxDims dimensions are passed to the constructor.
@@ -94,6 +94,6 @@ class Shape {
   int rank_ = 0;
 };
 
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_CORE_SHAPE_H_
+#endif  // hpcplatform_CORE_SHAPE_H_

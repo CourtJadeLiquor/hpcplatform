@@ -1,10 +1,10 @@
-#ifndef MYCV_CORE_ERROR_H_
-#define MYCV_CORE_ERROR_H_
+#ifndef hpcplatform_CORE_ERROR_H_
+#define hpcplatform_CORE_ERROR_H_
 
 #include <string>
 #include <utility>
 
-namespace mycv {
+namespace hpcplatform {
 
 // Error classification: tells callers whether to fix arguments, switch backends,
 // or add an implementation.
@@ -93,13 +93,13 @@ class Result {
   bool ok_ = false;
 };
 
-}  // namespace mycv
+}  // namespace hpcplatform
 
 // Propagates a failed Status out of a function returning Status or Result<T>.
-#define MYCV_RETURN_IF_ERROR(expr)             \
+#define hpcplatform_RETURN_IF_ERROR(expr)             \
   do {                                         \
-    ::mycv::Status mycv_status = (expr);       \
-    if (!mycv_status.ok()) return mycv_status; \
+    ::hpcplatform::Status hpcplatform_status = (expr);       \
+    if (!hpcplatform_status.ok()) return hpcplatform_status; \
   } while (0)
 
-#endif  // MYCV_CORE_ERROR_H_
+#endif  // hpcplatform_CORE_ERROR_H_

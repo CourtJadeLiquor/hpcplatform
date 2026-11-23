@@ -1,4 +1,4 @@
-#include "mycv/core/tensor.h"
+#include "hpcplatform/core/tensor.h"
 
 #include <limits>
 #include <sstream>
@@ -7,9 +7,9 @@
 
 #include "core/backend.h"
 #include "core/copy.h"
-#include "mycv/core/context.h"
+#include "hpcplatform/core/context.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace {
 
 Status CheckDefined(const Tensor& tensor) {
@@ -30,7 +30,7 @@ Result<Tensor> Tensor::Create(const std::shared_ptr<Backend>& backend,
   if (backend == nullptr) {
     return Status::InvalidArgument("tensor allocation requires a live backend");
   }
-  MYCV_RETURN_IF_ERROR(shape.Validate());
+  hpcplatform_RETURN_IF_ERROR(shape.Validate());
 
   const size_t element_size = DTypeSize(dtype);
   if (element_size == 0 || !backend->SupportsDType(dtype)) {
@@ -76,7 +76,7 @@ Result<Tensor> Tensor::Wrap(const std::shared_ptr<Backend>& backend, void* data,
   if (backend == nullptr) {
     return Status::InvalidArgument("tensor wrap requires a live backend");
   }
-  MYCV_RETURN_IF_ERROR(shape.Validate());
+  hpcplatform_RETURN_IF_ERROR(shape.Validate());
   if (data == nullptr) {
     return Status::InvalidArgument("Wrap requires non-null data");
   }
@@ -116,8 +116,8 @@ Result<Tensor> Tensor::Wrap(const std::shared_ptr<Backend>& backend, void* data,
 }
 
 Result<Tensor> Tensor::View(const Shape& shape) const {
-  MYCV_RETURN_IF_ERROR(CheckDefined(*this));
-  MYCV_RETURN_IF_ERROR(shape.Validate());
+  hpcplatform_RETURN_IF_ERROR(CheckDefined(*this));
+  hpcplatform_RETURN_IF_ERROR(shape.Validate());
   if (!IsContiguous()) {
     return Status::InvalidArgument("View requires a contiguous tensor");
   }
@@ -136,7 +136,7 @@ Result<Tensor> Tensor::View(const Shape& shape) const {
 }
 
 Result<Tensor> Tensor::Slice(int dim, int64_t begin, int64_t end) const {
-  MYCV_RETURN_IF_ERROR(CheckDefined(*this));
+  hpcplatform_RETURN_IF_ERROR(CheckDefined(*this));
   if (dim < 0 || dim >= shape_.Rank()) {
     return Status::InvalidArgument("Slice dimension out of range");
   }
@@ -154,7 +154,7 @@ Result<Tensor> Tensor::Slice(int dim, int64_t begin, int64_t end) const {
 }
 
 Result<Tensor> Tensor::Permute(const std::vector<int>& order) const {
-  MYCV_RETURN_IF_ERROR(CheckDefined(*this));
+  hpcplatform_RETURN_IF_ERROR(CheckDefined(*this));
   if (order.size() != static_cast<size_t>(shape_.Rank())) {
     return Status::InvalidArgument("Permute rank must match tensor rank");
   }
@@ -183,12 +183,12 @@ Result<Tensor> Tensor::Reshape(const Shape& shape) const {
 }
 
 Result<Tensor> Tensor::Clone() const {
-  MYCV_RETURN_IF_ERROR(CheckDefined(*this));
+  hpcplatform_RETURN_IF_ERROR(CheckDefined(*this));
   auto owner = ResolveOwningBackend(*this);
   if (!owner.ok()) return owner.status();
   auto result = Tensor::Create(owner.value(), shape_, dtype_);
   if (!result.ok()) return result.status();
-  MYCV_RETURN_IF_ERROR(
+  hpcplatform_RETURN_IF_ERROR(
       CopyTensorData(*owner.value(), &result.value(), *this, nullptr));
   return result;
 }
@@ -211,4 +211,4 @@ std::string Tensor::ToString() const {
   return oss.str();
 }
 
-}  // namespace mycv
+}  // namespace hpcplatform

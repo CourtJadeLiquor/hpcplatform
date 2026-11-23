@@ -1,12 +1,12 @@
-#ifndef MYCV_SRC_BACKENDS_OPENCV_OPENCV_MEMORY_MANAGER_H_
-#define MYCV_SRC_BACKENDS_OPENCV_OPENCV_MEMORY_MANAGER_H_
+#ifndef hpcplatform_SRC_BACKENDS_OPENCV_OPENCV_MEMORY_MANAGER_H_
+#define hpcplatform_SRC_BACKENDS_OPENCV_OPENCV_MEMORY_MANAGER_H_
 
 #include <atomic>
 #include <memory>
 
-#include "mycv/core/memory.h"
+#include "hpcplatform/core/memory.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 struct OpenCvAllocatorState {
   std::atomic<size_t> allocated_bytes{0};
@@ -31,6 +31,6 @@ class OpenCvMemoryManager final : public MemoryManager {
       std::make_shared<OpenCvAllocatorState>();
 };
 
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_SRC_BACKENDS_OPENCV_OPENCV_MEMORY_MANAGER_H_
+#endif  // hpcplatform_SRC_BACKENDS_OPENCV_OPENCV_MEMORY_MANAGER_H_

@@ -1,6 +1,6 @@
 #include "gaussian_blur_cpu.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 // Naive backend (baseline CPU level): a thin wrapper around BlurNaiveImpl in
@@ -16,4 +16,4 @@ Status GaussianBlurCpuNaive(const OpContext&, const Tensor& input,
 }
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform

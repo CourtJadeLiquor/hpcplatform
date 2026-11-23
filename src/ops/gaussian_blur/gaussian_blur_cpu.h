@@ -1,5 +1,5 @@
-#ifndef MYCV_SRC_OPS_GAUSSIAN_BLUR_GAUSSIAN_BLUR_CPU_H_
-#define MYCV_SRC_OPS_GAUSSIAN_BLUR_GAUSSIAN_BLUR_CPU_H_
+#ifndef hpcplatform_SRC_OPS_GAUSSIAN_BLUR_GAUSSIAN_BLUR_CPU_H_
+#define hpcplatform_SRC_OPS_GAUSSIAN_BLUR_GAUSSIAN_BLUR_CPU_H_
 
 // Shared CPU skeleton for gaussian_blur (two separable blur passes).
 //
@@ -18,14 +18,14 @@
 #include <cstdint>
 #include <vector>
 
-#ifdef MYCV_WITH_TBB
+#ifdef hpcplatform_WITH_TBB
 #include <tbb/parallel_for.h>
 #endif
 
 #include "framework/image_utils.h"
 #include "gaussian_blur_internal.h"
 
-namespace mycv {
+namespace hpcplatform {
 namespace ops_internal {
 
 // Store one pixel according to the output dtype: convert the double result to
@@ -157,7 +157,7 @@ inline Status PrepareBlur(const Tensor& input,
 inline Status BlurNaiveImpl(const Tensor& input,
                             const GaussianBlurParams& options, Tensor* output) {
   ImageInfo info;
-  MYCV_RETURN_IF_ERROR(PrepareBlur(input, options, &info));
+  hpcplatform_RETURN_IF_ERROR(PrepareBlur(input, options, &info));
   const std::vector<double> kernel =
       BuildGaussianKernel(options.kernel_size, options.sigma);
   const int radius = options.kernel_size / 2;
@@ -171,7 +171,7 @@ inline Status BlurNaiveImpl(const Tensor& input,
   return Status::Ok();
 }
 
-#ifdef MYCV_WITH_OPENMP
+#ifdef hpcplatform_WITH_OPENMP
 // OpenMP level: parallelize over flat pixel indices [0, Numel), with one
 // `#pragma omp parallel for` per pass. No schedule is specified, so the runtime
 // default applies (typically static). Each thread writes only its own tmp/output
@@ -182,7 +182,7 @@ inline Status BlurOpenMPImpl(const Tensor& input,
                              const GaussianBlurParams& options,
                              Tensor* output) {
   ImageInfo info;
-  MYCV_RETURN_IF_ERROR(PrepareBlur(input, options, &info));
+  hpcplatform_RETURN_IF_ERROR(PrepareBlur(input, options, &info));
   const std::vector<double> kernel =
       BuildGaussianKernel(options.kernel_size, options.sigma);
   const int radius = options.kernel_size / 2;
@@ -199,7 +199,7 @@ inline Status BlurOpenMPImpl(const Tensor& input,
 }
 #endif
 
-#ifdef MYCV_WITH_TBB
+#ifdef hpcplatform_WITH_TBB
 // TBB level: partition [0, Numel) with tbb::parallel_for (default
 // auto_partitioner; runtime-determined granularity), once per pass. The first
 // call completes before the second returns control, so the vertical pass reads
@@ -208,7 +208,7 @@ inline Status BlurOpenMPImpl(const Tensor& input,
 inline Status BlurTbbImpl(const Tensor& input,
                           const GaussianBlurParams& options, Tensor* output) {
   ImageInfo info;
-  MYCV_RETURN_IF_ERROR(PrepareBlur(input, options, &info));
+  hpcplatform_RETURN_IF_ERROR(PrepareBlur(input, options, &info));
   const std::vector<double> kernel =
       BuildGaussianKernel(options.kernel_size, options.sigma);
   const int radius = options.kernel_size / 2;
@@ -224,6 +224,6 @@ inline Status BlurTbbImpl(const Tensor& input,
 #endif
 
 }  // namespace ops_internal
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_SRC_OPS_GAUSSIAN_BLUR_GAUSSIAN_BLUR_CPU_H_
+#endif  // hpcplatform_SRC_OPS_GAUSSIAN_BLUR_GAUSSIAN_BLUR_CPU_H_

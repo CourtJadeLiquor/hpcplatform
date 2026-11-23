@@ -1,17 +1,17 @@
-#ifndef MYCV_FRAMEWORK_OP_DESCRIPTOR_H_
-#define MYCV_FRAMEWORK_OP_DESCRIPTOR_H_
+#ifndef hpcplatform_FRAMEWORK_OP_DESCRIPTOR_H_
+#define hpcplatform_FRAMEWORK_OP_DESCRIPTOR_H_
 
 #include <map>
 #include <memory>
 #include <string>
 
-#include "mycv/core/context.h"
-#include "mycv/core/error.h"
-#include "mycv/core/kernel_level.h"
-#include "mycv/ops/op.h"
-#include "mycv/operator.h"
+#include "hpcplatform/core/context.h"
+#include "hpcplatform/core/error.h"
+#include "hpcplatform/core/kernel_level.h"
+#include "hpcplatform/ops/op.h"
+#include "hpcplatform/operator.h"
 
-namespace mycv {
+namespace hpcplatform {
 
 // String-valued operator parameters parsed from a config. Scalars are carried
 // as strings and converted to typed values by each descriptor, keeping the
@@ -46,7 +46,7 @@ class OpDescriptor {
 // Required-value accessors shared by descriptors. A missing key or a value that
 // cannot be parsed to the target type yields kInvalidArgument. Implemented with
 // strtoll/strtod (no throwing converters) so the parsers stay exception-free
-// even though the library does not throw (see mycv/core/error.h).
+// even though the library does not throw (see hpcplatform/core/error.h).
 Result<int64_t> ParamGetInt64(const ParamMap& params, const std::string& key);
 Result<double> ParamGetDouble(const ParamMap& params, const std::string& key);
 Result<std::string> ParamGetString(const ParamMap& params, const std::string& key);
@@ -62,10 +62,10 @@ const OpDescriptor* FindOpDescriptor(const std::string& name);
 
 // Registers every operator descriptor compiled into this binary. Declared here,
 // defined in the operator module manifest (src/operator/register_descriptors.cpp).
-// Only referenced when MYCV_WITH_YAML is enabled, so builds without the feature
+// Only referenced when hpcplatform_WITH_YAML is enabled, so builds without the feature
 // never pull in operator descriptors.
 void RegisterAllOpDescriptors();
 
-}  // namespace mycv
+}  // namespace hpcplatform
 
-#endif  // MYCV_FRAMEWORK_OP_DESCRIPTOR_H_
+#endif  // hpcplatform_FRAMEWORK_OP_DESCRIPTOR_H_

@@ -7,7 +7,7 @@
 #include <string>
 
 #include "hpcplatform/core/error.h"
-#include "hpcplatform/operator.h"
+#include "hpcplatform/ops/operator.h"
 
 namespace {
 using namespace hpcplatform;

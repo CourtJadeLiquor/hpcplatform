@@ -29,7 +29,7 @@
 #include "hpcplatform/core/device.h"
 #include "hpcplatform/core/error.h"
 #include "hpcplatform/core/kernel_level.h"
-#include "hpcplatform/operator.h"
+#include "hpcplatform/ops/operator.h"
 
 namespace hpcplatform {
 namespace {

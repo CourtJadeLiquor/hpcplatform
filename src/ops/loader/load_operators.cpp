@@ -4,7 +4,7 @@
 // lives in load_operators_real.cpp and is only compiled with the feature on,
 // keeping this file free of a yaml-cpp dependency.
 
-#include "hpcplatform/operator.h"
+#include "hpcplatform/ops/operator.h"
 
 #include <memory>
 #include <string>

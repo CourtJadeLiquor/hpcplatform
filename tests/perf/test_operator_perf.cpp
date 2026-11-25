@@ -6,8 +6,8 @@
 #include <cstdint>
 #include <iostream>
 
-#include "framework/profiling.h"
-#include "framework/stats.h"
+#include "profiling.h"
+#include "stats.h"
 #include "hpcplatform/hpcplatform.h"
 
 namespace {

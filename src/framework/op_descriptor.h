@@ -9,7 +9,7 @@
 #include "hpcplatform/core/error.h"
 #include "hpcplatform/core/kernel_level.h"
 #include "hpcplatform/ops/op.h"
-#include "hpcplatform/operator.h"
+#include "hpcplatform/ops/operator.h"
 
 namespace hpcplatform {
 
@@ -61,7 +61,7 @@ void RegisterOpDescriptor(std::unique_ptr<OpDescriptor> descriptor);
 const OpDescriptor* FindOpDescriptor(const std::string& name);
 
 // Registers every operator descriptor compiled into this binary. Declared here,
-// defined in the operator module manifest (src/operator/register_descriptors.cpp).
+// defined in the operator module manifest (src/ops/loader/register_descriptors.cpp).
 // Only referenced when hpcplatform_WITH_YAML is enabled, so builds without the feature
 // never pull in operator descriptors.
 void RegisterAllOpDescriptors();

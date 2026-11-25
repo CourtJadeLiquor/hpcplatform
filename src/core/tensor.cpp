@@ -21,7 +21,7 @@ Status CheckDefined(const Tensor& tensor) {
 
 Result<Tensor> Tensor::Empty(Context& context, const Shape& shape,
                              DataType dtype, size_t alignment) {
-  return Create(context.backend_ptr(), shape, dtype, alignment);
+  return Create(context.backend_ref(), shape, dtype, alignment);
 }
 
 Result<Tensor> Tensor::Create(const std::shared_ptr<Backend>& backend,
@@ -74,7 +74,7 @@ Result<Tensor> Tensor::WrapExternal(Context& context, void* data,
                                     const Shape& shape, DataType dtype,
                                     MemoryKind kind,
                                     Buffer::Deleter deleter) {
-  const std::shared_ptr<Backend>& backend = context.backend_ptr();
+  const std::shared_ptr<Backend>& backend = context.backend_ref();
   if (backend == nullptr) {
     return Status::InvalidArgument("tensor wrap requires a live backend");
   }

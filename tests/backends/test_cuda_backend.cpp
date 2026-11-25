@@ -398,7 +398,7 @@ TEST(hpcplatform, CudaWrapAdoptsExternalDeviceMemory) {
   auto freed = std::make_shared<int>(0);
 
   {
-    auto wrapped = internal::TensorFactory::WrapExternal(*cuda, device_ptr, host.shape(), host.dtype(),
+    auto wrapped = Tensor::WrapExternal(*cuda, device_ptr, host.shape(), host.dtype(),
                               MemoryKind::kDevice, [freed](void* p, size_t) {
                                 cudaFree(p);
                                 ++(*freed);

@@ -9,7 +9,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_BUILD_TYPE Debug)
 
 project(hpcplatform
-  VERSION 0.2.0
+  VERSION 0.2.1
   DESCRIPTION "Cross-platform operator library for research (CPU/OpenCV/CUDA/NPU)"
   LANGUAGES CXX)
 
@@ -70,7 +70,7 @@ add_library(hpcplatform STATIC
   src/backends/npu/npu_backend.cpp
   src/framework/op_registry.cpp
   src/framework/op_descriptor.cpp
-  src/operator/load_operators.cpp
+  src/ops/loader/load_operators.cpp
   src/ops/register_ops.cpp
 )
 
@@ -156,13 +156,14 @@ endif()
 
 # --- YAML config-driven operator loader (optional) ------------------------
 # Pulls in yaml-cpp and the operator descriptors; the public LoadOperators API
-# is always declared and returns kUnsupported when this is off (see src/operator/).
+# is always declared and returns kUnsupported when this is off (see
+# src/ops/loader/).
 if(hpcplatform_WITH_YAML)
   find_package(yaml-cpp REQUIRED)
   target_sources(hpcplatform PRIVATE
-    src/operator/load_operators_real.cpp
-    src/operator/register_descriptors.cpp
-    src/operator/yaml_parser.cpp)
+    src/ops/loader/load_operators_real.cpp
+    src/ops/loader/register_descriptors.cpp
+    src/ops/loader/yaml_parser.cpp)
   # PUBLIC so consumers (tests, samples, anything linking the static hpcplatform and
   # calling LoadOperators) get yaml-cpp's include dirs and link line, matching
   # how the OpenCV backend is linked. Public headers do not change based on

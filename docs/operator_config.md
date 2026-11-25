@@ -108,7 +108,7 @@ operators:
 
 ## 5. 对象模型
 
-- `Operator`（`include/hpcplatform/operator.h`）是元数据基类，不含 `Run`（不假设输入输出元数）：
+- `Operator`（`include/hpcplatform/ops/operator.h`）是元数据基类，不含 `Run`（不假设输入输出元数）：
   - `name()` / `kind()` / `backend()` / `cpu_level()` / `context()`。
   - 持有 `std::shared_ptr<Context>`，可与其他对象共享。
 - 每个具体算子在自己的公共头追加派生类（如 `ResizeOperator`、`GaussianBlurOperator`），提供**强类型** `Run(...)`，内部调用已有的公共自由函数，因此 `Run` 的结果与直接调用**位精确一致**。

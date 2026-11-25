@@ -21,17 +21,18 @@
 
 ```
                  include/hpcplatform/**                ← 唯一公共 API 面（调用者只见这里）
-                  operator.h 等                 ← 含 Operator 基类与 LoadOperators
+                   hpcplatform.h / version.h          ← 顶层仅聚合伞形头与版本
+                   core/ ops/ interop/                ← 三模块：类型与执行原语 / 算子（含 operator.h 配置层）/ 第三方适配
                         ↑
-                   src/operator/                ← 配置驱动：YAML → Operator 对象（hpcplatform_WITH_YAML）
+                   src/ops/loader/                ← 配置驱动：YAML → Operator 对象（hpcplatform_WITH_YAML）
                         ↑                       ← 描述符注册表、环境解析、fail-fast 校验
-                  src/framework/                ← 注册表、图像工具、dtype 分发、剖析与统计
+                  src/framework/                ← 注册表、图像工具、dtype 分发
                    ↑         ↑
         src/backends/       src/ops/
         （能力服务）          （算子自治，每算子一个文件夹）
 ```
 
-`src/operator/`（`hpcplatform_WITH_YAML`）是位于 `ops`/`framework` 之上的更高一层：读取配置文件，经描述符注册表把每个条目构造为已绑定参数的 `Operator` 对象，交给业务层持有并自行编排执行。它不构建计算图，也不假设图像算法，只是把已有算子封装成可配置的对象工具。未启用 `hpcplatform_WITH_YAML` 时该层不编译，公共 `LoadOperators` 返回 `kUnsupported`。
+`src/ops/loader/`（`hpcplatform_WITH_YAML`）是位于 `ops`/`framework` 之上的更高一层：读取配置文件，经描述符注册表把每个条目构造为已绑定参数的 `Operator` 对象，交给业务层持有并自行编排执行。它不构建计算图，也不假设图像算法，只是把已有算子封装成可配置的对象工具。未启用 `hpcplatform_WITH_YAML` 时该层不编译，公共 `LoadOperators` 返回 `kUnsupported`。
 
 算子自己的后端实现文件（`*_cuda.cu`、`*_opencv.cpp`）位于算子文件夹内，按需引用对应后端的服务头。
 
@@ -50,11 +51,12 @@
 
 ```
 include/hpcplatform/
+  hpcplatform.h          # 伞形头（聚合全部公共 API）
+  version.h              # 版本宏
   core/                  # shape / dtype / error / device / memory / stream / tensor / context / transfer
   ops/                   # image.h / op.h / resize.h / gaussian_blur.h / laplacian_pyramid.h / fourier.h / wavelet.h
-  interop/opencv.h       # cv::Mat 与 Tensor 的数据适配器
-  operator.h             # 配置驱动 Operator 基类与 LoadOperators（公共 API）
-  hpcplatform.h                 # 伞形头
+    operator.h          # 配置驱动 Operator 基类与 LoadOperators（公共 API）
+  interop/               # conversion.h（TensorConvert trait）+ opencv.h（cv::Mat 适配）
 
 src/
   core/                  # 数据结构与内部契约
@@ -62,14 +64,12 @@ src/
     copy.cpp             # Backend::CopyBuffer / CopyTensorData / Copy / Upload / Download
     copy.h               # CopyTensorData / ResolveOwningBackend 声明
     tensor_iterator.h    # 内部 stride 逐元素遍历工具（非公共 API）
-  framework/             # 框架工具层
+  framework/             # 库内共享支撑层
     op_registry.{h,cpp}  # 三元组内核注册表
     op_descriptor.{h,cpp}# 算子对象描述符注册表（config name → 构造器）
     image_utils.h        # 图像布局解析与索引计算
     dtype_dispatch.h     # u8/f32/f64 分发
     compiler.h           # 编译器暗示宏
-    profiling.h          # 可选算子计时宏（默认零开销）
-    stats.h              # 按 MemoryKind 聚合的内存快照
   backends/              # 能力服务层，不含算子实现
     backend_internal.h   # 各后端创建函数与 CUDA 拷贝辅助
     factory.cpp          # CreateBackend
@@ -81,26 +81,26 @@ src/
     register_ops.cpp     # 唯一的算子注册清单
     CMakeLists.txt       # 每算子一行 add_subdirectory
     common/op_common.h   # ValidateInvocation / AllocateOutput
+    loader/              # 配置驱动算子对象层（hpcplatform_WITH_YAML）
+      operator_config.h     # 内部配置结构 OperatorInstanceConfig
+      yaml_parser.cpp       # YAML → OperatorsConfig
+      load_operators.cpp    # 常驻 stub：未启用时返回 kUnsupported
+      load_operators_real.cpp  # 真实实现（启用时编译）
+      register_descriptors.cpp # 描述符登记清单
     resize/              # 自治算子文件夹
     gaussian_blur/
     laplacian_pyramid/
     fourier/
     wavelet/
-  operator/              # 配置驱动算子对象层（hpcplatform_WITH_YAML）
-    operator_config.h     # 内部配置结构 OperatorInstanceConfig
-    yaml_parser.cpp       # YAML → OperatorsConfig
-    load_operators.cpp    # 常驻 stub：未启用时返回 kUnsupported
-    load_operators_real.cpp  # 真实实现（启用时编译）
-    register_descriptors.cpp # 描述符登记清单
 
 tests/
   test_utils.h           # GoogleTest 胶水层（Status 断言）；gtest_main 提供入口
   core/                  # shape / tensor / views / memory / backend / copy
   backends/              # CUDA / OpenCV 后端级测试
-  perf/                  # 算子性能评估（按目标开启 profiling）
+  perf/                  # 算子性能评估（profiling.h / stats.h 为其本地计时与统计工具）
   operator/              # 配置驱动算子对象测试（hpcplatform_WITH_YAML）
                          # 每个测试文件一个 GoogleTest 可执行，由 CTest 注册
-samples/                 # 公共 API 使用样例
+samples/                 # 公共 API 使用样例（计时直接用 <chrono>，库不提供计时工具）
   configs/operators.yaml # 配置驱动示例配置
 ```
 
@@ -115,7 +115,7 @@ samples/                 # 公共 API 使用样例
 - 用户日常入口是 `Tensor::Empty(context, shape, dtype)`：在 Context 所属后端分配新内存（深分配、拥有所有权）。分配是后端细节，公共 API 只暴露顶层工厂。
 - `TensorConvert<T>` 特化实现的外部转换是透明边界：`Tensor::From<T>(external, context)` 负责把数据落到 `context` 所在域（device Context 时内部完成 H2D），`Tensor::Into<T>(tensor)` 负责从张量所在域搬回（device 张量时内部完成 D2H；非连续设备张量先 `Clone`）。用户只描述算法，不需要手动 upload/download。
 - 外部数据转换统一走扩展点 `Tensor::From<T>` / `Tensor::Into<T>`，由 `TensorConvert<T>` 特化提供实现（如 OpenCV 的 `TensorConvert<cv::Mat>`）。core 不依赖任何具体第三方类型，依赖方向是"第三方类型 → TensorConvert 特化 → Tensor"，未注册类型运行时返回 `kUnsupported`。
-- `Tensor::Create(backend, ...)` 与 `internal::TensorFactory::WrapExternal(context, ...)` 是库内底层工厂（不进入公共 API）：前者接受内部 `Backend`，后者绑定外部内存（`deleter` 为空表示借用，非空表示接管）。
+- `Tensor::Create(backend, ...)` 是库内底层分配入口（private，仅 `Empty` 调用），接受内部 `Backend`。`Tensor::WrapExternal(context, ...)` 是公共静态工厂，绑定外部内存（`deleter` 为空表示借用，非空表示接管），跨运行时适配器与高级场景使用。
 
 `Slice` / `Reshape` / `Transpose` 等视图只改元数据，共享同一个 `Buffer`。
 
@@ -243,9 +243,9 @@ struct OpDescriptor {
 
 - **描述符注册表**回答"这个 `op` 名字对应哪个对象构造器"。
 - **内核注册表**回答"这个 `(OpKind, backend, level)` 有没有内核函数可用"。
-- `LoadOperators`（`src/operator/`）串起两者：先按名字找描述符做参数校验，再用 `FindKernel(desc->Kind(), backend, level)` 确认后端可用，全部通过后才 `Construct`。任一失败整体返回错误、不构造任何对象（fail-fast，不静默回退）。
+- `LoadOperators`（`src/ops/loader/`）串起两者：先按名字找描述符做参数校验，再用 `FindKernel(desc->Kind(), backend, level)` 确认后端可用，全部通过后才 `Construct`。任一失败整体返回错误、不构造任何对象（fail-fast，不静默回退）。
 
-描述符同样走**显式登记清单**（`src/operator/register_descriptors.cpp` 的 `RegisterAllOpDescriptors()`），与内核清单同因同果，不使用静态自注册。
+描述符同样走**显式登记清单**（`src/ops/loader/register_descriptors.cpp` 的 `RegisterAllOpDescriptors()`），与内核清单同因同果，不使用静态自注册。
 
 ***
 
@@ -259,9 +259,9 @@ struct OpDescriptor {
 
 ### 8.2 剖析与统计
 
-- `profiling.h`：`hpcplatform_PROFILE_SCOPE` / `hpcplatform_PROFILE_OP`，默认展开为空语句；只对需要剖析的目标定义 `hpcplatform_ENABLE_PROFILING=1`。
-- `stats.h`：`SnapshotMemory(Context&)` 按 `MemoryKind` 聚合活动字节、峰值与分配次数，用于峰值和泄漏检查。
-- 算子 `benchmark/` 直接使用 `std::chrono::steady_clock`，不强依赖剖析宏。
+- `tests/perf/profiling.h`：`hpcplatform_PROFILE_SCOPE` / `hpcplatform_PROFILE_OP`，默认展开为空语句；只对需要剖析的目标定义 `hpcplatform_ENABLE_PROFILING=1`。属于性能评估工具，不是库源码。
+- `tests/perf/stats.h`：`SnapshotMemory(Context&)` 按 `MemoryKind` 聚合活动字节、峰值与分配次数，用于峰值和泄漏检查。同上，仅 `tests/perf` 使用。
+- 算子 `benchmark/` 与 `samples/` 直接使用 `std::chrono::steady_clock`，不强依赖剖析宏；库本身不提供计时工具。
 - 性能评估用例见 `tests/perf/test_operator_perf.cpp`。
 
 ### 8.3 dtype 分发
@@ -301,7 +301,7 @@ struct OpDescriptor {
 1. 公共头 `include/hpcplatform/ops/<op>.h` 追加 `class <Op>Operator : public Operator`（持有强类型参数，`Run(...)` 调已有公共函数）。
 2. 算子文件夹新增 `<op>_operator.cpp`：实现 `<Op>Operator` + `<Op>Descriptor : public OpDescriptor`（`ValidateParams` 校验必填/类型，`Construct` 解析并构造对象）+ `Register<Op>Descriptor()`。
 3. 算子 `CMakeLists.txt` 在 `if(hpcplatform_WITH_YAML)` 下追加该 `.cpp`。
-4. `src/operator/register_descriptors.cpp` 的 `RegisterAllOpDescriptors()` 加一行 `Register<Op>Descriptor();`。
+4. `src/ops/loader/register_descriptors.cpp` 的 `RegisterAllOpDescriptors()` 加一行 `Register<Op>Descriptor();`。
 5. 在 `docs/operator_config.md` 登记该算子的参数表。
 
 core / framework / 其他算子均零改动；未启用 `hpcplatform_WITH_YAML` 时新文件不参与编译，不影响默认构建。
@@ -393,7 +393,7 @@ classDiagram
 
   class Context {
     -shared_ptr~Backend~ backend_
-    -backend_ptr() const
+    +backend_ref() const
     -memory() MemoryManager
     +Create(backend, deviceIndex) Result
     +backend_type() BackendType

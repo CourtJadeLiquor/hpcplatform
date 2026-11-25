@@ -64,7 +64,7 @@ Tensor ──weak_ptr────> Backend   (owner_)
 
 ## 4. `WrapExternal`：借用 vs 接管
 
-`internal::TensorFactory::WrapExternal(context, data, shape, dtype, kind, deleter)` 把外部内存包成 Tensor，**不分配不拷贝**，是跨运行时适配器（以及需要零拷贝接管 `cudaMalloc`/NPU 内存的高级场景）使用的底层工厂（[tensor_internal.h](../../src/core/tensor_internal.h)）。它不进入公共 API：普通用户的 `cv::Mat` 转换走 `Tensor::From<cv::Mat>`（`TensorConvert<cv::Mat>` 特化），该特化会把数据落到目标 Context 所在域（device Context 时包含 H2D），`Into` 则自动 D2H，两端都是深拷贝，不会隐式共享 Mat 存储。
+`Tensor::WrapExternal(context, data, shape, dtype, kind, deleter)` 把外部内存包成 Tensor，**不分配不拷贝**，是跨运行时适配器（以及需要零拷贝接管 `cudaMalloc`/NPU 内存的高级场景）使用的底层工厂（[tensor.h](../../include/hpcplatform/core/tensor.h#L132-L139)）。它是 Tensor 的公共静态方法：普通用户的 `cv::Mat` 转换走 `Tensor::From<cv::Mat>`（`TensorConvert<cv::Mat>` 特化），该特化会把数据落到目标 Context 所在域（device Context 时包含 H2D），`Into` 则自动 D2H，两端都是深拷贝，不会隐式共享 Mat 存储。
 
 释放语义完全由 deleter 决定：
 

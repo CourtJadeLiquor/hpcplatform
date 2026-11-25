@@ -12,7 +12,7 @@ void* dptr;
 cudaMalloc(&dptr, bytes);
 cudaMemcpy(dptr, host_ptr, bytes, cudaMemcpyHostToDevice);  // 默认流
 
-auto t = internal::TensorFactory::WrapExternal(
+auto t = Tensor::WrapExternal(
     *cuda_ctx, dptr, shape, dtype, MemoryKind::kDevice,
     [](void* p, size_t) { cudaFree(p); });
 auto out = Add(OpContext(*cuda_ctx), t, t);   // 读出来的是垃圾！
@@ -39,7 +39,7 @@ hpcplatform 的 CUDA 流创建时带 `cudaStreamNonBlocking` 标志（`src/backe
 
 库**不会**替你同步外部内存，因为它根本不知道外部数据是在哪条流上产生的（可能是默认流，可能是另一个库的流，可能是图形 API 的队列）。这是调用方的责任：
 
-> 把外部 device 内存交给 `TensorFactory::WrapExternal` / 算子之前，必须先确保它对 hpcplatform 的流可见。
+> 把外部 device 内存交给 `Tensor::WrapExternal` / 算子之前，必须先确保它对 hpcplatform 的流可见。
 
 ---
 
@@ -50,7 +50,8 @@ hpcplatform 的 CUDA 流创建时带 `cudaStreamNonBlocking` 标志（`src/backe
 ```cpp
 cudaMemcpy(dptr, host_ptr, bytes, cudaMemcpyHostToDevice);
 cudaDeviceSynchronize();          // 等所有流上的所有操作完成
-auto t = internal::TensorFactory::WrapExternal(*cuda_ctx, dptr, ...);
+auto t = Tensor::WrapExternal(*cuda_ctx, dptr, shape, dtype,
+    MemoryKind::kDevice, [](void* p, size_t) { cudaFree(p); });
 auto out = Add(OpContext(*cuda_ctx), t, t);   // 正确
 ```
 

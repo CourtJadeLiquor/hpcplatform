@@ -9,7 +9,7 @@
 #include "hpcplatform/core/tensor.h"
 #include "hpcplatform/ops/image.h"
 #include "hpcplatform/ops/op.h"
-#include "hpcplatform/operator.h"
+#include "hpcplatform/ops/operator.h"
 
 namespace hpcplatform {
 

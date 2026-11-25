@@ -53,7 +53,7 @@ TEST(hpcplatform, WrapBorrowsExternalHostMemoryWithoutAllocating) {
   // External storage from another runtime (here: a plain std::vector).
   std::vector<float> external = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f};
   auto wrapped =
-      internal::TensorFactory::WrapExternal(*context, external.data(), Shape{1, 5}, DataType::kFloat32);
+      Tensor::WrapExternal(*context, external.data(), Shape{1, 5}, DataType::kFloat32);
   EXPECT_TRUE(wrapped.ok());
   if (!wrapped.ok()) return;
   const Tensor& t = wrapped.value();
@@ -98,7 +98,7 @@ TEST(hpcplatform, WrapAdoptsMemoryAndRunsDeleterOnLastRelease) {
     pixels[i] = static_cast<float>(i);
 
   {
-    auto wrapped = internal::TensorFactory::WrapExternal(*context, raw, Shape{6}, DataType::kFloat32,
+    auto wrapped = Tensor::WrapExternal(*context, raw, Shape{6}, DataType::kFloat32,
                                  MemoryKind::kHost, [deleted](void* p, size_t) {
                                    std::free(p);
                                    ++(*deleted);
@@ -121,7 +121,7 @@ TEST(hpcplatform, WrapAdoptsMemoryAndRunsDeleterOnLastRelease) {
 
 TEST(hpcplatform, WrapRejectsNullData) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
-  auto r = internal::TensorFactory::WrapExternal(*context, nullptr, Shape{4}, DataType::kFloat32);
+  auto r = Tensor::WrapExternal(*context, nullptr, Shape{4}, DataType::kFloat32);
   EXPECT_FALSE(r.ok());
   EXPECT_EQ(r.status().code(), StatusCode::kInvalidArgument);
 }

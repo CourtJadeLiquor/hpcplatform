@@ -13,6 +13,7 @@
 //
 // Tip: set hpcplatform_BACKEND (e.g. "native_cpu" or, with a CUDA build, "cuda") to
 // override the backend for every loaded operator, ignoring the config backend.
+#include <chrono>
 #include <cstdint>
 #include <iostream>
 #include <string>
@@ -23,6 +24,40 @@
 namespace {
 
 constexpr int kIterations = 50;
+
+// Sample-local timing helpers built on <chrono>. The library deliberately
+// ships no timing utilities; application code should use its own clock.
+double NanosecondsToMilliseconds(int64_t nanoseconds) {
+  return static_cast<double>(nanoseconds) / 1.0e6;
+}
+
+double AverageMilliseconds(int64_t total_nanoseconds, int iterations) {
+  return NanosecondsToMilliseconds(total_nanoseconds) / iterations;
+}
+
+// RAII timer that adds its scope's duration to a caller-owned accumulator, so
+// per-operator timings can be summed across iterations without any allocation.
+class ScopedTimer {
+ public:
+  explicit ScopedTimer(int64_t* accumulator_nanoseconds)
+      : accumulator_(accumulator_nanoseconds),
+        start_(std::chrono::steady_clock::now()) {}
+
+  ScopedTimer(const ScopedTimer&) = delete;
+  ScopedTimer& operator=(const ScopedTimer&) = delete;
+
+  ~ScopedTimer() {
+    if (accumulator_ != nullptr) {
+      *accumulator_ += std::chrono::duration_cast<std::chrono::nanoseconds>(
+                           std::chrono::steady_clock::now() - start_)
+                           .count();
+    }
+  }
+
+ private:
+  int64_t* accumulator_ = nullptr;
+  std::chrono::steady_clock::time_point start_;
+};
 
 // A self-contained config so the sample runs with no external file dependency.
 constexpr const char* kInlineConfig = R"(
@@ -53,10 +88,6 @@ void PrintOperator(const hpcplatform::Operator& op) {
             << '\n';
 }
 
-double AverageMilliseconds(int64_t total_nanoseconds, int iterations) {
-  return hpcplatform::ToMilliseconds(total_nanoseconds) / iterations;
-}
-
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -64,11 +95,13 @@ int main(int argc, char** argv) {
 
   // Load once. Parsing the config and building the objects is a one-time cost:
   // keep it out of the hot loop and measure it on its own.
-  Stopwatch load_stopwatch;
+  const auto load_start = std::chrono::steady_clock::now();
   Result<OperatorMap> loaded = (argc > 1)
                                    ? LoadOperators(argv[1])
                                    : LoadOperatorsFromString(kInlineConfig);
-  const double load_ms = load_stopwatch.ElapsedMilliseconds();
+  const double load_ms = std::chrono::duration<double, std::milli>(
+                             std::chrono::steady_clock::now() - load_start)
+                             .count();
   if (!loaded.ok()) {
     std::cerr << "LoadOperators failed: " << loaded.status().ToString() << '\n';
     return 1;

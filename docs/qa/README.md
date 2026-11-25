@@ -1,9 +1,9 @@
 # hpcplatform 问答与易错点（QA）
 
 > 文档视角：**学习者与贡献者**——回答"这个模块为什么这么设计、关键组件是什么、它怎么和全局串起来、我该怎么调用/测试/扩展"。
-> 配套阅读：[架构设计](../architecture.md) 给出 v2 目标架构全貌，扩展指南见其 §11。
+> 配套阅读：[架构设计](../architecture.md) 给出当前架构全貌，扩展指南见其 §11。
 > 本文档记录的是**容易理解混淆的点**，不是 API 罗列——API 以头文件注释为准。
-> 注意：文中引用的部分代码路径描述 v1 现状，随 v2 迁移逐步刷新（机制本身不变）。
+> 当前版本 0.2.1，API 重构已落地。
 
 ---
 
@@ -11,6 +11,9 @@
 
 | 文档 | 解决的困惑 |
 | --- | --- |
+| [`project_structure.md`](./project_structure.md) | 公共 API 怎么分模块？timing.h / operator.h / framework/profiling 为什么不该在 core？什么该在顶层？ |
+| [`friend_classes.md`](./friend_classes.md) | 为什么 hpcplatform 禁用友元类？`backend_ptr()` 改成公开 accessor 怎么保证安全？WrapExternal 为什么能是 public？ |
+| [`trait_vs_interface.md`](./trait_vs_interface.md) | TensorConvert 为什么是 trait 不是虚接口？静态分发比运行时分发好在哪？什么时候该用虚接口？ |
 | [`cpubackends.md`](./cpubackends.md) | CPU 内存为什么不能只用 `std::vector`/`unique_ptr`？Buffer / MemoryManager / AllocatorState 三层各管什么？ |
 | [`tensor_views.md`](./tensor_views.md) | 为什么 View/Slice/Permute 不拷贝？stride 和 offset 怎么算？Reshape 什么时候偷偷深拷贝？ |
 | [`memory_lifecycle.md`](./memory_lifecycle.md) | Tensor 为什么能比 Context 活得久？`WrapExternal` 的"借用"和"接管"有什么区别？ |

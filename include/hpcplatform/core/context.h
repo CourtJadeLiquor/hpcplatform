@@ -23,9 +23,11 @@ class Backend;
 // allocate and schedule tensors. Deliberately small: allocation lives on
 // Tensor::Empty and data movement on the free functions in
 // hpcplatform/core/transfer.h, so the public surface describes algorithms rather
-// than backend mechanics. memory() / stream() are private: the library owns
-// scheduling details and exposes them only to friend types (Tensor, OpContext,
-// internal helpers).
+// than backend mechanics. memory() is private — external callers never touch
+// raw backend allocators; stream() is public for scheduling control;
+// backend_ref() is public because the Backend definition lives outside the
+// public API tree (src/core/backend.h), so consumers only see a forward
+// declaration and cannot invoke internal methods.
 class Context {
  public:
   // No fallback: an unavailable backend returns kUnsupported.
@@ -38,6 +40,14 @@ class Context {
   Device device() const;
   // Returns a human-readable backend and device description for logging.
   std::string Describe() const;
+
+  // Returns a non-owning reference to the underlying backend. Intentionally
+  // public (the Backend definition lives in src/core/backend.h, outside the
+  // public API tree, so callers in library-consumer code only see the forward
+  // declaration and cannot invoke internal methods). Tensor::Empty,
+  // WrapExternal, and transfer::Copy use this to reach the backend's
+  // Allocate / CopyBuffer / stream entry points.
+  const std::shared_ptr<Backend>& backend_ref() const { return backend_; }
 
   // Returns this Context's execution stream. Public because stream is a
   // scheduling control — callers that need to run work on a specific stream
@@ -59,14 +69,10 @@ class Context {
   ::hpcplatform::MemoryStats GetMemoryStats() const;
 
  private:
-  friend class Tensor;
-  friend class OpContext;
-
   explicit Context(std::shared_ptr<Backend> backend)
       : backend_(std::move(backend)) {}
 
-  // Internal accessors; Tensor allocation and lifetime-tests use these.
-  const std::shared_ptr<Backend>& backend_ptr() const { return backend_; }
+  // Internal accessors; used by Context::Create implementation.
   MemoryManager& memory();
   const MemoryManager& memory() const;
 

@@ -354,7 +354,6 @@ hpcplatform_DEVICE_INDEX=0 \
 | [配置驱动算子对象](docs/operator_config.md) | YAML 契约、参数表、环境变量、对象模型和错误语义 |
 | [QA 与易错点索引](docs/qa/README.md) | Tensor 视图、内存生命周期、分发、错误模型、CUDA 流等专题 |
 | [测试与验证](docs/qa/testing.md) | 构建树、GoogleTest/CTest、位精确与容差、基准程序 |
-| [版本演进](docs/roadmap/README.md) | 已稳定版本的架构与 API 演进记录 |
 | 各算子 `README.md` | 算法原理、适用场景、实现版本、测试命令和性能数据 |
 
 ## License

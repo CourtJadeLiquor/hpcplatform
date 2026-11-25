@@ -4,9 +4,9 @@
 #include <opencv2/core.hpp>
 
 #include "hpcplatform/core/context.h"
-#include "hpcplatform/core/conversion.h"
 #include "hpcplatform/core/error.h"
 #include "hpcplatform/core/tensor.h"
+#include "hpcplatform/interop/conversion.h"
 
 namespace hpcplatform {
 

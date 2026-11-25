@@ -1,0 +1,133 @@
+# Production CI gates for hpcplatform. Four jobs, all blocking unless noted:
+#   1. build-and-test  — Debug + Release matrix on the default feature set.
+#   2. sanitizers      — ASan + UBSan over the full test suite (leak detection on).
+#   3. warnings        — Host compiles must be clean under -Werror.
+#   4. cuda-build      — CUDA compile smoke on a GPU-less runner (build only;
+#                        runtime CUDA tests need a real device and run locally).
+#
+# CI installs dependencies from Ubuntu packages; no network fetches at build
+# time (find_package(GTest/yaml-cpp/OpenCV/TBB) resolve to system packages).
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Matches the apt packages installed in every job below.
+  APT_DEPS: cmake ninja-build libgtest-dev libyaml-cpp-dev libopencv-dev libtbb-dev
+
+jobs:
+  build-and-test:
+    name: build-and-test (${{ matrix.build_type }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [Debug, Release]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y $APT_DEPS
+
+      - name: Configure
+        run: >
+          cmake -S . -B build-${{ matrix.build_type }}
+          -G Ninja
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -Dhpcplatform_WITH_CUDA=OFF
+
+      - name: Build
+        run: cmake --build build-${{ matrix.build_type }}
+
+      - name: Test
+        working-directory: build-${{ matrix.build_type }}
+        run: ctest --output-on-failure
+
+  sanitizers:
+    name: sanitizers (asan+ubsan)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y $APT_DEPS
+
+      # CUDA is off so LeakSanitizer stays fully enabled (the CUDA driver keeps
+      # process-global state that LSan reports as leaks; see CMakeLists.txt).
+      - name: Configure
+        run: >
+          cmake -S . -B build-sanitize
+          -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -Dhpcplatform_ENABLE_SANITIZERS=ON
+          -Dhpcplatform_WITH_CUDA=OFF
+
+      - name: Build
+        run: cmake --build build-sanitize
+
+      - name: Test
+        working-directory: build-sanitize
+        run: ctest --output-on-failure
+
+  warnings:
+    name: warnings-as-errors
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y $APT_DEPS
+
+      # Host (-Werror); CUDA device code is covered by the cuda-build job.
+      - name: Configure
+        run: >
+          cmake -S . -B build-werror
+          -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_CXX_FLAGS=-Werror
+          -Dhpcplatform_WITH_CUDA=OFF
+
+      - name: Build
+        run: cmake --build build-werror
+
+  cuda-build:
+    name: cuda-build-smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y $APT_DEPS nvidia-cuda-toolkit
+
+      # Build-only smoke: GitHub runners have no GPU, so CUDA runtime tests
+      # cannot pass here; device compile correctness is still gated.
+      - name: Configure
+        run: >
+          cmake -S . -B build-cuda
+          -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_CUDA_ARCHITECTURES=75
+
+      - name: Build
+        run: cmake --build build-cuda

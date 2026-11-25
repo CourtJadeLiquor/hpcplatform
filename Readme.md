@@ -1,5 +1,7 @@
 # HPCPlatform
 
+> **⚠️ 个人项目声明**：本项目是**个人兴趣使然的学习与研究项目**，用于探索高性能算子库的架构设计与工程实践，源于上一份工作中的某个需求，当时只做到0.1.0，没有深入，导致后面一个面试没过...。它**未经过生产环境验证，不建议直接用于生产**。如需在生产中使用，请自行完成安全审计、稳定性验证与长期维护评估。
+
 HPCPlatform 是一个面向高性能算子学习、研究与开发的 C++17 平台。项目以图像与变换类算子为研究对象，提供统一的 Tensor/Context 抽象、可插拔后端、CPU 多版本优化、CUDA 加速、配置驱动调用，以及与算子一一对应的测试和基准工具。
 
 平台强调**显式选择、结果可复现、算子自治**：调用方明确指定后端、内核级别和数据布局；后端不可用或未实现时返回错误，不做静默降级；新增算子以扩展自治目录为主，避免修改无关模块。
@@ -18,25 +20,25 @@ HPCPlatform 是一个面向高性能算子学习、研究与开发的 C++17 平�
 
 ## 当前算子
 
-| 算子 | 主要能力 | 说明文档 |
-| --- | --- | --- |
-| `resize` | 最近邻、双线性缩放 | [resize](src/ops/resize/README.md) |
-| `gaussian_blur` | 可分离高斯平滑 | [gaussian_blur](src/ops/gaussian_blur/README.md) |
-| `laplacian_pyramid` | 拉普拉斯金字塔分解与重建 | [laplacian_pyramid](src/ops/laplacian_pyramid/README.md) |
-| `fourier_transform` | 二维 DFT/FFT 及逆变换 | [fourier](src/ops/fourier/README.md) |
-| `wavelet_transform` | Haar、Db4 二维小波及逆变换 | [wavelet](src/ops/wavelet/README.md) |
+| 算子                  | 主要能力              | 说明文档                                                      |
+| ------------------- | ----------------- | --------------------------------------------------------- |
+| `resize`            | 最近邻、双线性缩放         | [resize](src/ops/resize/README.md)                        |
+| `gaussian_blur`     | 可分离高斯平滑           | [gaussian\_blur](src/ops/gaussian_blur/README.md)         |
+| `laplacian_pyramid` | 拉普拉斯金字塔分解与重建      | [laplacian\_pyramid](src/ops/laplacian_pyramid/README.md) |
+| `fourier_transform` | 二维 DFT/FFT 及逆变换   | [fourier](src/ops/fourier/README.md)                      |
+| `wavelet_transform` | Haar、Db4 二维小波及逆变换 | [wavelet](src/ops/wavelet/README.md)                      |
 
 ## 项目环境
 
-| 项目 | 要求或当前约定 |
-| --- | --- |
-| 操作系统 | 主要开发与验证环境为 Linux |
-| C++ 编译器 | 当前记录使用 Clang 21.1.8；GNU 编译器尚未验证 |
-| 语言标准 | C++17；CUDA 源文件同样使用 C++17 |
-| 构建系统 | CMake 3.20 或更高版本 |
-| OpenCV | OpenCV 4，使用 `core` 与 `imgproc` 组件 |
-| CUDA | 需要兼容的 NVIDIA 驱动、CUDA Toolkit 与 GPU；默认架构为 `sm_89` |
-| 测试 | GoogleTest + CTest |
+| 项目      | 要求或当前约定                                          |
+| ------- | ------------------------------------------------ |
+| 操作系统    | 主要开发与验证环境为 Linux                                 |
+| C++ 编译器 | 当前记录使用 Clang 21.1.8；GNU 编译器尚未验证                  |
+| 语言标准    | C++17；CUDA 源文件同样使用 C++17                         |
+| 构建系统    | CMake 3.20 或更高版本                                 |
+| OpenCV  | OpenCV 4，使用 `core` 与 `imgproc` 组件                |
+| CUDA    | 需要兼容的 NVIDIA 驱动、CUDA Toolkit 与 GPU；默认架构为 `sm_89` |
+| 测试      | GoogleTest + CTest                               |
 
 非 `sm_89` GPU 应在配置时显式设置 `-DCMAKE_CUDA_ARCHITECTURES=<架构号>`。没有 NVIDIA GPU 的开发机可关闭 CUDA 后端，仍可研究和运行 CPU/OpenCV 路径。
 
@@ -44,15 +46,15 @@ HPCPlatform 是一个面向高性能算子学习、研究与开发的 C++17 平�
 
 所有可选后端和特性默认开启；开启的依赖由 CMake 以 `REQUIRED` 方式查找，缺失时配置会直接失败。
 
-| 依赖 | 用途 | 对应 CMake 开关（默认） |
-| --- | --- | --- |
-| OpenCV 4 | OpenCV 后端及 `cv::Mat` 互操作 | `hpcplatform_WITH_OPENCV=ON` |
-| CUDA Toolkit | CUDA 后端与设备内核 | `hpcplatform_WITH_CUDA=ON` |
-| yaml-cpp | YAML 配置解析和算子对象加载 | `hpcplatform_WITH_YAML=ON` |
-| oneTBB | TBB CPU 并行实现 | `hpcplatform_ENABLE_TBB=ON` |
-| OpenMP | OpenMP CPU 并行实现 | `hpcplatform_ENABLE_OPENMP=ON` |
-| 编译器 SIMD 能力 | 可移植 SIMD、AVX2 等内核 | `hpcplatform_ENABLE_SIMD=ON` |
-| GoogleTest | 单元测试；仅构建测试时需要 | `hpcplatform_BUILD_TESTS=ON` |
+| 依赖           | 用途                       | 对应 CMake 开关（默认）                |
+| ------------ | ------------------------ | ------------------------------ |
+| OpenCV 4     | OpenCV 后端及 `cv::Mat` 互操作 | `hpcplatform_WITH_OPENCV=ON`   |
+| CUDA Toolkit | CUDA 后端与设备内核             | `hpcplatform_WITH_CUDA=ON`     |
+| yaml-cpp     | YAML 配置解析和算子对象加载         | `hpcplatform_WITH_YAML=ON`     |
+| oneTBB       | TBB CPU 并行实现             | `hpcplatform_ENABLE_TBB=ON`    |
+| OpenMP       | OpenMP CPU 并行实现          | `hpcplatform_ENABLE_OPENMP=ON` |
+| 编译器 SIMD 能力  | 可移植 SIMD、AVX2 等内核        | `hpcplatform_ENABLE_SIMD=ON`   |
+| GoogleTest   | 单元测试；仅构建测试时需要            | `hpcplatform_BUILD_TESTS=ON`   |
 
 Ubuntu/Debian 可安装基础依赖：
 
@@ -322,11 +324,11 @@ hpcplatform_DEVICE_INDEX=0 \
 
 ## 从哪里开始
 
-1. **理解数据模型**：运行并阅读 [00_hello_tensor.cpp](samples/00_hello_tensor.cpp)，了解 `Shape`、`Tensor`、`Context` 和 `Result<T>`。
-2. **理解内存与拷贝**：阅读 [01_memory_copy.cpp](samples/01_memory_copy.cpp) 与 [07_data_transfer.cpp](samples/07_data_transfer.cpp)，再参考[内存生命周期](docs/qa/memory_lifecycle.md)和[数据搬运](docs/qa/context_copy.md)。
-3. **运行第一条算子链路**：阅读 [02_ops_pipeline.cpp](samples/02_ops_pipeline.cpp)，掌握 `OpContext` 和直接 API 调用。
-4. **比较后端实现**：按需阅读 [03_opencv_backend.cpp](samples/03_opencv_backend.cpp) 和 [04_cuda_pipeline.cpp](samples/04_cuda_pipeline.cpp)。
-5. **学习配置驱动**：运行 [05_config_operator.cpp](samples/05_config_operator.cpp)，修改 [operators.yaml](samples/configs/operators.yaml) 中的参数、后端和内核级别。
+1. **理解数据模型**：运行并阅读 [00\_hello\_tensor.cpp](samples/00_hello_tensor.cpp)，了解 `Shape`、`Tensor`、`Context` 和 `Result<T>`。
+2. **理解内存与拷贝**：阅读 [01\_memory\_copy.cpp](samples/01_memory_copy.cpp) 与 [07\_data\_transfer.cpp](samples/07_data_transfer.cpp)，再参考[内存生命周期](docs/qa/memory_lifecycle.md)和[数据搬运](docs/qa/context_copy.md)。
+3. **运行第一条算子链路**：阅读 [02\_ops\_pipeline.cpp](samples/02_ops_pipeline.cpp)，掌握 `OpContext` 和直接 API 调用。
+4. **比较后端实现**：按需阅读 [03\_opencv\_backend.cpp](samples/03_opencv_backend.cpp) 和 [04\_cuda\_pipeline.cpp](samples/04_cuda_pipeline.cpp)。
+5. **学习配置驱动**：运行 [05\_config\_operator.cpp](samples/05_config_operator.cpp)，修改 [operators.yaml](samples/configs/operators.yaml) 中的参数、后端和内核级别。
 6. **深入研究单个算子**：从上方“当前算子”表进入对应文档，查看算法原理、版本矩阵、正确性测试和基准。
 7. **开发新算子或优化版本**：先读[架构设计](docs/architecture.md)中的“算子自治结构”和“扩展指南”，再复制最接近的算子目录作为参考；不要从修改核心框架开始。
 
@@ -349,16 +351,20 @@ hpcplatform_DEVICE_INDEX=0 \
 
 ## 项目文档
 
-| 文档 | 内容 |
-| --- | --- |
-| [架构设计](docs/architecture.md) | 分层、依赖规则、数据模型、注册分发、算子自治和扩展指南 |
-| [配置驱动算子对象](docs/operator_config.md) | YAML 契约、参数表、环境变量、对象模型和错误语义 |
-| [QA 与易错点索引](docs/qa/README.md) | Tensor 视图、内存生命周期、分发、错误模型、CUDA 流等专题 |
-| [测试与验证](docs/qa/testing.md) | 构建树、GoogleTest/CTest、位精确与容差、基准程序 |
-| 各算子 `README.md` | 算法原理、适用场景、实现版本、测试命令和性能数据 |
+| 文档                                  | 内容                                 |
+| ----------------------------------- | ---------------------------------- |
+| [架构设计](docs/architecture.md)        | 分层、依赖规则、数据模型、注册分发、算子自治和扩展指南        |
+| [配置驱动算子对象](docs/operator_config.md) | YAML 契约、参数表、环境变量、对象模型和错误语义         |
+| [QA 与易错点索引](docs/qa/README.md)      | Tensor 视图、内存生命周期、分发、错误模型、CUDA 流等专题 |
+| [测试与验证](docs/qa/testing.md)         | 构建树、GoogleTest/CTest、位精确与容差、基准程序   |
+| 各算子 `README.md`                     | 算法原理、适用场景、实现版本、测试命令和性能数据           |
 
 ## License
 
 本项目采用 [GNU General Public License v3.0](LICENSE)，SPDX 标识为 `GPL-3.0-only`。
 
 选择 GPLv3 是为了保证本项目及其衍生作品持续开放：**基于本项目形成并对外分发的衍生作品，包括通过静态或动态链接本库形成的组合作品，必须以 GPL-3.0 开源并提供对应源代码，同时保留版权和许可声明。** 仅内部使用且不对外分发时，不触发源代码公开义务。完整法律条款以 [LICENSE](LICENSE) 为准。
+
+## 架构评审
+
+- [架构评审报告（2026-11-25）](docs/architecture_review_2026-11-25.md)：SOLID 五原则符合性、分层与依赖方向、限界上下文、适配度函数、风险登记与 CI 门禁的完整评审结论。

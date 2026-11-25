@@ -1,7 +1,8 @@
 // AC-1..AC-5 on the CPU path: config-driven operator objects load, run, and
 // fail-fast correctly. Only compiled with hpcplatform_WITH_YAML (see CMakeLists.txt);
 // AC-6 (stub behavior) is covered by tests/core/test_operator_stub.cpp in the
-// default build. CUDA portions of AC-3 are verified manually in a CUDA tree.
+// default build. CUDA-dependent cases branch on a runtime availability probe
+// (CudaBackendAvailable), so the same assertions hold in CUDA and non-CUDA trees.
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -44,6 +45,15 @@ namespace
                          CpuKernelLevel level = CpuKernelLevel::kNaive)
     {
         return OpContext(*context.get()).set_stream(nullptr).set_cpu_level(level);
+    }
+
+    // Runtime probe: whether the CUDA backend can actually be created in this
+    // build on this machine (CUDA compiled in AND a usable device present).
+    // Tests that use a "cuda" config backend branch on this instead of assuming
+    // the backend is unavailable, so they pass in both CUDA and non-CUDA trees.
+    bool CudaBackendAvailable()
+    {
+        return Context::Create(BackendType::kCUDA).ok();
     }
 
     constexpr const char* kResizeAndBlurConfig = R"(
@@ -200,8 +210,10 @@ operators:
         }
     }
 
-    // AC-3 (c): the hpcplatform_BACKEND env var overrides the config backend. Without it,
-    // an unavailable config backend fails (no fallback).
+    // AC-3 (c): the hpcplatform_BACKEND env var overrides the config backend.
+    // Without the env var, the config requests "cuda": this fails fast when CUDA
+    // is unavailable in this build or on this machine (no fallback), and binds
+    // objects to CUDA when it is available.
     TEST(hpcplatform, EnvVarOverridesBackend)
     {
         const char* yaml = R"(
@@ -212,7 +224,23 @@ operators:
     params: {output_height: 4, output_width: 4, interpolation: bilinear, layout: nhwc}
 )";
         auto without_env = LoadOperatorsFromString(yaml);
-        EXPECT_FALSE(without_env.ok());
+        if (CudaBackendAvailable())
+        {
+            EXPECT_TRUE(without_env.ok());
+            if (without_env.ok())
+            {
+                auto* r = GetOperator<ResizeOperator>(without_env.value(), "r");
+                EXPECT_TRUE(r != nullptr);
+                if (r != nullptr)
+                {
+                    EXPECT_TRUE(r->backend() == BackendType::kCUDA);
+                }
+            }
+        }
+        else
+        {
+            EXPECT_FALSE(without_env.ok());
+        }
 
         ::setenv("hpcplatform_BACKEND", "native_cpu", 1);
         auto with_env = LoadOperatorsFromString(yaml);
@@ -256,8 +284,9 @@ operators:
     }
 
     // AC-5 / NFR-6: an env-requested backend that is unavailable fails the whole
-    // load rather than silently falling back to the config backend.
-    TEST(hpcplatform, EnvVarUnavailableBackendFails)
+    // load rather than silently falling back to the config backend. The load is
+    // expected to succeed when the requested CUDA backend is actually available.
+    TEST(hpcplatform, EnvVarBackendAvailabilityHonored)
     {
         const char* yaml = R"(
 operators:
@@ -269,7 +298,23 @@ operators:
         ::setenv("hpcplatform_BACKEND", "cuda", 1);
         auto loaded = LoadOperatorsFromString(yaml);
         ::unsetenv("hpcplatform_BACKEND");
-        EXPECT_FALSE(loaded.ok());
+        if (CudaBackendAvailable())
+        {
+            EXPECT_TRUE(loaded.ok());
+            if (loaded.ok())
+            {
+                auto* r = GetOperator<ResizeOperator>(loaded.value(), "r");
+                EXPECT_TRUE(r != nullptr);
+                if (r != nullptr)
+                {
+                    EXPECT_TRUE(r->backend() == BackendType::kCUDA);
+                }
+            }
+        }
+        else
+        {
+            EXPECT_FALSE(loaded.ok());
+        }
     }
 
     TEST(hpcplatform, EnvVarInvalidBackendNameFails)
@@ -344,13 +389,31 @@ operators:
         }
     }
 
-    TEST(hpcplatform, UnavailableBackendFails)
+    // Per-entry config backend: "cuda" fails fast when unavailable (no fallback)
+    // and binds objects to CUDA when available.
+    TEST(hpcplatform, ConfigBackendAvailabilityHonored)
     {
         auto loaded = LoadOperatorsFromString(
             "operators:\n  - name: x\n    op: resize\n    backend: cuda\n"
             "    params: {output_height: 2, output_width: 2, interpolation: bilinear, layout: "
             "nhwc}\n");
-        EXPECT_FALSE(loaded.ok());
+        if (CudaBackendAvailable())
+        {
+            EXPECT_TRUE(loaded.ok());
+            if (loaded.ok())
+            {
+                auto* r = GetOperator<ResizeOperator>(loaded.value(), "x");
+                EXPECT_TRUE(r != nullptr);
+                if (r != nullptr)
+                {
+                    EXPECT_TRUE(r->backend() == BackendType::kCUDA);
+                }
+            }
+        }
+        else
+        {
+            EXPECT_FALSE(loaded.ok());
+        }
     }
 
     // AC-4: any failure returns an empty map — no partially constructed objects
@@ -406,6 +469,103 @@ operators:
         if (!loaded.ok())
         {
             EXPECT_TRUE(loaded.status().code() == StatusCode::kInvalidArgument);
+        }
+    }
+
+    // Hardening: untrusted config text is bounded before it reaches yaml-cpp.
+    // Oversized input must fail as kInvalidArgument, not stress the parser.
+    TEST(hpcplatform, OversizedConfigFails)
+    {
+        const std::string huge(1u << 20, ' ');  // 1 MiB of spaces
+        auto loaded = LoadOperatorsFromString(huge);
+        EXPECT_FALSE(loaded.ok());
+        if (!loaded.ok())
+        {
+            EXPECT_TRUE(loaded.status().code() == StatusCode::kInvalidArgument);
+        }
+    }
+
+    // Anchors and aliases are rejected: yaml-cpp expands aliases by reference, so
+    // a cyclic alias could recurse without bound inside the parser.
+    TEST(hpcplatform, AnchorAndAliasConfigFails)
+    {
+        auto anchored = LoadOperatorsFromString(
+            "operators:\n  - &a\n    name: x\n    op: resize\n    backend: native_cpu\n"
+            "    params: {output_height: 2, output_width: 2, interpolation: bilinear, layout: "
+            "nhwc}\n");
+        EXPECT_FALSE(anchored.ok());
+        EXPECT_TRUE(anchored.status().code() == StatusCode::kInvalidArgument);
+
+        auto aliased = LoadOperatorsFromString(
+            "defaults: &d {output_height: 2, output_width: 2}\n"
+            "operators:\n  - name: x\n    op: resize\n    backend: native_cpu\n"
+            "    params: *d\n");
+        EXPECT_FALSE(aliased.ok());
+        EXPECT_TRUE(aliased.status().code() == StatusCode::kInvalidArgument);
+    }
+
+    // Flow collections nested deeper than the hardening limit must fail cleanly
+    // instead of exhausting the parser's stack.
+    TEST(hpcplatform, DeepFlowNestingFails)
+    {
+        auto loaded = LoadOperatorsFromString("operators: " + std::string(100, '['));
+        EXPECT_FALSE(loaded.ok());
+        if (!loaded.ok())
+        {
+            EXPECT_TRUE(loaded.status().code() == StatusCode::kInvalidArgument);
+        }
+    }
+
+    // Structural caps: more than 1024 entries or more than 256 params on one
+    // entry fail as kInvalidArgument.
+    TEST(hpcplatform, TooManyOperatorEntriesFails)
+    {
+        std::string yaml = "operators:\n";
+        for (int i = 0; i < 1025; ++i)
+        {
+            yaml += "  - name: r" + std::to_string(i) +
+                    "\n    op: resize\n    backend: native_cpu\n"
+                    "    params: {output_height: 2, output_width: 2, interpolation: bilinear, "
+                    "layout: nhwc}\n";
+        }
+        auto loaded = LoadOperatorsFromString(yaml);
+        EXPECT_FALSE(loaded.ok());
+        if (!loaded.ok())
+        {
+            EXPECT_TRUE(loaded.status().code() == StatusCode::kInvalidArgument);
+        }
+    }
+
+    TEST(hpcplatform, TooManyParamsFails)
+    {
+        std::string params;
+        for (int i = 0; i < 257; ++i)
+        {
+            if (i > 0) params += ", ";
+            params += "k" + std::to_string(i) + ": v" + std::to_string(i);
+        }
+        auto loaded = LoadOperatorsFromString(
+            "operators:\n  - name: x\n    op: resize\n    backend: native_cpu\n    params: {" +
+            params + "}\n");
+        EXPECT_FALSE(loaded.ok());
+        if (!loaded.ok())
+        {
+            EXPECT_TRUE(loaded.status().code() == StatusCode::kInvalidArgument);
+        }
+    }
+
+    // Quoted scalars may legitimately contain '*', '[', and '{' characters; the
+    // pre-parse scan must not reject valid configs.
+    TEST(hpcplatform, QuotedSpecialCharactersStillParse)
+    {
+        auto loaded = LoadOperatorsFromString(
+            "operators:\n  - name: \"r*1\"\n    op: resize\n    backend: native_cpu\n"
+            "    params: {output_height: 2, output_width: 2, interpolation: bilinear, layout: "
+            "nhwc}\n");
+        EXPECT_TRUE(loaded.ok());
+        if (loaded.ok())
+        {
+            EXPECT_TRUE(GetOperator<ResizeOperator>(loaded.value(), "r*1") != nullptr);
         }
     }
 

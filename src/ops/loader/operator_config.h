@@ -30,9 +30,10 @@ namespace hpcplatform
     };
 
     // Parses a YAML document (already read into a string) into an OperatorsConfig.
-    // Syntax errors, missing required fields, wrong types, or duplicate instance
-    // names yield kInvalidArgument. Defined in yaml_parser.cpp (compiled only with
-    // hpcplatform_WITH_YAML).
+    // Syntax errors, missing required fields, wrong types, duplicate instance
+    // names, anchors/aliases, or inputs beyond the hardening bounds (1 MiB text,
+    // 1024 operators, 256 params each, flow depth 64) yield kInvalidArgument.
+    // Defined in yaml_parser.cpp (compiled only with hpcplatform_WITH_YAML).
     Result<OperatorsConfig> ParseOperatorsConfig(const std::string& yaml_text);
 
 }  // namespace hpcplatform

@@ -3,6 +3,12 @@
 // YAML::Exception on syntax errors; those are caught and converted to
 // kInvalidArgument, matching how the OpenCV backend isolates third-party
 // exceptions (see src/backends/opencv/opencv_tensor_access.cpp).
+//
+// Hardening: config text is untrusted input. Before handing it to yaml-cpp the
+// text is bounded (size, flow-collection depth) and anchor/alias syntax is
+// rejected, so recursive-alias bombs and stack-exhausting nesting fail as
+// kInvalidArgument instead of crashing the process inside the parser. Structural
+// caps (entry count, param count, scalar lengths) bound downstream work.
 
 #include <yaml-cpp/yaml.h>
 
@@ -17,8 +23,101 @@ namespace hpcplatform
     namespace
     {
 
+        // Input bounds. These are fail-fast guards, not a YAML dialect: any config
+        // rejected by them is either malicious or far outside the intended scale.
+        constexpr std::size_t kMaxConfigBytes = 1u << 20;  // 1 MiB
+        constexpr int kMaxFlowDepth = 64;
+        constexpr std::size_t kMaxOperators = 1024;
+        constexpr std::size_t kMaxParamsPerOperator = 256;
+        constexpr std::size_t kMaxFieldLength = 256;   // name/op/backend/cpu_level
+        constexpr std::size_t kMaxParamLength = 1024;  // params keys and values
+
+        // True when `c` may directly follow an alias marker '*': aliases start a
+        // token, anchors can appear anywhere outside quotes.
+        bool IsAliasTokenStart(char prev)
+        {
+            return prev == '\0' || prev == ' ' || prev == '\t' || prev == '\n' ||
+                   prev == '\r' || prev == '[' || prev == '{' || prev == ',';
+        }
+
+        // Scans raw config text before parsing. Rejects anchors/aliases (yaml-cpp
+        // expands aliases by reference, so a cyclic alias can recurse without bound
+        // inside the parser) and flow collections nested deeper than kMaxFlowDepth
+        // (the parser recurses per nesting level). Quotes are tracked so bracket or
+        // '*' characters inside scalar values do not trigger false rejections.
+        Status CheckPreParseLimits(const std::string& text)
+        {
+            if (text.size() > kMaxConfigBytes)
+            {
+                return Status::InvalidArgument("config exceeds maximum size of 1 MiB");
+            }
+            bool in_single = false;
+            bool in_double = false;
+            bool escaped = false;
+            int depth = 0;
+            char prev = '\0';
+            for (const char c : text)
+            {
+                if (in_double)
+                {
+                    if (escaped)
+                    {
+                        escaped = false;
+                    }
+                    else if (c == '\\')
+                    {
+                        escaped = true;
+                    }
+                    else if (c == '"')
+                    {
+                        in_double = false;
+                    }
+                }
+                else if (in_single)
+                {
+                    if (c == '\'')
+                    {
+                        in_single = false;
+                    }
+                }
+                else if (c == '"')
+                {
+                    in_double = true;
+                }
+                else if (c == '\'')
+                {
+                    in_single = true;
+                }
+                else if (c == '&')
+                {
+                    return Status::InvalidArgument(
+                        "config must not contain YAML anchors or aliases");
+                }
+                else if (c == '*' && IsAliasTokenStart(prev))
+                {
+                    return Status::InvalidArgument(
+                        "config must not contain YAML anchors or aliases");
+                }
+                else if (c == '[' || c == '{')
+                {
+                    ++depth;
+                    if (depth > kMaxFlowDepth)
+                    {
+                        return Status::InvalidArgument(
+                            "config flow collections nested deeper than 64 levels");
+                    }
+                }
+                else if (c == ']' || c == '}')
+                {
+                    --depth;
+                }
+                prev = c;
+            }
+            return Status::Ok();
+        }
+
         // Reads a required string field from a map node. Returns kInvalidArgument if
-        // the key is absent or the node is not a scalar.
+        // the key is absent, the node is not a scalar, or the scalar is too long.
         Result<std::string> RequireString(const YAML::Node& node, const std::string& key)
         {
             const YAML::Node field = node[key];
@@ -26,13 +125,21 @@ namespace hpcplatform
             {
                 return Status::InvalidArgument("missing or non-string field: " + key);
             }
-            return field.Scalar();
+            std::string value = field.Scalar();
+            if (value.size() > kMaxFieldLength)
+            {
+                return Status::InvalidArgument("field too long (max 256 chars): " + key);
+            }
+            return value;
         }
 
     }  // namespace
 
     Result<OperatorsConfig> ParseOperatorsConfig(const std::string& yaml_text)
     {
+        const Status limits = CheckPreParseLimits(yaml_text);
+        if (!limits.ok()) return limits;
+
         YAML::Node root;
         try
         {
@@ -54,6 +161,10 @@ namespace hpcplatform
 
         OperatorsConfig config;
         std::map<std::string, bool> seen_names;
+        if (operators.size() > kMaxOperators)
+        {
+            return Status::InvalidArgument("config lists more than 1024 operators");
+        }
         for (std::size_t i = 0; i < operators.size(); ++i)
         {
             const YAML::Node entry = operators[i];
@@ -124,13 +235,25 @@ namespace hpcplatform
                 {
                     return Status::InvalidArgument("params must be a map");
                 }
+                if (params.size() > kMaxParamsPerOperator)
+                {
+                    return Status::InvalidArgument(
+                        "operator params exceed 256 entries (index " + std::to_string(i) + ")");
+                }
                 for (YAML::const_iterator it = params.begin(); it != params.end(); ++it)
                 {
                     if (!it->first.IsScalar() || !it->second.IsScalar())
                     {
                         return Status::InvalidArgument("params keys and values must be scalars");
                     }
-                    instance.params[it->first.Scalar()] = it->second.Scalar();
+                    const std::string key = it->first.Scalar();
+                    const std::string value = it->second.Scalar();
+                    if (key.size() > kMaxParamLength || value.size() > kMaxParamLength)
+                    {
+                        return Status::InvalidArgument(
+                            "params keys and values are limited to 1024 chars");
+                    }
+                    instance.params[key] = value;
                 }
             }
 

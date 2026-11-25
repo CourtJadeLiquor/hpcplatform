@@ -31,7 +31,7 @@ set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release)
 
 # Sanitizers are a development-only aid: on for Debug, off for Release.
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-  set(hpcplatform_SANITIZERS_DEFAULT OFF)
+  set(hpcplatform_SANITIZERS_DEFAULT ON)
 else()
   set(hpcplatform_SANITIZERS_DEFAULT OFF)
 endif()

@@ -9,16 +9,21 @@
 
 #include "fourier_cpu.h"
 
-namespace hpcplatform {
-namespace ops_internal {
+namespace hpcplatform
+{
+    namespace ops_internal
+    {
 
-// Same driver as naive, with row/column loops replaced by omp parallel for.
-Status FourierCpuOpenMP(const OpContext&, const Tensor& input,
-                        const Tensor* other, const void* params,
-                        Tensor* output) {
-  return FourierImpl<OpenMPRunner>(
-      input, other, *static_cast<const FourierParams*>(params), output);
-}
+        // Same driver as naive, with row/column loops replaced by omp parallel for.
+        Status FourierCpuOpenMP(const OpContext&,
+                                const Tensor& input,
+                                const Tensor* other,
+                                const void* params,
+                                Tensor* output)
+        {
+            return FourierImpl<OpenMPRunner>(input, other,
+                                             *static_cast<const FourierParams*>(params), output);
+        }
 
-}  // namespace ops_internal
+    }  // namespace ops_internal
 }  // namespace hpcplatform

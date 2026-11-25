@@ -14,26 +14,29 @@
 
 #include "framework/op_registry.h"
 
-namespace hpcplatform {
-namespace ops_internal {
+namespace hpcplatform
+{
+    namespace ops_internal
+    {
 
-void RegisterResizeKernels();
-void RegisterGaussianBlurKernels();
-void RegisterLaplacianPyramidKernels();
-void RegisterFourierKernels();
-void RegisterWaveletKernels();
+        void RegisterResizeKernels();
+        void RegisterGaussianBlurKernels();
+        void RegisterLaplacianPyramidKernels();
+        void RegisterFourierKernels();
+        void RegisterWaveletKernels();
 
-// Calls each operator's registration entry point in a fixed order. Order does
-// not affect lookup because the registry is keyed by the triple. Listing them
-// here ensures static-library implementation files are referenced and linked
-// into the final binary. Complexity is O(1); only registration entries run.
-void RegisterAllKernels() {
-  RegisterResizeKernels();
-  RegisterGaussianBlurKernels();
-  RegisterLaplacianPyramidKernels();
-  RegisterFourierKernels();
-  RegisterWaveletKernels();
-}
+        // Calls each operator's registration entry point in a fixed order. Order does
+        // not affect lookup because the registry is keyed by the triple. Listing them
+        // here ensures static-library implementation files are referenced and linked
+        // into the final binary. Complexity is O(1); only registration entries run.
+        void RegisterAllKernels()
+        {
+            RegisterResizeKernels();
+            RegisterGaussianBlurKernels();
+            RegisterLaplacianPyramidKernels();
+            RegisterFourierKernels();
+            RegisterWaveletKernels();
+        }
 
-}  // namespace ops_internal
+    }  // namespace ops_internal
 }  // namespace hpcplatform

@@ -8,99 +8,116 @@
 #include <malloc.h>
 #endif
 
-namespace hpcplatform {
-namespace {
+namespace hpcplatform
+{
+    namespace
+    {
 
-void* AlignedAlloc(size_t bytes, size_t alignment) {
+        void* AlignedAlloc(size_t bytes, size_t alignment)
+        {
 #if defined(_WIN32)
-  return _aligned_malloc(bytes, alignment);
+            return _aligned_malloc(bytes, alignment);
 #else
-  void* ptr = nullptr;
-  if (posix_memalign(&ptr, alignment, bytes) != 0) return nullptr;
-  return ptr;
+            void* ptr = nullptr;
+            if (posix_memalign(&ptr, alignment, bytes) != 0) return nullptr;
+            return ptr;
 #endif
-}
+        }
 
-void AlignedFree(void* ptr) {
+        void AlignedFree(void* ptr)
+        {
 #if defined(_WIN32)
-  _aligned_free(ptr);
+            _aligned_free(ptr);
 #else
-  std::free(ptr);
+            std::free(ptr);
 #endif
-}
+        }
 
-bool IsValidAlignment(size_t alignment) {
-  return alignment != 0 && (alignment & (alignment - 1)) == 0 &&
-         alignment % sizeof(void*) == 0;
-}
+        bool IsValidAlignment(size_t alignment)
+        {
+            return alignment != 0 && (alignment & (alignment - 1)) == 0 &&
+                   alignment % sizeof(void*) == 0;
+        }
 
-}  // namespace
+    }  // namespace
 
-CpuAllocatorState::~CpuAllocatorState() {
-  for (const CpuBlock& block : free_blocks) {
-    AlignedFree(block.data);
-  }
-}
-
-void CpuAllocatorState::Release(void* data, size_t bytes) {
-  if (data != nullptr && bytes != 0) {
-    std::lock_guard<std::mutex> lock(mutex);
-    free_blocks.push_back(CpuBlock{data, bytes});
-  }
-  allocated_bytes.fetch_sub(bytes, std::memory_order_relaxed);
-  allocation_count.fetch_sub(1, std::memory_order_relaxed);
-}
-
-Result<std::shared_ptr<Buffer>> CpuMemoryManager::Allocate(size_t bytes,
-                                                           size_t alignment) {
-  if (bytes == 0) {
-    return Status::InvalidArgument("allocation size must be greater than 0");
-  }
-  if (!IsValidAlignment(alignment)) {
-    return Status::InvalidArgument(
-        "alignment must be a power of two and a multiple of sizeof(void*)");
-  }
-
-  void* ptr = nullptr;
-  {
-    std::lock_guard<std::mutex> lock(state_->mutex);
-    for (auto block = state_->free_blocks.begin();
-         block != state_->free_blocks.end(); ++block) {
-      if (block->bytes == bytes &&
-          reinterpret_cast<uintptr_t>(block->data) % alignment == 0) {
-        ptr = block->data;
-        state_->free_blocks.erase(block);
-        break;
-      }
+    CpuAllocatorState::~CpuAllocatorState()
+    {
+        for (const CpuBlock& block : free_blocks)
+        {
+            AlignedFree(block.data);
+        }
     }
-  }
-  if (ptr == nullptr) {
-    ptr = AlignedAlloc(bytes, alignment);
-    if (ptr == nullptr) {
-      return Status::OutOfMemory("host allocation of " + std::to_string(bytes) +
-                                 " bytes failed");
+
+    void CpuAllocatorState::Release(void* data, size_t bytes)
+    {
+        if (data != nullptr && bytes != 0)
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            free_blocks.push_back(CpuBlock{data, bytes});
+        }
+        allocated_bytes.fetch_sub(bytes, std::memory_order_relaxed);
+        allocation_count.fetch_sub(1, std::memory_order_relaxed);
     }
-  }
 
-  const size_t current = state_->allocated_bytes.fetch_add(bytes) + bytes;
-  state_->allocation_count.fetch_add(1);
-  size_t peak = state_->peak_bytes.load(std::memory_order_relaxed);
-  while (current > peak && !state_->peak_bytes.compare_exchange_weak(
-                               peak, current, std::memory_order_relaxed)) {
-  }
+    Result<std::shared_ptr<Buffer>> CpuMemoryManager::Allocate(size_t bytes, size_t alignment)
+    {
+        if (bytes == 0)
+        {
+            return Status::InvalidArgument("allocation size must be greater than 0");
+        }
+        if (!IsValidAlignment(alignment))
+        {
+            return Status::InvalidArgument(
+                "alignment must be a power of two and a multiple of sizeof(void*)");
+        }
 
-  auto state = state_;
-  return std::make_shared<Buffer>(
-      ptr, bytes, device_, MemoryKind::kHost,
-      [state](void* data, size_t size) { state->Release(data, size); });
-}
+        void* ptr = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(state_->mutex);
+            for (auto block = state_->free_blocks.begin(); block != state_->free_blocks.end();
+                 ++block)
+            {
+                if (block->bytes == bytes &&
+                    reinterpret_cast<uintptr_t>(block->data) % alignment == 0)
+                {
+                    ptr = block->data;
+                    state_->free_blocks.erase(block);
+                    break;
+                }
+            }
+        }
+        if (ptr == nullptr)
+        {
+            ptr = AlignedAlloc(bytes, alignment);
+            if (ptr == nullptr)
+            {
+                return Status::OutOfMemory("host allocation of " + std::to_string(bytes) +
+                                           " bytes failed");
+            }
+        }
 
-MemoryStats CpuMemoryManager::Stats() const {
-  MemoryStats stats;
-  stats.allocated_bytes = state_->allocated_bytes.load();
-  stats.peak_bytes = state_->peak_bytes.load();
-  stats.allocation_count = state_->allocation_count.load();
-  return stats;
-}
+        const size_t current = state_->allocated_bytes.fetch_add(bytes) + bytes;
+        state_->allocation_count.fetch_add(1);
+        size_t peak = state_->peak_bytes.load(std::memory_order_relaxed);
+        while (current > peak &&
+               !state_->peak_bytes.compare_exchange_weak(peak, current, std::memory_order_relaxed))
+        {
+        }
+
+        auto state = state_;
+        return std::make_shared<Buffer>(ptr, bytes, device_, MemoryKind::kHost,
+                                        [state](void* data, size_t size)
+                                        { state->Release(data, size); });
+    }
+
+    MemoryStats CpuMemoryManager::Stats() const
+    {
+        MemoryStats stats;
+        stats.allocated_bytes = state_->allocated_bytes.load();
+        stats.peak_bytes = state_->peak_bytes.load();
+        stats.allocation_count = state_->allocation_count.load();
+        return stats;
+    }
 
 }  // namespace hpcplatform

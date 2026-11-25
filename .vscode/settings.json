@@ -1,0 +1,12 @@
+{
+    "C_Cpp.formatting": "clangFormat",
+    // 直接指定使用 Allman 风格
+    "C_Cpp.clang_format_style": "file",
+    "editor.formatOnSave": true,
+    "lldb.displayFormat": "auto",
+    "lldb.showDisassembly": "auto",
+    "lldb.dereferencePointers": true,
+    "lldb.consoleMode": "commands",
+    // 开启保存时自动格式化
+    "editor.formatOnSave": true,
+}

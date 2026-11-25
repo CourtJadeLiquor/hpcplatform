@@ -25,76 +25,82 @@
 #include "hpcplatform/ops/image.h"
 #include "hpcplatform/ops/op.h"
 
-namespace hpcplatform {
-namespace ops_internal {
+namespace hpcplatform
+{
+    namespace ops_internal
+    {
 
-// Operator parameters: kernel_size must be an odd integer >= 3 (radius
-// r = kernel_size/2), sigma must be finite and positive, and layout specifies
-// the input/output image dimension ordering.
-struct GaussianBlurParams {
-  int kernel_size;
-  double sigma;
-  ImageLayout layout;
-};
+        // Operator parameters: kernel_size must be an odd integer >= 3 (radius
+        // r = kernel_size/2), sigma must be finite and positive, and layout specifies
+        // the input/output image dimension ordering.
+        struct GaussianBlurParams
+        {
+            int kernel_size;
+            double sigma;
+            ImageLayout layout;
+        };
 
-// Build a normalized 1D Gaussian kernel of length kernel_size in O(K).
-// Given kernel_size and sigma, set d = i - radius for i = 0..K-1, compute G(d)
-// and accumulate the sum, then divide each coefficient by that sum so they sum
-// to 1. Normalization accumulates in tap order, so all backends construct
-// byte-identical coefficients. Callers replicate out-of-range pixels; the
-// kernel itself is unaware of boundaries.
-inline std::vector<double> BuildGaussianKernel(int kernel_size, double sigma) {
-  const int radius = kernel_size / 2;
-  std::vector<double> kernel(static_cast<size_t>(kernel_size));
-  double sum = 0.0;
-  for (int i = 0; i < kernel_size; ++i) {
-    const double d = i - radius;
-    kernel[static_cast<size_t>(i)] = std::exp(-(d * d) / (2.0 * sigma * sigma));
-    sum += kernel[static_cast<size_t>(i)];
-  }
-  for (double& value : kernel)
-    value /= sum;
-  return kernel;
-}
+        // Build a normalized 1D Gaussian kernel of length kernel_size in O(K).
+        // Given kernel_size and sigma, set d = i - radius for i = 0..K-1, compute G(d)
+        // and accumulate the sum, then divide each coefficient by that sum so they sum
+        // to 1. Normalization accumulates in tap order, so all backends construct
+        // byte-identical coefficients. Callers replicate out-of-range pixels; the
+        // kernel itself is unaware of boundaries.
+        inline std::vector<double> BuildGaussianKernel(int kernel_size, double sigma)
+        {
+            const int radius = kernel_size / 2;
+            std::vector<double> kernel(static_cast<size_t>(kernel_size));
+            double sum = 0.0;
+            for (int i = 0; i < kernel_size; ++i)
+            {
+                const double d = i - radius;
+                kernel[static_cast<size_t>(i)] = std::exp(-(d * d) / (2.0 * sigma * sigma));
+                sum += kernel[static_cast<size_t>(i)];
+            }
+            for (double& value : kernel) value /= sum;
+            return kernel;
+        }
 
-// Kernel entry points for all CPU levels (implemented in the corresponding
-// _cpu_*.cpp files). Every CPU level accumulates in double with identical tap
-// order and must be bit-exact with the others. All levels use the signature
-// (context, input, other, params, output).
-Status GaussianBlurCpuNaive(const OpContext& context, const Tensor& input,
-                            const Tensor* other, const void* params,
-                            Tensor* output);
+        // Kernel entry points for all CPU levels (implemented in the corresponding
+        // _cpu_*.cpp files). Every CPU level accumulates in double with identical tap
+        // order and must be bit-exact with the others. All levels use the signature
+        // (context, input, other, params, output).
+        Status GaussianBlurCpuNaive(const OpContext& context,
+                                    const Tensor& input,
+                                    const Tensor* other,
+                                    const void* params,
+                                    Tensor* output);
 #ifdef hpcplatform_WITH_OPENMP
-Status GaussianBlurCpuOpenMP(const OpContext&, const Tensor&, const Tensor*,
-                             const void*, Tensor*);
+        Status GaussianBlurCpuOpenMP(
+            const OpContext&, const Tensor&, const Tensor*, const void*, Tensor*);
 #endif
 #ifdef hpcplatform_WITH_TBB
-Status GaussianBlurCpuTbb(const OpContext&, const Tensor&, const Tensor*,
-                          const void*, Tensor*);
+        Status GaussianBlurCpuTbb(
+            const OpContext&, const Tensor&, const Tensor*, const void*, Tensor*);
 #endif
 #ifdef hpcplatform_WITH_SIMD_GENERIC
-Status GaussianBlurCpuSimd(const OpContext&, const Tensor&, const Tensor*,
-                           const void*, Tensor*);
+        Status GaussianBlurCpuSimd(
+            const OpContext&, const Tensor&, const Tensor*, const void*, Tensor*);
 #endif
 #ifdef hpcplatform_ARCH_AVX2
-Status GaussianBlurCpuAvx2(const OpContext&, const Tensor&, const Tensor*,
-                           const void*, Tensor*);
+        Status GaussianBlurCpuAvx2(
+            const OpContext&, const Tensor&, const Tensor*, const void*, Tensor*);
 #endif
 #ifdef hpcplatform_WITH_CUDA
-Status GaussianBlurCuda(const OpContext&, const Tensor&, const Tensor*,
-                        const void*, Tensor*);
+        Status GaussianBlurCuda(
+            const OpContext&, const Tensor&, const Tensor*, const void*, Tensor*);
 #endif
 #ifdef hpcplatform_WITH_OPENCV
-Status GaussianBlurOpenCv(const OpContext&, const Tensor&, const Tensor*,
-                          const void*, Tensor*);
+        Status GaussianBlurOpenCv(
+            const OpContext&, const Tensor&, const Tensor*, const void*, Tensor*);
 #endif
 
-// Register every implementation compiled into this binary: all enabled CPU
-// levels (naive/OpenMP/TBB/SIMD/AVX2) and enabled optional CUDA/OpenCV backends
-// (docs/architecture.md §6.3).
-void RegisterGaussianBlurKernels();
+        // Register every implementation compiled into this binary: all enabled CPU
+        // levels (naive/OpenMP/TBB/SIMD/AVX2) and enabled optional CUDA/OpenCV backends
+        // (docs/architecture.md §6.3).
+        void RegisterGaussianBlurKernels();
 
-}  // namespace ops_internal
+    }  // namespace ops_internal
 }  // namespace hpcplatform
 
 #endif  // hpcplatform_SRC_OPS_GAUSSIAN_BLUR_GAUSSIAN_BLUR_INTERNAL_H_

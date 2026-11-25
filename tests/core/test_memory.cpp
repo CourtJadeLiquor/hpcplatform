@@ -4,50 +4,50 @@
 // MemoryManager only allocates and tracks stats; the low-level byte-range copy
 // primitive is Backend::CopyBuffer, exercised via transfer::Copy and the
 // backend tests (see src/backends/*).
-#include "test_utils.h"
-
 #include <cstring>
 #include <vector>
 
 #include "hpcplatform/core/context.h"
 #include "hpcplatform/core/tensor.h"
 #include "hpcplatform/core/transfer.h"
+#include "test_utils.h"
 
-namespace {
+namespace
+{
 
-using namespace hpcplatform;
+    using namespace hpcplatform;
 
-TEST(hpcplatform, CpuMemoryManagerCopiesBetweenBuffers) {
-  auto context = Context::Create(BackendType::kNativeCpu).value();
-  auto src = Tensor::Empty(*context, Shape{4}, DataType::kFloat32).value();
-  auto dst = Tensor::Empty(*context, Shape{4}, DataType::kFloat32).value();
+    TEST(hpcplatform, CpuMemoryManagerCopiesBetweenBuffers)
+    {
+        auto context = Context::Create(BackendType::kNativeCpu).value();
+        auto src = Tensor::Empty(*context, Shape{4}, DataType::kFloat32).value();
+        auto dst = Tensor::Empty(*context, Shape{4}, DataType::kFloat32).value();
 
-  float* src_data = src.Data<float>();
-  for (int i = 0; i < 4; ++i)
-    src_data[i] = static_cast<float>(i) + 1.0f;
+        float* src_data = src.Data<float>();
+        for (int i = 0; i < 4; ++i) src_data[i] = static_cast<float>(i) + 1.0f;
 
-  hpcplatform_EXPECT_OK(Copy(src, &dst));
-  EXPECT_EQ(std::memcmp(src.data(), dst.data(), src.ByteSize()),
-                 static_cast<int>(0));
-  EXPECT_EQ(dst.Data<float>()[3], 4.0f);
-}
+        hpcplatform_EXPECT_OK(Copy(src, &dst));
+        EXPECT_EQ(std::memcmp(src.data(), dst.data(), src.ByteSize()), static_cast<int>(0));
+        EXPECT_EQ(dst.Data<float>()[3], 4.0f);
+    }
 
-TEST(hpcplatform, MemoryStatsTrackLifetime) {
-  auto context = Context::Create(BackendType::kNativeCpu).value();
-  const MemoryStats before = context->GetMemoryStats();
+    TEST(hpcplatform, MemoryStatsTrackLifetime)
+    {
+        auto context = Context::Create(BackendType::kNativeCpu).value();
+        const MemoryStats before = context->GetMemoryStats();
 
-  {
-    auto first = Tensor::Empty(*context, Shape{8}, DataType::kFloat32).value();
-    auto second = Tensor::Empty(*context, Shape{8}, DataType::kFloat32).value();
-    const MemoryStats during = context->GetMemoryStats();
-    EXPECT_EQ(during.allocated_bytes, before.allocated_bytes + 64);
-    EXPECT_EQ(during.allocation_count, before.allocation_count + 2);
-    EXPECT_TRUE(during.peak_bytes >= during.allocated_bytes);
-  }
+        {
+            auto first = Tensor::Empty(*context, Shape{8}, DataType::kFloat32).value();
+            auto second = Tensor::Empty(*context, Shape{8}, DataType::kFloat32).value();
+            const MemoryStats during = context->GetMemoryStats();
+            EXPECT_EQ(during.allocated_bytes, before.allocated_bytes + 64);
+            EXPECT_EQ(during.allocation_count, before.allocation_count + 2);
+            EXPECT_TRUE(during.peak_bytes >= during.allocated_bytes);
+        }
 
-  const MemoryStats after = context->GetMemoryStats();
-  EXPECT_EQ(after.allocated_bytes, before.allocated_bytes);
-  EXPECT_EQ(after.allocation_count, before.allocation_count);
-}
+        const MemoryStats after = context->GetMemoryStats();
+        EXPECT_EQ(after.allocated_bytes, before.allocated_bytes);
+        EXPECT_EQ(after.allocation_count, before.allocation_count);
+    }
 
 }  // namespace

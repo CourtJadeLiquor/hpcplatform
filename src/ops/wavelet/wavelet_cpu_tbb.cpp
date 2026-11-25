@@ -8,15 +8,20 @@
 
 #include "wavelet_cpu.h"
 
-namespace hpcplatform {
-namespace ops_internal {
+namespace hpcplatform
+{
+    namespace ops_internal
+    {
 
-// Same driver as naive, with row/column loops replaced by tbb::parallel_for.
-Status WaveletCpuTbb(const OpContext&, const Tensor& input,
-                     const Tensor* /*other*/, const void* params,
-                     Tensor* output) {
-  return WaveletImpl<WaveletTbbRunner>(input, params, output);
-}
+        // Same driver as naive, with row/column loops replaced by tbb::parallel_for.
+        Status WaveletCpuTbb(const OpContext&,
+                             const Tensor& input,
+                             const Tensor* /*other*/,
+                             const void* params,
+                             Tensor* output)
+        {
+            return WaveletImpl<WaveletTbbRunner>(input, params, output);
+        }
 
-}  // namespace ops_internal
+    }  // namespace ops_internal
 }  // namespace hpcplatform

@@ -1,0 +1,20 @@
+Language: Cpp
+BasedOnStyle: Google
+# 强制花括号遵循 Allman 风格（大括号独占一行且对齐）
+BreakBeforeBraces: Allman
+IndentWidth: 4
+ColumnLimit: 100
+
+NamespaceIndentation: All
+
+# 3. 访问修饰符偏移：控制 public/protected/private 的缩进位置
+# 设为 -4（与 IndentWidth 一致）：修饰符顶格，类成员正常缩进（推荐，视觉区分度高）
+# 设为 0：修饰符与类成员一起缩进
+AccessModifierOffset: -4
+
+# 续行缩进宽度：当语句需要换行时，新行相对于上一行的额外缩进量
+ContinuationIndentWidth: 4
+
+# 函数声明/定义参数过长时的换行策略
+# 设为 false 时，参数会尽量对齐到左括号后；设为 true 时，会按 ContinuationIndentWidth 缩进
+BinPackParameters: false

@@ -7,15 +7,16 @@
 
 #include "hpcplatform/core/error.h"
 
-namespace hpcplatform {
+namespace hpcplatform
+{
 
-inline Status CudaStatus(cudaError_t error, const char* operation) {
-  if (error == cudaSuccess) return Status::Ok();
-  const std::string message =
-      std::string(operation) + ": " + cudaGetErrorString(error);
-  if (error == cudaErrorMemoryAllocation) return Status::OutOfMemory(message);
-  return Status::Internal(message);
-}
+    inline Status CudaStatus(cudaError_t error, const char* operation)
+    {
+        if (error == cudaSuccess) return Status::Ok();
+        const std::string message = std::string(operation) + ": " + cudaGetErrorString(error);
+        if (error == cudaErrorMemoryAllocation) return Status::OutOfMemory(message);
+        return Status::Internal(message);
+    }
 
 }  // namespace hpcplatform
 

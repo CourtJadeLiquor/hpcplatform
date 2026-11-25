@@ -5,14 +5,19 @@
 
 #include "resize_cpu.h"
 
-namespace hpcplatform {
-namespace ops_internal {
-// The kernel table defines the entry signature; OpContext and the second input
-// tensor are unused. Complexity is O(N*H_out*W_out*C), shared across TBB tasks.
-Status ResizeCpuTbb(const OpContext&, const Tensor& input, const Tensor*,
-                    const void* params, Tensor* output) {
-  return ResizeTbbImpl(input, *static_cast<const ResizeParams*>(params),
-                       output);
-}
-}  // namespace ops_internal
+namespace hpcplatform
+{
+    namespace ops_internal
+    {
+        // The kernel table defines the entry signature; OpContext and the second input
+        // tensor are unused. Complexity is O(N*H_out*W_out*C), shared across TBB tasks.
+        Status ResizeCpuTbb(const OpContext&,
+                            const Tensor& input,
+                            const Tensor*,
+                            const void* params,
+                            Tensor* output)
+        {
+            return ResizeTbbImpl(input, *static_cast<const ResizeParams*>(params), output);
+        }
+    }  // namespace ops_internal
 }  // namespace hpcplatform

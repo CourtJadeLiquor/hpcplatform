@@ -6,23 +6,25 @@
 
 #include "framework/op_descriptor.h"
 
-namespace hpcplatform {
+namespace hpcplatform
+{
 
-// Each operator owns its descriptor registration in its own op folder. Add one
-// line here to register a new config-driven operator; no shared loader code
-// needs to change (open/closed, AC-7).
-void RegisterResizeDescriptor();
-void RegisterGaussianBlurDescriptor();
-void RegisterLaplacianPyramidDescriptor();
-void RegisterFourierTransformDescriptor();
-void RegisterWaveletTransformDescriptor();
+    // Each operator owns its descriptor registration in its own op folder. Add one
+    // line here to register a new config-driven operator; no shared loader code
+    // needs to change (open/closed, AC-7).
+    void RegisterResizeDescriptor();
+    void RegisterGaussianBlurDescriptor();
+    void RegisterLaplacianPyramidDescriptor();
+    void RegisterFourierTransformDescriptor();
+    void RegisterWaveletTransformDescriptor();
 
-void RegisterAllOpDescriptors() {
-  RegisterResizeDescriptor();
-  RegisterGaussianBlurDescriptor();
-  RegisterLaplacianPyramidDescriptor();
-  RegisterFourierTransformDescriptor();
-  RegisterWaveletTransformDescriptor();
-}
+    void RegisterAllOpDescriptors()
+    {
+        RegisterResizeDescriptor();
+        RegisterGaussianBlurDescriptor();
+        RegisterLaplacianPyramidDescriptor();
+        RegisterFourierTransformDescriptor();
+        RegisterWaveletTransformDescriptor();
+    }
 
 }  // namespace hpcplatform

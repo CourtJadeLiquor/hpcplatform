@@ -4,12 +4,13 @@
 
 #include "backends/backend_internal.h"
 
-namespace hpcplatform {
+namespace hpcplatform
+{
 
-Result<std::shared_ptr<Backend>> CreateOpenCvBackend(int device_index) {
-  std::shared_ptr<Backend> backend =
-      std::make_shared<OpenCvBackend>(device_index);
-  return backend;
-}
+    Result<std::shared_ptr<Backend>> CreateOpenCvBackend(int device_index)
+    {
+        std::shared_ptr<Backend> backend = std::make_shared<OpenCvBackend>(device_index);
+        return backend;
+    }
 
 }  // namespace hpcplatform

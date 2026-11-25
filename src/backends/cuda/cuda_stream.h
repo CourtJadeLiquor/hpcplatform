@@ -5,26 +5,28 @@
 
 #include "hpcplatform/core/stream.h"
 
-namespace hpcplatform {
+namespace hpcplatform
+{
 
-class CudaStream final : public Stream {
- public:
-  explicit CudaStream(Device device) : device_(device) {}
-  ~CudaStream() override;
+    class CudaStream final : public Stream
+    {
+    public:
+        explicit CudaStream(Device device) : device_(device) {}
+        ~CudaStream() override;
 
-  CudaStream(const CudaStream&) = delete;
-  CudaStream& operator=(const CudaStream&) = delete;
+        CudaStream(const CudaStream&) = delete;
+        CudaStream& operator=(const CudaStream&) = delete;
 
-  Status Initialize();
-  Device device() const override { return device_; }
-  Status Synchronize() override;
-  bool synchronous() const override { return false; }
-  cudaStream_t handle() const { return stream_; }
+        Status Initialize();
+        Device device() const override { return device_; }
+        Status Synchronize() override;
+        bool synchronous() const override { return false; }
+        cudaStream_t handle() const { return stream_; }
 
- private:
-  Device device_;
-  cudaStream_t stream_ = nullptr;
-};
+    private:
+        Device device_;
+        cudaStream_t stream_ = nullptr;
+    };
 
 }  // namespace hpcplatform
 

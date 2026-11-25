@@ -5,39 +5,44 @@
 #include "backends/opencv/opencv_memory_manager.h"
 #include "core/backend.h"
 
-namespace hpcplatform {
+namespace hpcplatform
+{
 
-class OpenCvBackend final : public Backend {
- public:
-  explicit OpenCvBackend(int device_index)
-      : device_{DeviceType::kCPU, device_index},
-        memory_(device_),
-        stream_(device_) {}
+    class OpenCvBackend final : public Backend
+    {
+    public:
+        explicit OpenCvBackend(int device_index)
+            : device_{DeviceType::kCPU, device_index}, memory_(device_), stream_(device_)
+        {
+        }
 
-  BackendType type() const override { return BackendType::kOpenCV; }
-  Device device() const override { return device_; }
-  MemoryManager& memory() override { return memory_; }
-  // Grants mutable access to the owned stream; the backend itself is not
-  // modified, so the accessor is const and casts away the member's constness.
-  Stream& stream() const override { return const_cast<CpuStream&>(stream_); }
-  Status Synchronize() override { return stream_.Synchronize(); }
-  bool SupportsDType(DataType dtype) const override {
-    return dtype == DataType::kUInt8 || dtype == DataType::kFloat32 ||
-           dtype == DataType::kFloat64;
-  }
-  bool SupportsKernelLevel(CpuKernelLevel level) const override {
-    return level == CpuKernelLevel::kNaive;
-  }
-  std::string Describe() const override {
-    return "OpenCvBackend(device=" + device_.ToString() +
-           ", dtypes=u8/f32/f64, layouts=HW/HWC/NHWC)";
-  }
+        BackendType type() const override { return BackendType::kOpenCV; }
+        Device device() const override { return device_; }
+        MemoryManager& memory() override { return memory_; }
+        // Grants mutable access to the owned stream; the backend itself is not
+        // modified, so the accessor is const and casts away the member's constness.
+        Stream& stream() const override { return const_cast<CpuStream&>(stream_); }
+        Status Synchronize() override { return stream_.Synchronize(); }
+        bool SupportsDType(DataType dtype) const override
+        {
+            return dtype == DataType::kUInt8 || dtype == DataType::kFloat32 ||
+                   dtype == DataType::kFloat64;
+        }
+        bool SupportsKernelLevel(CpuKernelLevel level) const override
+        {
+            return level == CpuKernelLevel::kNaive;
+        }
+        std::string Describe() const override
+        {
+            return "OpenCvBackend(device=" + device_.ToString() +
+                   ", dtypes=u8/f32/f64, layouts=HW/HWC/NHWC)";
+        }
 
- private:
-  Device device_;
-  OpenCvMemoryManager memory_;
-  CpuStream stream_;
-};
+    private:
+        Device device_;
+        OpenCvMemoryManager memory_;
+        CpuStream stream_;
+    };
 
 }  // namespace hpcplatform
 

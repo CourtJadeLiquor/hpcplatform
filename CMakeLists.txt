@@ -145,6 +145,7 @@ if(hpcplatform_WITH_CUDA)
   target_sources(hpcplatform PRIVATE
     src/backends/cuda/cuda_backend.cpp
     src/backends/cuda/cuda_copy.cpp
+    src/backends/cuda/cuda_copy_strided.cu
     src/backends/cuda/cuda_memory_manager.cpp
     src/backends/cuda/cuda_stream.cpp)
   target_link_libraries(hpcplatform PUBLIC CUDA::cudart)

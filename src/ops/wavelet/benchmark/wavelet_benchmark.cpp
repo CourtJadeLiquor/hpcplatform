@@ -166,7 +166,7 @@ int main() {
     auto device_input = Tensor::Empty(*cuda.value(), input.value().shape(),
                                                      input.value().dtype());
     if (!device_input.ok()) continue;
-    if (!Copy(&device_input.value(), input.value()).ok())
+    if (!Copy(input.value(), &device_input.value()).ok())
       continue;
     OpContext context(*cuda.value());
     for (WaveletKind kind : {WaveletKind::kHaar, WaveletKind::kDaubechies4}) {

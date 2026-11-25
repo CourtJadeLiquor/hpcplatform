@@ -1,6 +1,7 @@
 #ifndef hpcplatform_SRC_CORE_BACKEND_H_
 #define hpcplatform_SRC_CORE_BACKEND_H_
 
+#include <cstdint>
 #include <memory>
 #include <string>
 
@@ -39,6 +40,21 @@ class Backend {
   virtual Status CopyBuffer(Buffer* dst, size_t dst_offset, const Buffer* src,
                             size_t src_offset, size_t bytes,
                             Stream* stream) const;
+
+  // Copies the logical elements of a strided view into another strided view.
+  // `shape` gives the element extents in row-major order; the two stride
+  // arrays are per-dimension byte strides. Both operands share the element
+  // size. This is the backend's decision point for non-contiguous movement —
+  // each backend picks its native strategy (a single strided-copy kernel on
+  // CUDA, an element-wise loop on host) and returns kUnsupported for memory it
+  // cannot access. The default implementation is a portable element-wise host
+  // loop; host-side element-wise copies are not a performance cliff, so host
+  // backends are free to inherit it.
+  virtual Status CopyStrided(Buffer* dst, size_t dst_offset,
+                             const int64_t* dst_strides, const Buffer* src,
+                             size_t src_offset, const int64_t* src_strides,
+                             const Shape& shape, size_t element_size,
+                             Stream* stream) const;
 
   // Returns whether this backend supports the specified dtype.
   virtual bool SupportsDType(DataType dtype) const {

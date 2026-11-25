@@ -68,7 +68,7 @@ Tensor {
 
 视图常常产生**非连续**张量（如 `Slice` 后 stride 不等于连续值）。它们并非二等公民：
 
-- **`Copy(&dst, src)`**：拷贝的是**逻辑元素**，按 stride 逐元素搬运，非连续输入正确（见 [`context_copy.md`](./context_copy.md)）。
+- **`Copy(src, &dst)`**：拷贝的是**逻辑元素**，按 stride 逐元素搬运，非连续输入正确（见 [`context_copy.md`](./context_copy.md)）。
 - **逐元素遍历**：内部工具 `TensorIterator`（`src/core/tensor_iterator.h`）按 stride 遍历任意布局，目前 `Copy` 的非连续路径用它逐元素搬运；未来元素级内核可复用同一工具。
 - **要求连续的算子**：在校验层显式声明并拒绝（如某些后端的图像算子），不会静默给出错误结果。
 

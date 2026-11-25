@@ -18,7 +18,7 @@
 | [`tensor_views.md`](./tensor_views.md) | 为什么 View/Slice/Permute 不拷贝？stride 和 offset 怎么算？Reshape 什么时候偷偷深拷贝？ |
 | [`memory_lifecycle.md`](./memory_lifecycle.md) | Tensor 为什么能比 Context 活得久？`WrapExternal` 的"借用"和"接管"有什么区别？ |
 | [`op_dispatch.md`](./op_dispatch.md) | 算子到底是怎么被选中的？`kUnsupported` / `kNotImplemented` / `kInvalidArgument` 到底什么时候返回哪个？ |
-| [`context_copy.md`](./context_copy.md) | `Upload` / `Download` / `Copy` 怎么分工？跨后端怎么选路？什么时候同步？ |
+| [`context_copy.md`](./context_copy.md) | 数据搬运的四层结构是什么？`Copy` / `Upload` / `Download` / `From` / `Into` 各自该谁用？算子里为什么不能调传输 API？ |
 | [`cuda_stream_visibility.md`](./cuda_stream_visibility.md) | 为什么 `WrapExternal` 进来的 CUDA 内存数据不对？non-blocking 流和外部内存的可见性责任在谁？ |
 | [`error_model.md`](./error_model.md) | 为什么不用异常？`Status` / `Result` 怎么用？六种错误码怎么选？ |
 | [`testing.md`](./testing.md) | 全特性构建树怎么跑？怎么用 GoogleTest/CTest 写对拍测试？容差怎么定？ |

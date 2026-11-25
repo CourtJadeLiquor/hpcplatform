@@ -216,6 +216,7 @@ int main() {
 ./build_release/samples/02_ops_pipeline
 ./build_release/samples/03_opencv_backend  # 需要 OpenCV
 ./build_release/samples/04_cuda_pipeline   # 需要 CUDA 和可用 GPU
+./build_release/samples/07_data_transfer   # 数据搬运 API 全览（自动跳过不可用后端）
 ```
 
 ### 方式二：通过 YAML 配置调用
@@ -322,7 +323,7 @@ hpcplatform_DEVICE_INDEX=0 \
 ## 从哪里开始
 
 1. **理解数据模型**：运行并阅读 [00_hello_tensor.cpp](samples/00_hello_tensor.cpp)，了解 `Shape`、`Tensor`、`Context` 和 `Result<T>`。
-2. **理解内存与拷贝**：阅读 [01_memory_copy.cpp](samples/01_memory_copy.cpp)，再参考[内存生命周期](docs/qa/memory_lifecycle.md)和[Context 与拷贝](docs/qa/context_copy.md)。
+2. **理解内存与拷贝**：阅读 [01_memory_copy.cpp](samples/01_memory_copy.cpp) 与 [07_data_transfer.cpp](samples/07_data_transfer.cpp)，再参考[内存生命周期](docs/qa/memory_lifecycle.md)和[数据搬运](docs/qa/context_copy.md)。
 3. **运行第一条算子链路**：阅读 [02_ops_pipeline.cpp](samples/02_ops_pipeline.cpp)，掌握 `OpContext` 和直接 API 调用。
 4. **比较后端实现**：按需阅读 [03_opencv_backend.cpp](samples/03_opencv_backend.cpp) 和 [04_cuda_pipeline.cpp](samples/04_cuda_pipeline.cpp)。
 5. **学习配置驱动**：运行 [05_config_operator.cpp](samples/05_config_operator.cpp)，修改 [operators.yaml](samples/configs/operators.yaml) 中的参数、后端和内核级别。

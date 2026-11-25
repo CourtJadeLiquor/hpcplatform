@@ -18,7 +18,9 @@ int main() {
   for (int i = 0; i < 48; ++i)
     host.Data<uint8_t>()[i] = static_cast<uint8_t>(i * 5);
   auto device = Tensor::Empty(*cuda, host.shape(), host.dtype()).value();
-  const Status upload = Copy(&device, host);
+  // The direction is known here, so name it: Upload asserts that the source is
+  // host memory and the destination is device memory.
+  const Status upload = Upload(host, &device);
   if (!upload.ok()) return 1;
 
   OpContext ops(*cuda.get());
@@ -29,7 +31,7 @@ int main() {
   auto output =
       Tensor::Empty(*native, blurred.value().shape(), blurred.value().dtype())
           .value();
-  const Status download = Copy(&output, blurred.value());
+  const Status download = Download(blurred.value(), &output);
   if (!download.ok()) return 1;
 
   std::cout << cuda->Describe() << '\n';

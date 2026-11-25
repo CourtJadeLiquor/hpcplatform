@@ -27,6 +27,13 @@ class CudaBackend final : public Backend {
   Status CopyBuffer(Buffer* dst, size_t dst_offset, const Buffer* src,
                     size_t src_offset, size_t bytes,
                     Stream* stream) const override;
+  // Non-contiguous movement runs one strided-copy kernel launch (see
+  // cuda_copy_strided.cu); host-to-host falls back to the portable loop.
+  Status CopyStrided(Buffer* dst, size_t dst_offset,
+                     const int64_t* dst_strides, const Buffer* src,
+                     size_t src_offset, const int64_t* src_strides,
+                     const Shape& shape, size_t element_size,
+                     Stream* stream) const override;
   bool SupportsKernelLevel(CpuKernelLevel level) const override {
     return level == CpuKernelLevel::kNaive;
   }

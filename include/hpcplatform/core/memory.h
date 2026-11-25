@@ -10,8 +10,6 @@
 
 namespace hpcplatform {
 
-class Stream;
-
 // Snapshot of memory statistics at a point in time.
 struct MemoryStats {
   size_t allocated_bytes = 0;   // Bytes in current live allocations
@@ -59,7 +57,7 @@ class Buffer {
   Deleter deleter_;
 };
 
-// Unified allocation / copy interface. Every backend provides its own
+// Unified allocation interface. Every backend provides its own
 // implementation; nothing is auto-selected at runtime.
 class MemoryManager {
  public:
@@ -71,13 +69,6 @@ class MemoryManager {
   // alignment must be a power of two and a multiple of sizeof(void*).
   virtual Result<std::shared_ptr<Buffer>> Allocate(size_t bytes,
                                                    size_t alignment = 64) = 0;
-
-  // Synchronous copy between two buffers owned by this manager.
-  // Cross-device transfers are resolved by the transfer functions in
-  // hpcplatform/core/transfer.h.
-  virtual Status Copy(Buffer* dst, size_t dst_offset, const Buffer* src,
-                      size_t src_offset, size_t bytes,
-                      Stream* stream = nullptr) = 0;
 
   // Returns current usage, peak usage, and live allocation count.
   virtual MemoryStats Stats() const = 0;

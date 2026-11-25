@@ -16,7 +16,7 @@ int main() {
   for (int i = 0; i < 4; ++i)
     src.Data<float>()[i] = static_cast<float>(i + 1);
 
-  const Status status = Copy(&dst, src);
+  const Status status = Copy(src, &dst);
   if (!status.ok()) {
     std::cerr << "copy failed: " << status.ToString() << "\n";
     return 1;

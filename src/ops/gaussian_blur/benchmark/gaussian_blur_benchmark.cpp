@@ -152,7 +152,7 @@ int main() {
         auto device =
             Tensor::Empty(*opencv.value(), input.value().shape(), dtype);
         if (device.ok() &&
-            Copy(&device.value(), input.value()).ok()) {
+            Copy(input.value(), &device.value()).ok()) {
           OpContext accelerated(*opencv.value());
           bool ok = false;
           const Measurement run =
@@ -164,7 +164,7 @@ int main() {
         auto device =
             Tensor::Empty(*cuda.value(), input.value().shape(), dtype);
         if (device.ok() &&
-            Copy(&device.value(), input.value()).ok()) {
+            Copy(input.value(), &device.value()).ok()) {
           OpContext accelerated(*cuda.value());
           bool ok = false;
           const Measurement run =

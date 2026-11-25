@@ -39,7 +39,7 @@ OpContext Ops(Context& context, CpuKernelLevel level = CpuKernelLevel::kNaive) {
 Result<Tensor> CopyTo(Context& destination, const Tensor& source) {
   auto output = Tensor::Empty(destination, source.shape(), source.dtype());
   if (!output.ok()) return output.status();
-  hpcplatform_RETURN_IF_ERROR(Copy(&output.value(), source));
+  hpcplatform_RETURN_IF_ERROR(Copy(source, &output.value()));
   return output;
 }
 
@@ -148,19 +148,75 @@ TEST(hpcplatform, CudaCloneReusesTheOwningContext) {
   }
 }
 
-TEST(hpcplatform, CudaRejectsNonContiguousDeviceCopy) {
+TEST(hpcplatform, CudaMaterializesNonContiguousDeviceCopy) {
   auto cuda = GetCudaContext();
   if (!cuda) return;
-  auto source = Tensor::Empty(*cuda, Shape{4, 4}, DataType::kFloat32).value();
-  auto destination =
-      Tensor::Empty(*cuda, Shape{4, 2}, DataType::kFloat32).value();
+  auto native = Context::Create(BackendType::kNativeCpu).value();
 
-  auto narrowed_result = source.Slice(1, 0, 2);
+  auto host_source =
+      Tensor::Empty(*native, Shape{4, 4}, DataType::kFloat32).value();
+  for (int i = 0; i < 16; ++i)
+    host_source.Data<float>()[i] = static_cast<float>(i);
+  auto device_source = CopyTo(*cuda, host_source);
+  EXPECT_TRUE(device_source.ok());
+  if (!device_source.ok()) return;
+
+  auto narrowed_result = device_source.value().Slice(1, 0, 2);
   EXPECT_TRUE(narrowed_result.ok());
   if (!narrowed_result.ok()) return;
-  auto status = Copy(&destination, narrowed_result.value());
-  // Explicit refusal beats a per-element synchronous GPU copy.
-  EXPECT_EQ(status.code(), StatusCode::kUnsupported);
+  EXPECT_TRUE(!narrowed_result.value().IsContiguous());
+
+  auto destination =
+      Tensor::Empty(*cuda, Shape{4, 2}, DataType::kFloat32).value();
+  // Non-contiguous device operands move through the backend's strided-copy
+  // kernel (one launch), not per-element transfers; see docs/qa/context_copy.md.
+  hpcplatform_EXPECT_OK(Copy(narrowed_result.value(), &destination));
+
+  auto back = CopyTo(*native, destination);
+  EXPECT_TRUE(back.ok());
+  if (!back.ok()) return;
+  for (int row = 0; row < 4; ++row) {
+    EXPECT_EQ(back.value().Data<float>()[row * 2 + 0],
+                   static_cast<float>(row * 4));
+    EXPECT_EQ(back.value().Data<float>()[row * 2 + 1],
+                   static_cast<float>(row * 4 + 1));
+  }
+}
+
+TEST(hpcplatform, CudaCopiesPermutedDeviceView) {
+  auto cuda = GetCudaContext();
+  if (!cuda) return;
+  auto native = Context::Create(BackendType::kNativeCpu).value();
+
+  auto host_source =
+      Tensor::Empty(*native, Shape{2, 3}, DataType::kFloat32).value();
+  for (int i = 0; i < 6; ++i)
+    host_source.Data<float>()[i] = static_cast<float>(i);
+  auto device_source = CopyTo(*cuda, host_source);
+  EXPECT_TRUE(device_source.ok());
+  if (!device_source.ok()) return;
+
+  auto transposed = device_source.value().Permute({1, 0});
+  EXPECT_TRUE(transposed.ok());
+  if (!transposed.ok()) return;
+  EXPECT_TRUE(!transposed.value().IsContiguous());
+
+  // Both sides carry non-packed strides (src row-major, dst transposed), so
+  // this exercises the general strided-kernel path rather than a pitched
+  // memcpy fast path.
+  auto destination =
+      Tensor::Empty(*cuda, Shape{3, 2}, DataType::kFloat32).value();
+  hpcplatform_EXPECT_OK(Copy(transposed.value(), &destination));
+
+  auto back = CopyTo(*native, destination);
+  EXPECT_TRUE(back.ok());
+  if (!back.ok()) return;
+  for (int row = 0; row < 3; ++row) {
+    for (int col = 0; col < 2; ++col) {
+      EXPECT_EQ(back.value().Data<float>()[row * 2 + col],
+                     static_cast<float>(col * 3 + row));
+    }
+  }
 }
 
 // --- End-to-end pipeline: resize -> gaussian_blur. The point of this test is

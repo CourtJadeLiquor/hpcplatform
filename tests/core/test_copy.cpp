@@ -26,7 +26,7 @@ TEST(hpcplatform, CopyHandlesNonContiguousSource) {
   auto destination =
       Tensor::Empty(*context, slice.shape(), DataType::kInt32).value();
 
-  hpcplatform_EXPECT_OK(Copy(&destination, slice));
+  hpcplatform_EXPECT_OK(Copy(slice, &destination));
   const int32_t expected[] = {2, 3, 6, 7};
   for (int i = 0; i < 4; ++i) {
     EXPECT_EQ(destination.Data<int32_t>()[i], expected[i]);
@@ -40,9 +40,9 @@ TEST(hpcplatform, CopyRejectsMismatchedDestination) {
       Tensor::Empty(*context, Shape{3}, DataType::kFloat32).value();
   auto wrong_dtype =
       Tensor::Empty(*context, Shape{2}, DataType::kFloat64).value();
-  EXPECT_EQ(Copy(&wrong_shape, source).code(),
+  EXPECT_EQ(Copy(source, &wrong_shape).code(),
                  StatusCode::kInvalidArgument);
-  EXPECT_EQ(Copy(&wrong_dtype, source).code(),
+  EXPECT_EQ(Copy(source, &wrong_dtype).code(),
                  StatusCode::kInvalidArgument);
 }
 
@@ -68,7 +68,7 @@ TEST(hpcplatform, WrapBorrowsExternalHostMemoryWithoutAllocating) {
 
   // A borrowed tensor is a valid copy source.
   auto dst = Tensor::Empty(*context, Shape{1, 5}, DataType::kFloat32).value();
-  hpcplatform_EXPECT_OK(Copy(&dst, t));
+  hpcplatform_EXPECT_OK(Copy(t, &dst));
   for (int i = 0; i < 5; ++i)
     EXPECT_EQ(dst.Data<float>()[i], external[i]);
 

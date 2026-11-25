@@ -7,14 +7,9 @@
 
 namespace hpcplatform {
 
-Status CudaBackend::CopyBuffer(Buffer* dst, size_t dst_offset,
-                               const Buffer* src, size_t src_offset,
-                               size_t bytes, Stream* stream) const {
-  return CudaCopyBuffer(dst, dst_offset, src, src_offset, bytes, stream);
-}
-
-Status CudaCopyBuffer(Buffer* dst, size_t dst_offset, const Buffer* src,
-                      size_t src_offset, size_t bytes, Stream* stream) {
+Status CudaBackend::CopyBuffer(Buffer *dst, size_t dst_offset,
+                               const Buffer *src, size_t src_offset,
+                               size_t bytes, Stream *stream) const {
   if (dst == nullptr || src == nullptr || bytes == 0) {
     return Status::InvalidArgument(
         "CUDA copy requires buffers and non-zero bytes");
@@ -47,7 +42,7 @@ Status CudaCopyBuffer(Buffer* dst, size_t dst_offset, const Buffer* src,
         "CudaCopyBuffer requires at least one device buffer");
   }
 
-  CudaStream* cuda_stream = dynamic_cast<CudaStream*>(stream);
+  CudaStream *cuda_stream = dynamic_cast<CudaStream *>(stream);
   cudaStream_t handle =
       cuda_stream != nullptr ? cuda_stream->handle() : nullptr;
   if (cuda_stream == nullptr) {
@@ -58,12 +53,27 @@ Status CudaCopyBuffer(Buffer* dst, size_t dst_offset, const Buffer* src,
         CudaStatus(cudaDeviceSynchronize(), "cudaDeviceSynchronize"));
   }
   hpcplatform_RETURN_IF_ERROR(CudaStatus(
-      cudaMemcpyAsync(static_cast<char*>(dst->data()) + dst_offset,
-                      static_cast<const char*>(src->data()) + src_offset, bytes,
-                      kind, handle),
+      cudaMemcpyAsync(static_cast<char *>(dst->data()) + dst_offset,
+                      static_cast<const char *>(src->data()) + src_offset,
+                      bytes, kind, handle),
       "cudaMemcpyAsync"));
   return CudaStatus(cudaStreamSynchronize(handle),
                     "cudaStreamSynchronize(copy)");
 }
 
-}  // namespace hpcplatform
+Status CudaBackend::CopyStrided(Buffer *dst, size_t dst_offset,
+                                const int64_t *dst_strides, const Buffer *src,
+                                size_t src_offset, const int64_t *src_strides,
+                                const Shape &shape, size_t element_size,
+                                Stream *stream) const {
+  if (dst->kind() != MemoryKind::kDevice &&
+      src->kind() != MemoryKind::kDevice) {
+    // Host-to-host under a CUDA-bound executor: the portable loop suffices.
+    return Backend::CopyStrided(dst, dst_offset, dst_strides, src, src_offset,
+                                src_strides, shape, element_size, stream);
+  }
+  return CudaCopyStrided(dst, dst_offset, dst_strides, src, src_offset,
+                         src_strides, shape, element_size, stream);
+}
+
+} // namespace hpcplatform

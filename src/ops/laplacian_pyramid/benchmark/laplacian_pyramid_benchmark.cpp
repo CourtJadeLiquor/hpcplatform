@@ -162,7 +162,7 @@ int main() {
       auto device =
           Tensor::Empty(*backend, input.value().shape(), DataType::kFloat32);
       if (!device.ok()) return false;
-      if (!Copy(&device.value(), input.value()).ok()) return false;
+      if (!Copy(input.value(), &device.value()).ok()) return false;
       OpContext accelerated(*backend);
       bool ok = false;
       *out = Measure(accelerated, device.value(), config, &ok, passes);

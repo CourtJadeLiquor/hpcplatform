@@ -340,7 +340,7 @@ std::shared_ptr<Context> GetCudaContext() {
 Result<Tensor> CopyTo(Context& destination, const Tensor& source) {
   auto output = Tensor::Empty(destination, source.shape(), source.dtype());
   if (!output.ok()) return output.status();
-  hpcplatform_RETURN_IF_ERROR(Copy(&output.value(), source));
+  hpcplatform_RETURN_IF_ERROR(Copy(source, &output.value()));
   return output;
 }
 OpContext CudaOpContext(Context& context) {

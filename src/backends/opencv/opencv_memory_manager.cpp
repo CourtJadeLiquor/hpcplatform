@@ -1,6 +1,5 @@
 #include "backends/opencv/opencv_memory_manager.h"
 
-#include <cstring>
 #include <limits>
 #include <memory>
 
@@ -48,27 +47,6 @@ Result<std::shared_ptr<Buffer>> OpenCvMemoryManager::Allocate(
                                     state->allocated_bytes.fetch_sub(size);
                                     state->allocation_count.fetch_sub(1);
                                   });
-}
-
-Status OpenCvMemoryManager::Copy(Buffer* dst, size_t dst_offset,
-                                 const Buffer* src, size_t src_offset,
-                                 size_t bytes, Stream* stream) {
-  (void)stream;
-  if (dst == nullptr || src == nullptr || bytes == 0) {
-    return Status::InvalidArgument(
-        "OpenCV copy requires buffers and non-zero bytes");
-  }
-  if (dst->kind() == MemoryKind::kDevice ||
-      src->kind() == MemoryKind::kDevice) {
-    return Status::Unsupported("OpenCV memory manager copies host memory only");
-  }
-  if (dst_offset > dst->size() || bytes > dst->size() - dst_offset ||
-      src_offset > src->size() || bytes > src->size() - src_offset) {
-    return Status::InvalidArgument("OpenCV copy range out of bounds");
-  }
-  std::memcpy(static_cast<char*>(dst->data()) + dst_offset,
-              static_cast<const char*>(src->data()) + src_offset, bytes);
-  return Status::Ok();
 }
 
 MemoryStats OpenCvMemoryManager::Stats() const {

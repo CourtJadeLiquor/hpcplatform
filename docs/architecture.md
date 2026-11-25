@@ -69,7 +69,7 @@ include/hpcplatform/
 src/
   core/                  # 数据结构与内部契约
     backend.h            # Backend 接口（core 内部契约）
-    copy.cpp             # Backend::CopyBuffer / CopyTensorData / Copy / Upload / Download
+    copy.cpp             # Backend::CopyBuffer / CopyStrided / CopyTensorData / Copy / Upload / Download
     copy.h               # CopyTensorData / ResolveOwningBackend 声明
     tensor_iterator.h    # 内部 stride 逐元素遍历工具（非公共 API）
   framework/             # 库内共享支撑层
@@ -157,7 +157,7 @@ samples/                 # 公共 API 使用样例（计时直接用 <chrono>，
 
 `Upload(host_src, &device_dst)` 只接受 host 源 + device 目标，`Download(device_src, &host_dst)` 只接受 device 源 + host 目标；执行者由目标/源张量的所属后端推断（`Copy` 用目标张量的 owner），所以调用方无需传入 Context，也不会"在错误的 Context 上调用"。方向与内存种类在入口处校验。`TensorConvert` 特化内部复用同一套传输原语，因此显式 API 与透明转换共享同一份拷贝语义。
 
-`Backend` 是 core 的内部契约，职责限定为：内存管理、流、`CopyBuffer`、后端 API 封装与数据转换。后端不实现具体算子。
+`Backend` 是 core 的内部契约，职责限定为：内存管理、流、`CopyBuffer`（连续字节区间）、`CopyStrided`（任意 stride 视图，搬运策略由后端决策）、后端 API 封装与数据转换。后端不实现具体算子。
 
 ***
 
@@ -176,7 +176,7 @@ samples/                 # 公共 API 使用样例（计时直接用 <chrono>，
 设计要点：
 
 - 后端只暴露窄接口与稳定的服务头，算子依赖服务而非实现细节（依赖倒置）。
-- 非 CPU 后端只接受 `kNaive` 级别的内核；`CopyBuffer` 不做主机中转。
+- 非 CPU 后端只接受 `kNaive` 级别的内核；`CopyBuffer` 不做主机中转；非连续拷贝由 `CopyStrided` 承接——CUDA 单次 strided-copy kernel launch，host 逐元素循环。
 - `BackendType`/`Device` 保持公共，因为 `Context::Create` 需要；但它们只是枚举/值类型，不暴露能力。
 - `interop/opencv.h` 的 `TensorConvert<cv::Mat>` 特化属于对外数据适配器，不是后端能力，因此保留在公共 API；两个方向都在特化内部完成 H2D/D2H（device Context 时分配设备张量并搬运、device Into 时自动 D2H 并克隆非连续），调用方透明。新增第三方类型时只需在该类型所在的头文件里提供自己的 `TensorConvert<T>` 特化，不改 core。
 
@@ -220,7 +220,7 @@ src/ops/<op>/
 - CPU 各版本之间位精确（`memcmp` 对拍 naive 基准）。
 - 跨后端使用 `1e-4` 相对容差；u8 规则见 [`qa/testing.md`](./qa/testing.md)。
 - 归约型算子（如高斯）必须保持与 naive 一致的累加顺序，SIMD/并行只能改变任务划分，不能改变单像素求和顺序。
-- `CopyBuffer` 的同步语义、非 CPU 后端级别限制、Context 生命周期规则见 [`qa/context_copy.md`](./qa/context_copy.md)。
+- `CopyBuffer` / `CopyStrided` 的同步语义、非 CPU 后端级别限制、Context 生命周期规则见 [`qa/context_copy.md`](./qa/context_copy.md)。
 
 ***
 
@@ -400,7 +400,6 @@ classDiagram
     <<abstract>>
     +device() Device
     +Allocate(bytes, alignment) Result
-    +Copy(dst, src, stream) Status
     +Stats() MemoryStats
   }
 
@@ -419,6 +418,7 @@ classDiagram
     +stream() Stream
     +Synchronize() Status
     +CopyBuffer(dst, src, bytes, stream) Status
+    +CopyStrided(dst, src, shape, stream) Status
     +SupportsDType(dtype) bool
     +SupportsKernelLevel(level) bool
     +Describe() string
@@ -459,7 +459,7 @@ classDiagram
 
   class Transfer {
     <<utility>>
-    +Copy(dst, src, stream) Status
+    +Copy(src, dst, stream) Status
     +Upload(hostSrc, dst, stream) Status
     +Download(src, hostDst, stream) Status
   }
@@ -542,13 +542,13 @@ classDiagram
     +memory() MemoryManager
     +stream() Stream
     +CopyBuffer(dst, src, bytes, stream) Status
+    +CopyStrided(dst, src, shape, stream) Status
     +SupportsKernelLevel(level) bool
   }
 
   class MemoryManager {
     <<abstract>>
     +Allocate(bytes, alignment) Result
-    +Copy(dst, src, stream) Status
     +Stats() MemoryStats
   }
 
@@ -573,6 +573,7 @@ classDiagram
     -string device_name_
     +Initialize() Status
     +CopyBuffer(dst, src, bytes, stream) Status
+    +CopyStrided(dst, src, shape, stream) Status
     +SupportsKernelLevel(level) bool
   }
 
@@ -593,7 +594,6 @@ classDiagram
     -Device device_
     -shared_ptr~CpuAllocatorState~ state_
     +Allocate(bytes, alignment) Result
-    +Copy(dst, src, stream) Status
     +Stats() MemoryStats
   }
 
@@ -601,7 +601,6 @@ classDiagram
     -Device device_
     -shared_ptr~CudaAllocatorState~ state_
     +Allocate(bytes, alignment) Result
-    +Copy(dst, src, stream) Status
     +Stats() MemoryStats
   }
 
@@ -609,7 +608,6 @@ classDiagram
     -Device device_
     -shared_ptr~OpenCvAllocatorState~ state_
     +Allocate(bytes, alignment) Result
-    +Copy(dst, src, stream) Status
     +Stats() MemoryStats
   }
 
@@ -711,7 +709,7 @@ classDiagram
 
   class Transfer {
     <<utility>>
-    +Copy(dst, src, stream) Status
+    +Copy(src, dst, stream) Status
     +Upload(hostSrc, dst, stream) Status
     +Download(src, hostDst, stream) Status
   }

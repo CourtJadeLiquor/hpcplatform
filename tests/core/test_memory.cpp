@@ -1,8 +1,9 @@
 // Tests for Buffer / MemoryManager allocation, alignment, counting, and
 // deallocation (including custom deleters). Uses only public Context APIs —
 // transfer::Copy for data movement and Context::GetMemoryStats for counters.
-// Low-level MemoryManager byte-range Copy and direct Allocate are verified in
-// the backend implementation tests (see src/backends/*).
+// MemoryManager only allocates and tracks stats; the low-level byte-range copy
+// primitive is Backend::CopyBuffer, exercised via transfer::Copy and the
+// backend tests (see src/backends/*).
 #include "test_utils.h"
 
 #include <cstring>
@@ -25,7 +26,7 @@ TEST(hpcplatform, CpuMemoryManagerCopiesBetweenBuffers) {
   for (int i = 0; i < 4; ++i)
     src_data[i] = static_cast<float>(i) + 1.0f;
 
-  hpcplatform_EXPECT_OK(Copy(&dst, src));
+  hpcplatform_EXPECT_OK(Copy(src, &dst));
   EXPECT_EQ(std::memcmp(src.data(), dst.data(), src.ByteSize()),
                  static_cast<int>(0));
   EXPECT_EQ(dst.Data<float>()[3], 4.0f);

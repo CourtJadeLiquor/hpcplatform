@@ -40,8 +40,6 @@ class CudaMemoryManager final : public MemoryManager {
   Device device() const override { return device_; }
   Result<std::shared_ptr<Buffer>> Allocate(size_t bytes,
                                            size_t alignment) override;
-  Status Copy(Buffer* dst, size_t dst_offset, const Buffer* src,
-              size_t src_offset, size_t bytes, Stream* stream) override;
   MemoryStats Stats() const override;
 
  private:

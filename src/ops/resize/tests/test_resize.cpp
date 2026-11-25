@@ -216,14 +216,14 @@ TEST(hpcplatform, ResizeOpenCvMatchesCpuU8) {
   }
   auto reference = Resize(CpuOpContext(*cpu), input, 11, 15).value();
   auto device = Tensor::Empty(*opencv, input.shape(), input.dtype()).value();
-  hpcplatform_EXPECT_OK(Copy(&device, input));
+  hpcplatform_EXPECT_OK(Copy(input, &device));
   auto actual = Resize(CpuOpContext(*opencv), device, 11, 15);
   EXPECT_TRUE(actual.ok());
   if (!actual.ok()) return;
   auto back =
       Tensor::Empty(*cpu, actual.value().shape(), actual.value().dtype())
           .value();
-  hpcplatform_EXPECT_OK(Copy(&back, actual.value()));
+  hpcplatform_EXPECT_OK(Copy(actual.value(), &back));
   bool within_one = true;
   for (int64_t i = 0; i < back.Numel() && within_one; ++i) {
     // u8 cross-backend: ±1 absolute (fixed-point / rounding differences).
@@ -263,14 +263,14 @@ TEST(hpcplatform, ResizeCudaMatchesCpuFloat) {
   }
   auto reference = Resize(CpuOpContext(*cpu), input, 11, 15).value();
   auto device = Tensor::Empty(*cuda, input.shape(), input.dtype()).value();
-  hpcplatform_EXPECT_OK(Copy(&device, input));
+  hpcplatform_EXPECT_OK(Copy(input, &device));
   auto actual = Resize(CpuOpContext(*cuda), device, 11, 15);
   EXPECT_TRUE(actual.ok());
   if (!actual.ok()) return;
   auto back =
       Tensor::Empty(*cpu, actual.value().shape(), actual.value().dtype())
           .value();
-  hpcplatform_EXPECT_OK(Copy(&back, actual.value()));
+  hpcplatform_EXPECT_OK(Copy(actual.value(), &back));
   bool equivalent = true;
   for (int64_t i = 0; i < back.Numel() && equivalent; ++i) {
     const double a = reference.Data<float>()[i];

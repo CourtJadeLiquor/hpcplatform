@@ -2,7 +2,6 @@
 
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
 #include <string>
 
 #if defined(_WIN32)
@@ -94,34 +93,6 @@ Result<std::shared_ptr<Buffer>> CpuMemoryManager::Allocate(size_t bytes,
   return std::make_shared<Buffer>(
       ptr, bytes, device_, MemoryKind::kHost,
       [state](void* data, size_t size) { state->Release(data, size); });
-}
-
-Status CpuMemoryManager::Copy(Buffer* dst, size_t dst_offset, const Buffer* src,
-                              size_t src_offset, size_t bytes, Stream* stream) {
-  (void)stream;  // CPU copies are synchronous; the stream is accepted for API
-                 // symmetry.
-  if (dst == nullptr || src == nullptr) {
-    return Status::InvalidArgument("copy requires non-null buffers");
-  }
-  if (bytes == 0) {
-    return Status::InvalidArgument("copy size must be greater than 0");
-  }
-  if (dst_offset > dst->size() || bytes > dst->size() - dst_offset) {
-    return Status::InvalidArgument("destination copy range out of bounds");
-  }
-  if (src_offset > src->size() || bytes > src->size() - src_offset) {
-    return Status::InvalidArgument("source copy range out of bounds");
-  }
-  if (dst->kind() == MemoryKind::kDevice ||
-      src->kind() == MemoryKind::kDevice) {
-    return Status::Unsupported(
-        "CpuMemoryManager cannot copy device memory; use the Copy / Download "
-        "transfer functions instead");
-  }
-
-  std::memcpy(static_cast<char*>(dst->data()) + dst_offset,
-              static_cast<const char*>(src->data()) + src_offset, bytes);
-  return Status::Ok();
 }
 
 MemoryStats CpuMemoryManager::Stats() const {

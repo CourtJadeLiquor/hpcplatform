@@ -1,16 +1,16 @@
-// Core copy semantics: Backend::CopyBuffer default path, ResolveOwningBackend,
-// CopyTensorData and the public transfer functions (Copy / Upload / Download).
-// This is library implementation (not a test helper): Tensor::Clone and the
-// transfer API are its callers.
+// Core copy semantics: Backend::CopyBuffer / Backend::CopyStrided default
+// paths, ResolveOwningBackend, CopyTensorData and the public transfer
+// functions (Copy / Upload / Download). This is library implementation (not a
+// test helper): Tensor::Clone and the transfer API are its callers.
 
 #include "hpcplatform/core/transfer.h"
 
 #include <cstring>
 #include <string>
+#include <vector>
 
 #include "core/backend.h"
 #include "core/copy.h"
-#include "core/tensor_iterator.h"
 #include "hpcplatform/core/tensor.h"
 
 namespace hpcplatform {
@@ -39,6 +39,71 @@ Status Backend::CopyBuffer(Buffer* dst, size_t dst_offset, const Buffer* src,
   return Status::Ok();
 }
 
+// Portable default: an element-wise host loop over the two strided views.
+// Backends with native strided movement (a CUDA kernel, pitched memcpys, ...)
+// override this; host backends inheriting the loop is acceptable because
+// element-wise host copies are not a performance cliff.
+Status Backend::CopyStrided(Buffer* dst, size_t dst_offset,
+                            const int64_t* dst_strides, const Buffer* src,
+                            size_t src_offset, const int64_t* src_strides,
+                            const Shape& shape, size_t element_size,
+                            Stream* stream) const {
+  (void)stream;  // Host copies are synchronous; the stream is unused.
+  if (dst == nullptr || src == nullptr) {
+    return Status::InvalidArgument("CopyStrided requires non-null buffers");
+  }
+  const int rank = shape.Rank();
+  if (rank <= 0 || element_size == 0) {
+    return Status::InvalidArgument("CopyStrided requires a non-empty layout");
+  }
+  if (dst->kind() == MemoryKind::kDevice ||
+      src->kind() == MemoryKind::kDevice) {
+    return Status::Unsupported(std::string("backend ") +
+                               BackendTypeName(type()) +
+                               " cannot copy device memory");
+  }
+  // Both views must stay inside their buffers: the last element starts at the
+  // sum of (extent - 1) * stride and spans element_size bytes.
+  size_t src_reach = src_offset;
+  size_t dst_reach = dst_offset;
+  for (int dim = 0; dim < rank; ++dim) {
+    if (shape.Dim(dim) <= 0) {
+      return Status::InvalidArgument("CopyStrided extents must be positive");
+    }
+    src_reach += static_cast<size_t>(shape.Dim(dim) - 1) *
+                 static_cast<size_t>(src_strides[dim]);
+    dst_reach += static_cast<size_t>(shape.Dim(dim) - 1) *
+                 static_cast<size_t>(dst_strides[dim]);
+  }
+  if (src_reach + element_size > src->size() ||
+      dst_reach + element_size > dst->size()) {
+    return Status::InvalidArgument("strided view exceeds its buffer");
+  }
+
+  std::vector<int64_t> coords(static_cast<size_t>(rank), 0);
+  char* dst_base = static_cast<char*>(dst->data()) + dst_offset;
+  const char* src_base = static_cast<const char*>(src->data()) + src_offset;
+  const int64_t numel = shape.Numel();
+  for (int64_t linear = 0; linear < numel; ++linear) {
+    size_t dst_byte = 0;
+    size_t src_byte = 0;
+    for (int dim = 0; dim < rank; ++dim) {
+      dst_byte += static_cast<size_t>(coords[static_cast<size_t>(dim)]) *
+                  static_cast<size_t>(dst_strides[dim]);
+      src_byte += static_cast<size_t>(coords[static_cast<size_t>(dim)]) *
+                  static_cast<size_t>(src_strides[dim]);
+    }
+    std::memcpy(dst_base + dst_byte, src_base + src_byte, element_size);
+    // Odometer increment: row-major successor of the current coordinates.
+    for (int dim = rank - 1; dim >= 0; --dim) {
+      const size_t index = static_cast<size_t>(dim);
+      if (++coords[index] < shape.Dim(dim)) break;
+      coords[index] = 0;
+    }
+  }
+  return Status::Ok();
+}
+
 Result<std::shared_ptr<Backend>> ResolveOwningBackend(const Tensor& tensor) {
   auto owner = tensor.owning_backend().lock();
   if (owner != nullptr) return owner;
@@ -53,21 +118,20 @@ Result<std::shared_ptr<Backend>> ResolveOwningBackend(const Tensor& tensor) {
 //     strides are intentionally NOT copied here — that allocation is the
 //     caller's job. Context::Copy expects a pre-built dst, and Tensor::Clone
 //     builds the dst (with matching metadata) before calling this function.
-//   - Strides may differ between src and dst: the slow path reads each logical
-//     element from src's layout and writes it to dst's layout, so copying from
-//     a sliced/transposed view into a contiguous tensor is supported.
+//   - Strides may differ between src and dst: non-contiguous operands are
+//     delegated to Backend::CopyStrided, so copying from a sliced/transposed
+//     view into a contiguous tensor is supported.
 //
 // Executor selection:
 //   The backend that owns the device side drives the transfer; when neither
-//   side is device memory the caller's `backend` is used. Device-to-device
-//   copies across two different devices are rejected, and non-contiguous
-//   device copies are rejected (materialize the view with Clone() first).
+//   side is device memory the caller's `backend` is used. Core never judges
+//   capability — whether a byte range or a strided pair is reachable (e.g.
+//   peer-to-peer across devices) is decided by the selected backend.
 //
 // Execution plan (after validation):
 //   1. Both contiguous -> a single CopyBuffer of src.ByteSize() (fast path).
-//   2. Device + non-contiguous -> kUnsupported.
-//   3. Host + non-contiguous -> TensorIterator walks the logical elements and
-//      issues one CopyBuffer per element (slow path, stride-aware).
+//   2. Anything non-contiguous -> one CopyStrided call; the backend picks the
+//      strategy.
 Status CopyTensorData(const Backend& backend, Tensor* dst, const Tensor& src,
                       Stream* stream) {
   // --- Input validation -------------------------------------------------
@@ -102,53 +166,41 @@ Status CopyTensorData(const Backend& backend, Tensor* dst, const Tensor& src,
     const auto resolved = ResolveOwningBackend(*dst);
     if (!resolved.ok()) return resolved.status();
     dst_owner = resolved.value();
-    // Device-to-device across two different devices has no staging path yet.
-    if (src_device && dst_owner != src_owner) {
-      return Status::Unsupported(
-          "peer-to-peer copies between different devices are not implemented");
-    }
     executor = dst_owner.get();
   }
 
   Stream* copy_stream = stream != nullptr ? stream : &executor->stream();
 
   if (dst->IsContiguous() && src.IsContiguous()) {
-    // Branch 1: both layouts are contiguous, so the whole logical range is a
-    // single byte block copied from src.offset() to dst.offset() in backend
-    // executor.
+    // Both layouts are contiguous, so the whole logical range is a single byte
+    // block copied from src.offset() to dst.offset() in backend executor.
     return executor->CopyBuffer(dst->buffer().get(), dst->offset(),
                                 src.buffer().get(), src.offset(),
                                 src.ByteSize(), copy_stream);
-  } else if (src_device || dst_device) {
-    // Branch 2: at least one side is device memory AND the tensors are not
-    // both contiguous (Branch 1 already handled the contiguous case).
-    // Element-wise device addressing needs an explicit staging buffer, which
-    // is not provided here; require the caller to materialize the view with
-    // Clone() first.
-    return Status::Unsupported(
-        "non-contiguous device copies are not supported; materialize the view "
-        "with Clone() first");
-  } else {
-    // Branch 3: host-only copy where at least one tensor is non-contiguous.
-    // TensorIterator walks the logical row-major elements of each tensor
-    // independently, so src and dst may have different strides (e.g. a view
-    // copied into a fresh contiguous tensor); one CopyBuffer per element.
-    TensorIterator dst_iterator(*dst);
-    TensorIterator src_iterator(src);
-    const size_t element_size = src.ElementSize();
-    while (src_iterator.valid()) {
-      hpcplatform_RETURN_IF_ERROR(executor->CopyBuffer(
-          dst->buffer().get(), dst->offset() + dst_iterator.ByteOffset(),
-          src.buffer().get(), src.offset() + src_iterator.ByteOffset(),
-          element_size, copy_stream));
-      dst_iterator.Next();
-      src_iterator.Next();
-    }
-    return Status::Ok();
   }
+
+  // At least one operand is non-contiguous. Core only routes: the executor
+  // backend owns stride-aware movement via CopyStrided and decides both the
+  // strategy (kernel launch, pitched memcpy, host loop) and what it can reach
+  // (e.g. peer-to-peer across devices stays a backend-level kUnsupported).
+  std::vector<int64_t> dst_strides(static_cast<size_t>(dst->shape().Rank()));
+  std::vector<int64_t> src_strides(static_cast<size_t>(src.shape().Rank()));
+  const size_t element_size = src.ElementSize();
+  for (int dim = 0; dim < dst->shape().Rank(); ++dim) {
+    dst_strides[static_cast<size_t>(dim)] =
+        dst->Stride(dim) * static_cast<int64_t>(element_size);
+  }
+  for (int dim = 0; dim < src.shape().Rank(); ++dim) {
+    src_strides[static_cast<size_t>(dim)] =
+        src.Stride(dim) * static_cast<int64_t>(element_size);
+  }
+  return executor->CopyStrided(
+      dst->buffer().get(), dst->offset(), dst_strides.data(), src.buffer().get(),
+      src.offset(), src_strides.data(), src.shape(), element_size,
+      copy_stream);
 }
 
-Status Copy(Tensor* dst, const Tensor& src, Stream* stream) {
+Status Copy(const Tensor& src, Tensor* dst, Stream* stream) {
   if (dst == nullptr || !dst->defined() || !src.defined()) {
     return Status::InvalidArgument("Copy requires two defined tensors");
   }
@@ -175,7 +227,7 @@ Status Upload(const Tensor& host_src, Tensor* device_dst, Stream* stream) {
   if (device_dst->buffer()->kind() != MemoryKind::kDevice) {
     return Status::InvalidArgument("Upload destination must be device memory");
   }
-  return Copy(device_dst, host_src, stream);
+  return Copy(host_src, device_dst, stream);
 }
 
 Status Download(const Tensor& device_src, Tensor* host_dst, Stream* stream) {
@@ -188,7 +240,7 @@ Status Download(const Tensor& device_src, Tensor* host_dst, Stream* stream) {
   if (!IsHostBuffer(*host_dst)) {
     return Status::InvalidArgument("Download destination must be host memory");
   }
-  return Copy(host_dst, device_src, stream);
+  return Copy(device_src, host_dst, stream);
 }
 
 }  // namespace hpcplatform

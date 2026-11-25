@@ -1,7 +1,8 @@
 foreach(sample_source IN ITEMS
     00_hello_tensor
     01_memory_copy
-    02_ops_pipeline)
+    02_ops_pipeline
+    07_data_transfer)
   add_executable(${sample_source} ${sample_source}.cpp)
   target_link_libraries(${sample_source} PRIVATE hpcplatform)
 endforeach()

@@ -5,7 +5,6 @@
 #include <cstdint>
 #include <limits>
 
-#include "backends/backend_internal.h"
 #include "backends/cuda/cuda_common.h"
 
 namespace hpcplatform {
@@ -79,12 +78,6 @@ Result<std::shared_ptr<Buffer>> CudaMemoryManager::Allocate(size_t bytes,
       [state, raw = block.raw](void* data, size_t size) {
         state->Release(raw, data, size);
       });
-}
-
-Status CudaMemoryManager::Copy(Buffer* dst, size_t dst_offset,
-                               const Buffer* src, size_t src_offset,
-                               size_t bytes, Stream* stream) {
-  return CudaCopyBuffer(dst, dst_offset, src, src_offset, bytes, stream);
 }
 
 MemoryStats CudaMemoryManager::Stats() const {

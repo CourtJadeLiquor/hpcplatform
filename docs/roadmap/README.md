@@ -5,10 +5,11 @@
 
 ## 版本概览
 
-| 版本 | 状态    | 主题               |
-| -- | ----- | ---------------- |
-| v1 | 历史稳定版 | 集中式算子与后端内核       |
-| v2 | 当前稳定版 | 算子自治、后端服务化、框架工具层 |
+| 版本 | 状态      | 主题                            |
+| -- | ------- | ----------------------------- |
+| v1 | 历史稳定版   | 集中式算子与后端内核                   |
+| v2 | 历史稳定版   | 算子自治、后端服务化、框架工具层              |
+| v3 | 当前稳定版   | SOLID 架构：Context ISP / OpContext class / transfer 自由函数层 / TensorConvert trait |
 
 ***
 
@@ -45,8 +46,9 @@
 
 - `GaussianBlur(...)`：可分离高斯平滑，支持 HW/HWC/CHW/NHWC 与 u8/f32/f64。
 - `LaplacianPyramid(...)` 与 `FourierTransform(...)`、`WaveletTransform(...)` 等算子公共头。
-- `Tensor::Wrap(...)`：接管外部内存的统一工厂。
-- `Context::AllocateTensor(...)` 等沿用现有命名。
+- `Tensor::Empty(context, ...)`：唯一的公共分配入口；分配是后端细节，不再挂在 `Context` 上。
+- `Copy` / `Upload` / `Download`：`transfer.h` 中的自由函数，执行者由张量所属后端推断。
+- `internal::TensorFactory::WrapExternal(...)`：底层外部内存绑定工厂（借用/接管由 deleter 决定），仅供库内适配器使用。
 
 **删除**
 
@@ -88,6 +90,38 @@
 - 可选后端由 `hpcplatform_WITH_CUDA`、`hpcplatform_WITH_OPENCV`、`hpcplatform_WITH_YAML` 以及 `hpcplatform_ENABLE_TBB`、`hpcplatform_ENABLE_OPENMP`、`hpcplatform_ENABLE_SIMD` 门控（均为默认 ON）。
 - AVX2 翻译单元使用独立 OBJECT 库，避免 `-mavx2` 影响整个静态库。
 - 测试基线（历史）：默认 / 全后端 / ASan 三棵树。**已废弃**：现为单一全特性构建树（`build_debug` / `build_release`）+ GoogleTest + CTest，见 [`docs/qa/testing.md`](../qa/testing.md)。
+
+***
+
+## v3
+
+**版本定位**：SOLID 架构落地（`0.2.0`）。把 v2 中仍挂在 `Context` 上的分配与传输职责剥离，把 `OpContext` 从裸 struct 升为类型安全的 class，把外部类型转换从 Context 方法收敛为编译期 trait。
+
+**核心改动（v2 → v3 的 API 变更）**
+
+| 方向 | 变化 | 原因 |
+| --- | --- | --- |
+| `Context::AllocateTensor(shape, dtype)` | → `Tensor::Empty(context, shape, dtype)` | ISP：Context 不再承担分配，Tensor 是分配的唯一公共入口 |
+| `context->Copy(src, &dst)` | → 自由函数 `Copy(&dst, src)` | Context 不再持有传输；执行者由目标张量所属后端推断 |
+| `context->Upload(host, &dev)` | → 自由函数 `Upload(host, &dev)` | 同上；`Upload`/`Download` 只在入口处做内存种类校验 |
+| `context->Download(dev, &host)` | → 自由函数 `Download(dev, &host)` | 同上 |
+| `context->memory()` 公共访问器 | → 私有；新增 `Context::GetMemoryStats()` | ISP：外部无法绕开 `Tensor::Empty` 直接操作 MemoryManager |
+| `OpContext` 裸 struct（`OpContext{ptr, ptr, level}`） | → class，factory：`OpContext(Context&)` / `OpContext::From(Context&)` / `OpContext::Null()` + fluent setter | 强制绑定 Context + stream；禁止无参构造与 aggregate brace-init |
+| `OpContext.context` / `.stream` 裸字段 | → accessor `context()` / `stream()` | 封装：外部无法绕过类型安全直接改指针 |
+| `Tensor::Create(context, ...)` 公共 | → 私有，通过 `Tensor::Empty` 入口 | 统一分配入口，消除"同一件事多个入口"的困惑 |
+| `context->Wrap(data, shape, dtype)` | → `internal::TensorFactory::WrapExternal(context, ...)` | ISP：Wrap 是库内底层工厂，不属于公共 API |
+| `CopyFromCvMat` / `CopyToCvMat` | → `TensorConvert<cv::Mat>` 特化（`Tensor::From` / `Tensor::Into`） | OCP：新增第三方类型只需加特化，不改 core |
+
+**验证基线**
+
+- 构建：`cmake --build build -j8` 100% 通过，26 个 target 全部成功。
+- 测试：16/17 通过（94%）；3 个预存失败（`test_load_operators` 的 `EnvVarOverridesBackend` / `EnvVarUnavailableBackendFails` / `UnavailableBackendFails`）与本次重构无关。
+
+**设计原则落地**
+
+- **ISP**：Context 只负责后端绑定 / 设备查询 / stream / Synchronize / 能力探测 / 统计；`Tensor` 负责分配；`transfer.h` 负责跨设备传输。
+- **OCP**：新增后端/第三方类型只加文件，不改已有核心头；`TensorConvert<T>` trait 是编译期扩展点。
+- **单一职责**：OpContext 只管执行参数（Context 引用 + 可选 stream 覆盖 + CPU level），不再承载分配/传输。
 
 ***
 

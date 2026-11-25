@@ -150,8 +150,8 @@ int main() {
   // Phase 1: accelerator rows first, while the GPU clock is untouched.
   for (ConfigResult& result : results) {
     const Config& config = result.config;
-    auto input = cpu.value()->AllocateTensor(
-        Shape{config.height, config.width, config.channels},
+    auto input = Tensor::Empty(
+        *cpu.value(), Shape{config.height, config.width, config.channels},
         DataType::kFloat32);
     if (!input.ok()) continue;
     FillInput(&input.value());
@@ -159,13 +159,11 @@ int main() {
     const auto measure_backend = [&](const std::shared_ptr<Context>& backend,
                                      int passes, Measurement* out) -> bool {
       if (!backend) return false;
-      OpContext accelerated;
-      accelerated.context = backend.get();
-      accelerated.stream = &backend->stream();
       auto device =
-          backend->AllocateTensor(input.value().shape(), DataType::kFloat32);
+          Tensor::Empty(*backend, input.value().shape(), DataType::kFloat32);
       if (!device.ok()) return false;
-      if (!backend->Copy(&device.value(), input.value()).ok()) return false;
+      if (!Copy(&device.value(), input.value()).ok()) return false;
+      OpContext accelerated(*backend);
       bool ok = false;
       *out = Measure(accelerated, device.value(), config, &ok, passes);
       return ok;
@@ -186,18 +184,16 @@ int main() {
        {CpuKernelLevel::kNaive, CpuKernelLevel::kOpenMP,
         CpuKernelLevel::kSimdGeneric, CpuKernelLevel::kSimdAvx2,
         CpuKernelLevel::kTbb}) {
-    if (!cpu.value()->backend_ptr()->SupportsKernelLevel(level)) continue;
+    if (!cpu.value()->SupportsKernelLevel(level)) continue;
     for (ConfigResult& result : results) {
       const Config& config = result.config;
-      auto input = cpu.value()->AllocateTensor(
-          Shape{config.height, config.width, config.channels},
+      auto input = Tensor::Empty(
+          *cpu.value(), Shape{config.height, config.width, config.channels},
           DataType::kFloat32);
       if (!input.ok()) continue;
       FillInput(&input.value());
-      OpContext context;
-      context.context = cpu.value().get();
-      context.stream = &cpu.value()->stream();
-      context.cpu_level = level;
+      OpContext context(*cpu.value());
+      context.set_cpu_level(level);
       bool ok = false;
       const Measurement run = Measure(context, input.value(), config, &ok, 1);
       // Backend-wide capability is broader than this operator's matrix (no

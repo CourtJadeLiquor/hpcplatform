@@ -30,7 +30,7 @@ bool FloatTensorsBitExact(const Tensor& a, const Tensor& b) {
 
 Tensor MakeCpuInput(const std::shared_ptr<Context>& context) {
   auto input =
-      context->AllocateTensor(Shape{1, 8, 8, 3}, DataType::kFloat32).value();
+      Tensor::Empty(*context, Shape{1, 8, 8, 3}, DataType::kFloat32).value();
   for (int64_t i = 0; i < input.Numel(); ++i) {
     input.Data<float>()[i] = static_cast<float>(i % 17) * 0.5f;
   }
@@ -39,7 +39,7 @@ Tensor MakeCpuInput(const std::shared_ptr<Context>& context) {
 
 OpContext CpuContext(const std::shared_ptr<Context>& context,
                      CpuKernelLevel level = CpuKernelLevel::kNaive) {
-  return OpContext{context.get(), /*stream=*/nullptr, level};
+  return OpContext(*context.get()).set_stream(nullptr).set_cpu_level(level);
 }
 
 constexpr const char* kResizeAndBlurConfig = R"(
@@ -515,5 +515,4 @@ operators:
 }
 
 }  // namespace
-
 

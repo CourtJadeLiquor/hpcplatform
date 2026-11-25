@@ -4,22 +4,28 @@
 #include <opencv2/core.hpp>
 
 #include "hpcplatform/core/context.h"
+#include "hpcplatform/core/conversion.h"
 #include "hpcplatform/core/error.h"
 #include "hpcplatform/core/tensor.h"
 
 namespace hpcplatform {
 
-// Deep-copy a 2D cv::Mat into a contiguous HW/HWC host Tensor without retaining
-// Mat storage.
+// TensorConvert specialization registering cv::Mat with Tensor::From/Into.
 //
-// Deep-copy a 2D cv::Mat into a contiguous HW/HWC host Tensor. The Mat may be
-// a non-contiguous ROI; its storage is never retained by the Tensor.
-Result<Tensor> CopyFromCvMat(Context& context, const cv::Mat& mat);
-
-// Deep-copy a contiguous HW/HWC host Tensor into a cv::Mat that owns its memory.
-//
-// Deep-copy a contiguous or strided HW/HWC host Tensor into an owning cv::Mat.
-Result<cv::Mat> CopyToCvMat(const Tensor& tensor);
+// Both directions are self-contained: the conversion owns the memory movement,
+// so callers describe only the algorithm.
+//   - From copies a 2D Mat into a Tensor on `context`. For a CPU/OpenCV context
+//     the copy is host-to-host; for a device context the Mat is staged through a
+//     borrowed host buffer and uploaded with the device backend (synchronous).
+//     The Mat may be a non-contiguous ROI.
+//   - Into copies a contiguous or strided HW/HWC Tensor into an owning cv::Mat.
+//     A device Tensor is downloaded transparently; a non-contiguous device
+//     tensor is materialized once with Clone() first.
+template <>
+struct TensorConvert<cv::Mat> {
+  static Result<Tensor> From(const cv::Mat& mat, Context& context);
+  static Result<cv::Mat> Into(const Tensor& tensor);
+};
 
 }  // namespace hpcplatform
 

@@ -12,6 +12,7 @@
 
 #include <cuda_runtime_api.h>
 
+#include "hpcplatform/core/transfer.h"
 #include "hpcplatform/hpcplatform.h"
 
 namespace {
@@ -30,17 +31,15 @@ std::shared_ptr<Context> GetCudaContext() {
 }
 
 OpContext Ops(Context& context, CpuKernelLevel level = CpuKernelLevel::kNaive) {
-  OpContext result;
-  result.context = &context;
-  result.stream = &context.stream();
-  result.cpu_level = level;
+  OpContext result(context);
+  result.set_cpu_level(level);
   return result;
 }
 
 Result<Tensor> CopyTo(Context& destination, const Tensor& source) {
-  auto output = destination.AllocateTensor(source.shape(), source.dtype());
+  auto output = Tensor::Empty(destination, source.shape(), source.dtype());
   if (!output.ok()) return output.status();
-  hpcplatform_RETURN_IF_ERROR(destination.Copy(&output.value(), source));
+  hpcplatform_RETURN_IF_ERROR(Copy(&output.value(), source));
   return output;
 }
 
@@ -77,7 +76,7 @@ TEST(hpcplatform, CudaCopyRoundTripAndMemoryLifetime) {
   auto cuda = GetCudaContext();
   if (!cuda) return;
   auto native = Context::Create(BackendType::kNativeCpu).value();
-  auto input = native->AllocateTensor(Shape{5, 7}, DataType::kFloat32).value();
+  auto input = Tensor::Empty(*native, Shape{5, 7}, DataType::kFloat32).value();
   for (int i = 0; i < 35; ++i)
     input.Data<float>()[i] = static_cast<float>(i) * 0.5f;
   auto device = CopyTo(*cuda, input);
@@ -96,7 +95,7 @@ TEST(hpcplatform, CudaCopyRoundTripAndMemoryLifetime) {
 TEST(hpcplatform, CudaTensorCanOutliveItsContext) {
   if (!GetCudaContext()) return;
   auto native = Context::Create(BackendType::kNativeCpu).value();
-  auto input = native->AllocateTensor(Shape{8}, DataType::kFloat32).value();
+  auto input = Tensor::Empty(*native, Shape{8}, DataType::kFloat32).value();
   for (int i = 0; i < 8; ++i)
     input.Data<float>()[i] = static_cast<float>(i + 2);
   Tensor device;
@@ -122,7 +121,7 @@ TEST(hpcplatform, CudaCloneReusesTheOwningContext) {
   auto cuda = GetCudaContext();
   if (!cuda) return;
   auto native = Context::Create(BackendType::kNativeCpu).value();
-  auto host = native->AllocateTensor(Shape{16}, DataType::kFloat32).value();
+  auto host = Tensor::Empty(*native, Shape{16}, DataType::kFloat32).value();
   for (int i = 0; i < 16; ++i)
     host.Data<float>()[i] = static_cast<float>(i);
   auto uploaded = CopyTo(*cuda, host);
@@ -130,12 +129,12 @@ TEST(hpcplatform, CudaCloneReusesTheOwningContext) {
   if (!uploaded.ok()) return;
   Tensor device = uploaded.value();
 
-  const size_t allocations_before = cuda->memory().Stats().allocation_count;
+  const size_t allocations_before = cuda->GetMemoryStats().allocation_count;
   auto clone = device.Clone();
   EXPECT_TRUE(clone.ok());
   if (!clone.ok()) return;
   // Clone must allocate from the tensor's own context, not a throwaway one.
-  EXPECT_EQ(cuda->memory().Stats().allocation_count,
+  EXPECT_EQ(cuda->GetMemoryStats().allocation_count,
                  allocations_before + 1);
   EXPECT_EQ(clone.value().backend(), BackendType::kCUDA);
 
@@ -152,14 +151,14 @@ TEST(hpcplatform, CudaCloneReusesTheOwningContext) {
 TEST(hpcplatform, CudaRejectsNonContiguousDeviceCopy) {
   auto cuda = GetCudaContext();
   if (!cuda) return;
-  auto source = cuda->AllocateTensor(Shape{4, 4}, DataType::kFloat32).value();
+  auto source = Tensor::Empty(*cuda, Shape{4, 4}, DataType::kFloat32).value();
   auto destination =
-      cuda->AllocateTensor(Shape{4, 2}, DataType::kFloat32).value();
+      Tensor::Empty(*cuda, Shape{4, 2}, DataType::kFloat32).value();
 
   auto narrowed_result = source.Slice(1, 0, 2);
   EXPECT_TRUE(narrowed_result.ok());
   if (!narrowed_result.ok()) return;
-  auto status = cuda->Copy(&destination, narrowed_result.value());
+  auto status = Copy(&destination, narrowed_result.value());
   // Explicit refusal beats a per-element synchronous GPU copy.
   EXPECT_EQ(status.code(), StatusCode::kUnsupported);
 }
@@ -232,7 +231,7 @@ TEST(hpcplatform, CudaPipelineNeverTouchesHost) {
   auto cuda = cuda_result.value();
 
   auto input =
-      native->AllocateTensor(Shape{kPipeH, kPipeW, kPipeC}, DataType::kUInt8)
+      Tensor::Empty(*native, Shape{kPipeH, kPipeW, kPipeC}, DataType::kUInt8)
           .value();
   uint8_t* pixels = input.Data<uint8_t>();
   for (int64_t y = 0; y < kPipeH; ++y) {
@@ -251,7 +250,7 @@ TEST(hpcplatform, CudaPipelineNeverTouchesHost) {
   EXPECT_TRUE(uploaded.ok());
   if (!uploaded.ok()) return;
 
-  const size_t allocations_before = cuda->memory().Stats().allocation_count;
+  const size_t allocations_before = cuda->GetMemoryStats().allocation_count;
 
   std::vector<Tensor> device_stages;
   auto output = RunImageChain(Ops(*cuda), uploaded.value(), &device_stages);
@@ -263,7 +262,7 @@ TEST(hpcplatform, CudaPipelineNeverTouchesHost) {
   // it does not show up in the steady-state count. Any hidden host staging
   // buffer (or an extra live device temporary) would fail the test.
   EXPECT_EQ(device_stages.size(), static_cast<size_t>(2));
-  EXPECT_EQ(cuda->memory().Stats().allocation_count,
+  EXPECT_EQ(cuda->GetMemoryStats().allocation_count,
                  allocations_before + 2);
 
   // Every intermediate is resident on the GPU.
@@ -294,25 +293,25 @@ TEST(hpcplatform, CudaMemoryStatsReturnToZeroWithCaching) {
   auto cuda = GetCudaContext();
   if (!cuda) return;
   {
-    auto first = cuda->AllocateTensor(Shape{64}, DataType::kFloat32).value();
-    auto second = cuda->AllocateTensor(Shape{32}, DataType::kUInt8).value();
-    EXPECT_EQ(cuda->memory().Stats().allocation_count,
+    auto first = Tensor::Empty(*cuda, Shape{64}, DataType::kFloat32).value();
+    auto second = Tensor::Empty(*cuda, Shape{32}, DataType::kUInt8).value();
+    EXPECT_EQ(cuda->GetMemoryStats().allocation_count,
                    static_cast<size_t>(2));
-    EXPECT_EQ(cuda->memory().Stats().allocated_bytes,
+    EXPECT_EQ(cuda->GetMemoryStats().allocated_bytes,
                    first.ByteSize() + second.ByteSize());
   }
-  EXPECT_EQ(cuda->memory().Stats().allocation_count,
+  EXPECT_EQ(cuda->GetMemoryStats().allocation_count,
                  static_cast<size_t>(0));
-  EXPECT_EQ(cuda->memory().Stats().allocated_bytes,
+  EXPECT_EQ(cuda->GetMemoryStats().allocated_bytes,
                  static_cast<size_t>(0));
-  auto reused = cuda->AllocateTensor(Shape{64}, DataType::kFloat32);
+  auto reused = Tensor::Empty(*cuda, Shape{64}, DataType::kFloat32);
   EXPECT_TRUE(reused.ok());
 }
 
 TEST(hpcplatform, CudaRejectsCpuOptimizationLevel) {
   auto cuda = GetCudaContext();
   if (!cuda) return;
-  auto input = cuda->AllocateTensor(Shape{2, 2}, DataType::kFloat32).value();
+  auto input = Tensor::Empty(*cuda, Shape{2, 2}, DataType::kFloat32).value();
   auto output = Resize(Ops(*cuda, CpuKernelLevel::kSimdAvx2), input, 2, 2);
   EXPECT_EQ(output.status().code(), StatusCode::kInvalidArgument);
 }
@@ -322,7 +321,7 @@ TEST(hpcplatform, CudaOperatorsMatchNativeCpu) {
   if (!cuda) return;
   auto native = Context::Create(BackendType::kNativeCpu).value();
   auto input =
-      native->AllocateTensor(Shape{4, 5, 3}, DataType::kFloat32).value();
+      Tensor::Empty(*native, Shape{4, 5, 3}, DataType::kFloat32).value();
   for (int64_t i = 0; i < input.Numel(); ++i) {
     input.Data<float>()[i] = static_cast<float>(i % 17) * 0.25f;
   }
@@ -345,7 +344,7 @@ TEST(hpcplatform, CudaSupportsStridedInputsAndNchw) {
   auto cuda = GetCudaContext();
   if (!cuda) return;
   auto native = Context::Create(BackendType::kNativeCpu).value();
-  auto base = native->AllocateTensor(Shape{3, 5}, DataType::kFloat32).value();
+  auto base = Tensor::Empty(*native, Shape{3, 5}, DataType::kFloat32).value();
   for (int i = 0; i < 15; ++i)
     base.Data<float>()[i] = static_cast<float>(i);
   auto slice = base.Slice(1, 1, 4).value();
@@ -357,7 +356,7 @@ TEST(hpcplatform, CudaSupportsStridedInputsAndNchw) {
   if (actual.ok()) ExpectEquivalent(expected, actual.value(), *native);
 
   auto nchw =
-      native->AllocateTensor(Shape{1, 2, 2, 2}, DataType::kFloat32).value();
+      Tensor::Empty(*native, Shape{1, 2, 2, 2}, DataType::kFloat32).value();
   for (int i = 0; i < 8; ++i)
     nchw.Data<float>()[i] = static_cast<float>(i);
   auto device_nchw = CopyTo(*cuda, nchw).value();
@@ -380,7 +379,7 @@ TEST(hpcplatform, CudaWrapAdoptsExternalDeviceMemory) {
   // hpcplatform did NOT make — stand-in for a pointer from another runtime
   // (cv::cuda::GpuMat, a raw cudaMalloc, an NPU buffer mapped to device, ...).
   constexpr int64_t kCount = 8;
-  auto host = native->AllocateTensor(Shape{2, 4}, DataType::kFloat32).value();
+  auto host = Tensor::Empty(*native, Shape{2, 4}, DataType::kFloat32).value();
   for (int64_t i = 0; i < kCount; ++i) {
     host.Data<float>()[i] = static_cast<float>(i) * 1.5f;
   }
@@ -395,11 +394,11 @@ TEST(hpcplatform, CudaWrapAdoptsExternalDeviceMemory) {
   // visible to hpcplatform's non-blocking stream before the kernel reads it.
   EXPECT_EQ(cudaDeviceSynchronize(), cudaSuccess);
 
-  const size_t allocations_before = cuda->memory().Stats().allocation_count;
+  const size_t allocations_before = cuda->GetMemoryStats().allocation_count;
   auto freed = std::make_shared<int>(0);
 
   {
-    auto wrapped = cuda->Wrap(device_ptr, host.shape(), host.dtype(),
+    auto wrapped = internal::TensorFactory::WrapExternal(*cuda, device_ptr, host.shape(), host.dtype(),
                               MemoryKind::kDevice, [freed](void* p, size_t) {
                                 cudaFree(p);
                                 ++(*freed);
@@ -414,7 +413,7 @@ TEST(hpcplatform, CudaWrapAdoptsExternalDeviceMemory) {
     // allocation — the whole point of zero-copy adoption.
     EXPECT_EQ(t.buffer()->kind(), MemoryKind::kDevice);
     EXPECT_EQ(t.data(), device_ptr);
-    EXPECT_EQ(cuda->memory().Stats().allocation_count, allocations_before);
+    EXPECT_EQ(cuda->GetMemoryStats().allocation_count, allocations_before);
     EXPECT_EQ(*freed, 0);
 
     // Zero-copy device input: feed the adopted pointer straight into a GPU op.
@@ -435,9 +434,8 @@ TEST(hpcplatform, CudaWrapAdoptsExternalDeviceMemory) {
   // Last reference released -> the adopted cudaFree deleter ran exactly once,
   // and nothing the manager tracked leaked.
   EXPECT_EQ(*freed, 1);
-  EXPECT_EQ(cuda->memory().Stats().allocation_count, allocations_before);
+  EXPECT_EQ(cuda->GetMemoryStats().allocation_count, allocations_before);
 }
 
 }  // namespace
-
 

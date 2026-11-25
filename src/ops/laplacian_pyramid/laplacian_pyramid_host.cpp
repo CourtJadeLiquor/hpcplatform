@@ -12,7 +12,7 @@
 //
 // Backend and level are not passed separately: OpContext is forwarded unchanged
 // to both suboperators, which query kernels using input.backend() and
-// context.cpu_level. The composed path therefore uses the same kernels and
+// context.cpu_level(). The composed path therefore uses the same kernels and
 // parameters as the public single-operator entry points, with identical semantics
 // (including boundary and sampling rules).
 

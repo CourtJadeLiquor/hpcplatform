@@ -3,6 +3,9 @@
 #include <cstring>
 #include <limits>
 
+#include "core/backend.h"
+#include "core/copy.h"
+
 namespace hpcplatform {
 namespace {
 
@@ -35,14 +38,11 @@ int DTypeToDepth(DataType dtype) {
 
 }  // namespace
 
-Result<Tensor> CopyFromCvMat(Context& context, const cv::Mat& mat) {
-  if (context.device().type != DeviceType::kCPU) {
-    return Status::Unsupported(
-        "CopyFromCvMat currently requires a CPU context");
-  }
+Result<Tensor> TensorConvert<cv::Mat>::From(const cv::Mat& mat,
+                                            Context& context) {
   if (mat.empty() || mat.dims != 2) {
     return Status::InvalidArgument(
-        "CopyFromCvMat requires a non-empty 2D cv::Mat");
+        "Tensor::From<cv::Mat> requires a non-empty 2D cv::Mat");
   }
   auto dtype = DepthToDType(mat.depth());
   if (!dtype.ok()) return dtype.status();
@@ -50,28 +50,37 @@ Result<Tensor> CopyFromCvMat(Context& context, const cv::Mat& mat) {
   const Shape shape = mat.channels() == 1
                           ? Shape{mat.rows, mat.cols}
                           : Shape{mat.rows, mat.cols, mat.channels()};
-  auto tensor = context.AllocateTensor(shape, dtype.value());
+  auto tensor = Tensor::Empty(context, shape, dtype.value());
   if (!tensor.ok()) return tensor.status();
 
-  if (mat.isContinuous()) {
-    std::memcpy(tensor.value().data(), mat.data, tensor.value().ByteSize());
-  } else {
-    cv::Mat contiguous = mat.clone();
-    std::memcpy(tensor.value().data(), contiguous.data,
-                tensor.value().ByteSize());
+  // Normalize strided ROIs once; both paths below then copy a flat block.
+  const cv::Mat contiguous = mat.isContinuous() ? mat : mat.clone();
+  const size_t bytes = tensor.value().ByteSize();
+
+  if (context.device().type == DeviceType::kCPU) {
+    std::memcpy(tensor.value().data(), contiguous.data, bytes);
+    return tensor;
   }
+
+  // Device context: the conversion owns the H2D staging. Borrow the Mat storage
+  // as a host buffer and let the device backend perform H2D. CopyBuffer
+  // synchronizes before returning, matching the synchronous Copy/Upload contract.
+  const auto owner = ResolveOwningBackend(tensor.value());
+  if (!owner.ok()) return owner.status();
+  Buffer host_source(contiguous.data, bytes, Device{DeviceType::kCPU, 0},
+                     MemoryKind::kHost, nullptr);
+  hpcplatform_RETURN_IF_ERROR(owner.value()->CopyBuffer(
+      tensor.value().buffer().get(), tensor.value().offset(), &host_source, 0,
+      bytes, /*stream=*/nullptr));
   return tensor;
 }
 
-Result<cv::Mat> CopyToCvMat(const Tensor& tensor) {
+Result<cv::Mat> TensorConvert<cv::Mat>::Into(const Tensor& tensor) {
   if (!tensor.defined()) return Status::InvalidArgument("tensor is undefined");
-  if (tensor.buffer()->kind() != MemoryKind::kHost) {
-    return Status::Unsupported(
-        "CopyToCvMat requires host memory; copy to CPU first");
-  }
   const int rank = tensor.shape().Rank();
   if (rank != 2 && rank != 3) {
-    return Status::InvalidArgument("CopyToCvMat requires an HW or HWC tensor");
+    return Status::InvalidArgument(
+        "Tensor::Into<cv::Mat> requires an HW or HWC tensor");
   }
   const int depth = DTypeToDepth(tensor.dtype());
   if (depth < 0) {
@@ -88,13 +97,31 @@ Result<cv::Mat> CopyToCvMat(const Tensor& tensor) {
 
   cv::Mat result(static_cast<int>(rows), static_cast<int>(cols),
                  CV_MAKETYPE(depth, static_cast<int>(channels)));
-  if (tensor.IsContiguous()) {
-    std::memcpy(result.data, tensor.data(), tensor.ByteSize());
-  } else {
+
+  // A cv::Mat is always densely packed, so a strided source is materialized
+  // once before the transfer.
+  Tensor source = tensor;
+  if (!tensor.IsContiguous()) {
     auto contiguous = tensor.Clone();
     if (!contiguous.ok()) return contiguous.status();
-    std::memcpy(result.data, contiguous.value().data(), tensor.ByteSize());
+    source = contiguous.value();
   }
+  const size_t bytes = source.ByteSize();
+
+  if (source.buffer()->kind() != MemoryKind::kDevice) {
+    std::memcpy(result.data, source.data(), bytes);
+    return result;
+  }
+
+  // Device tensor: download directly into the Mat's storage; the backend that
+  // owns the device buffer drives D2H.
+  const auto owner = ResolveOwningBackend(source);
+  if (!owner.ok()) return owner.status();
+  Buffer host_destination(result.data, bytes, Device{DeviceType::kCPU, 0},
+                          MemoryKind::kHost, nullptr);
+  hpcplatform_RETURN_IF_ERROR(owner.value()->CopyBuffer(
+      &host_destination, 0, source.buffer().get(), source.offset(), bytes,
+      nullptr));
   return result;
 }
 

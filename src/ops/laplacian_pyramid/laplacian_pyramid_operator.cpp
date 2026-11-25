@@ -104,7 +104,8 @@ OpKind LaplacianPyramidOperator::kind() const {
 
 Result<LaplacianPyramid> LaplacianPyramidOperator::Run(
     const Tensor& input) const {
-  const OpContext ctx{context_.get(), /*stream=*/nullptr, cpu_level_};
+  OpContext ctx(*context_);
+  ctx.set_cpu_level(cpu_level_);
   return hpcplatform::BuildLaplacianPyramid(ctx, input, levels_, kernel_size_, sigma_,
                                      layout_);
 }

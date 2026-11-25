@@ -9,7 +9,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_BUILD_TYPE Debug)
 
 project(hpcplatform
-  VERSION 0.1.0
+  VERSION 0.2.0
   DESCRIPTION "Cross-platform operator library for research (CPU/OpenCV/CUDA/NPU)"
   LANGUAGES CXX)
 

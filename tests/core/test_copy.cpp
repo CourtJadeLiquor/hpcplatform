@@ -9,6 +9,8 @@
 #include <vector>
 
 #include "hpcplatform/core/context.h"
+#include "hpcplatform/core/tensor.h"
+#include "hpcplatform/core/transfer.h"
 #include "hpcplatform/ops/resize.h"
 
 namespace {
@@ -17,14 +19,14 @@ using namespace hpcplatform;
 
 TEST(hpcplatform, CopyHandlesNonContiguousSource) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
-  auto source = context->AllocateTensor(Shape{2, 4}, DataType::kInt32).value();
+  auto source = Tensor::Empty(*context, Shape{2, 4}, DataType::kInt32).value();
   for (int i = 0; i < 8; ++i)
     source.Data<int32_t>()[i] = i + 1;
   auto slice = source.Slice(1, 1, 3).value();
   auto destination =
-      context->AllocateTensor(slice.shape(), DataType::kInt32).value();
+      Tensor::Empty(*context, slice.shape(), DataType::kInt32).value();
 
-  hpcplatform_EXPECT_OK(context->Copy(&destination, slice));
+  hpcplatform_EXPECT_OK(Copy(&destination, slice));
   const int32_t expected[] = {2, 3, 6, 7};
   for (int i = 0; i < 4; ++i) {
     EXPECT_EQ(destination.Data<int32_t>()[i], expected[i]);
@@ -33,25 +35,25 @@ TEST(hpcplatform, CopyHandlesNonContiguousSource) {
 
 TEST(hpcplatform, CopyRejectsMismatchedDestination) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
-  auto source = context->AllocateTensor(Shape{2}, DataType::kFloat32).value();
+  auto source = Tensor::Empty(*context, Shape{2}, DataType::kFloat32).value();
   auto wrong_shape =
-      context->AllocateTensor(Shape{3}, DataType::kFloat32).value();
+      Tensor::Empty(*context, Shape{3}, DataType::kFloat32).value();
   auto wrong_dtype =
-      context->AllocateTensor(Shape{2}, DataType::kFloat64).value();
-  EXPECT_EQ(context->Copy(&wrong_shape, source).code(),
+      Tensor::Empty(*context, Shape{2}, DataType::kFloat64).value();
+  EXPECT_EQ(Copy(&wrong_shape, source).code(),
                  StatusCode::kInvalidArgument);
-  EXPECT_EQ(context->Copy(&wrong_dtype, source).code(),
+  EXPECT_EQ(Copy(&wrong_dtype, source).code(),
                  StatusCode::kInvalidArgument);
 }
 
 TEST(hpcplatform, WrapBorrowsExternalHostMemoryWithoutAllocating) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
-  const MemoryStats before = context->memory().Stats();
+  const MemoryStats before = context->GetMemoryStats();
 
   // External storage from another runtime (here: a plain std::vector).
   std::vector<float> external = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f};
   auto wrapped =
-      context->Wrap(external.data(), Shape{1, 5}, DataType::kFloat32);
+      internal::TensorFactory::WrapExternal(*context, external.data(), Shape{1, 5}, DataType::kFloat32);
   EXPECT_TRUE(wrapped.ok());
   if (!wrapped.ok()) return;
   const Tensor& t = wrapped.value();
@@ -60,19 +62,19 @@ TEST(hpcplatform, WrapBorrowsExternalHostMemoryWithoutAllocating) {
   // the memory manager recorded no allocation.
   EXPECT_EQ(t.data(), static_cast<void*>(external.data()));
   EXPECT_EQ(t.buffer()->kind(), MemoryKind::kHost);
-  const MemoryStats after = context->memory().Stats();
+  const MemoryStats after = context->GetMemoryStats();
   EXPECT_EQ(after.allocation_count, before.allocation_count);
   EXPECT_EQ(after.allocated_bytes, before.allocated_bytes);
 
   // A borrowed tensor is a valid copy source.
-  auto dst = context->AllocateTensor(Shape{1, 5}, DataType::kFloat32).value();
-  hpcplatform_EXPECT_OK(context->Copy(&dst, t));
+  auto dst = Tensor::Empty(*context, Shape{1, 5}, DataType::kFloat32).value();
+  hpcplatform_EXPECT_OK(Copy(&dst, t));
   for (int i = 0; i < 5; ++i)
     EXPECT_EQ(dst.Data<float>()[i], external[i]);
 
   // And a valid op input: dispatch accepts it because backend/device match.
   // Identity resize (1:1) returns the borrowed pixels unchanged.
-  auto resized = Resize(OpContext{context.get()}, t, 1, 5);
+  auto resized = Resize(OpContext(*context), t, 1, 5);
   EXPECT_TRUE(resized.ok());
   if (resized.ok()) {
     for (int i = 0; i < 5; ++i) {
@@ -96,7 +98,7 @@ TEST(hpcplatform, WrapAdoptsMemoryAndRunsDeleterOnLastRelease) {
     pixels[i] = static_cast<float>(i);
 
   {
-    auto wrapped = context->Wrap(raw, Shape{6}, DataType::kFloat32,
+    auto wrapped = internal::TensorFactory::WrapExternal(*context, raw, Shape{6}, DataType::kFloat32,
                                  MemoryKind::kHost, [deleted](void* p, size_t) {
                                    std::free(p);
                                    ++(*deleted);
@@ -119,11 +121,10 @@ TEST(hpcplatform, WrapAdoptsMemoryAndRunsDeleterOnLastRelease) {
 
 TEST(hpcplatform, WrapRejectsNullData) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
-  auto r = context->Wrap(nullptr, Shape{4}, DataType::kFloat32);
+  auto r = internal::TensorFactory::WrapExternal(*context, nullptr, Shape{4}, DataType::kFloat32);
   EXPECT_FALSE(r.ok());
   EXPECT_EQ(r.status().code(), StatusCode::kInvalidArgument);
 }
 
 }  // namespace
-
 

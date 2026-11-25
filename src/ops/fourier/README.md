@@ -154,7 +154,7 @@ memcmp 校验）。OpenCV 未注册：请求该后端时注册表返回 `kNotImp
 - twiddle 表在主机端按 `-2*pi*k/n` 用 double 生成，一次 `cudaMemcpyAsync`
   上传到 device 的临时缓冲（H 与 W 各一张），整张图共享。
 - 暂存区为 `2*H*W` 个 f64（实部/虚部）；只要 H 或 W 不是 2 的幂，再加一对
-  `2*H*W` 的乒乓缓冲供 DFT 读写分离，全部通过 `Context::AllocateTensor` 复用
+  `2*H*W` 的乒乓缓冲供 DFT 读写分离，全部通过 `Tensor::Empty` 复用
   内存池。
 - 多通道时逐平面发射（load → rows → cols → store），所有发射串行进入同一
   stream，最后统一 `FinishLaunch` 同步一次。

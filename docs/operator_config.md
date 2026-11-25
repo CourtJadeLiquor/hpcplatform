@@ -40,7 +40,8 @@ auto* resize = GetOperator<ResizeOperator>(ops, "downscale");
 auto* blur   = GetOperator<GaussianBlurOperator>(ops, "smooth");
 
 auto ctx = Context::Create(BackendType::kNativeCpu).value();
-auto input = ctx->AllocateTensor(Shape{1, 8, 8, 3}, DataType::kFloat32).value();
+auto input =
+    Tensor::Empty(*ctx, Shape{1, 8, 8, 3}, DataType::kFloat32).value();
 
 // 调用方自行编排：先缩放、再模糊。每个对象已绑定自己的参数。
 auto small   = resize->Run(input);          // Result<Tensor>

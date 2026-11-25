@@ -99,7 +99,7 @@ const std::string& ResizeOperator::name() const { return name_; }
 OpKind ResizeOperator::kind() const { return OpKind::kResize; }
 
 Result<Tensor> ResizeOperator::Run(const Tensor& input) const {
-  const OpContext ctx{context_.get(), /*stream=*/nullptr, cpu_level_};
+  const OpContext ctx = OpContext(*context_).set_cpu_level(cpu_level_);
   return hpcplatform::Resize(ctx, input, output_height_, output_width_,
                       interpolation_, layout_);
 }

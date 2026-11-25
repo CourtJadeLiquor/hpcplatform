@@ -94,7 +94,8 @@ const std::string& GaussianBlurOperator::name() const { return name_; }
 OpKind GaussianBlurOperator::kind() const { return OpKind::kGaussianBlur; }
 
 Result<Tensor> GaussianBlurOperator::Run(const Tensor& input) const {
-  const OpContext ctx{context_.get(), /*stream=*/nullptr, cpu_level_};
+  OpContext ctx(*context_);
+  ctx.set_cpu_level(cpu_level_);
   return hpcplatform::GaussianBlur(ctx, input, kernel_size_, sigma_, layout_);
 }
 

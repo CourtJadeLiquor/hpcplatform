@@ -12,12 +12,13 @@ void* dptr;
 cudaMalloc(&dptr, bytes);
 cudaMemcpy(dptr, host_ptr, bytes, cudaMemcpyHostToDevice);  // 默认流
 
-auto t = cuda_ctx->Wrap(dptr, shape, dtype, MemoryKind::kDevice,
-                        [](void* p, size_t){ cudaFree(p); });
-auto out = Add(OpContext{cuda_ctx.get()}, t, t);   // 读出来的是垃圾！
+auto t = internal::TensorFactory::WrapExternal(
+    *cuda_ctx, dptr, shape, dtype, MemoryKind::kDevice,
+    [](void* p, size_t) { cudaFree(p); });
+auto out = Add(OpContext(*cuda_ctx), t, t);   // 读出来的是垃圾！
 ```
 
-`Wrap` 成功、指针也对（`t.data() == dptr`）、`MemoryStats` 也没多分配——但 `Add` 的结果是未初始化的垃圾值。
+`WrapExternal` 成功、指针也对（`t.data() == dptr`）、`MemoryStats` 也没多分配——但 `Add` 的结果是未初始化的垃圾值。
 
 ---
 
@@ -30,7 +31,7 @@ hpcplatform 的 CUDA 流创建时带 `cudaStreamNonBlocking` 标志（`src/backe
 
 虽然 `cudaMemcpy`（同步版本）会阻塞 CPU 直到拷贝完成，但那只是 **host 侧**的等待；在 GPU 的**流序**层面，默认流的写与 non-blocking 流的读之间没有强制顺序。在某些系统/时序下可能碰巧对，但**不保证、不可移植**——在本项目的验证机上它就是错的。
 
-> 对比：如果数据是通过 `Context::Copy`（H2D）产生的，它用的就是 hpcplatform 自己的流，且返回前同步——同一条流内的操作天然有序，所以不需要额外处理。问题只出在"外部流产生的数据"。
+> 对比：如果数据是通过 `Upload`（H2D）产生的，它用的就是 hpcplatform 自己的流，且返回前同步——同一条流内的操作天然有序，所以不需要额外处理。问题只出在"外部流产生的数据"。
 
 ---
 
@@ -38,7 +39,7 @@ hpcplatform 的 CUDA 流创建时带 `cudaStreamNonBlocking` 标志（`src/backe
 
 库**不会**替你同步外部内存，因为它根本不知道外部数据是在哪条流上产生的（可能是默认流，可能是另一个库的流，可能是图形 API 的队列）。这是调用方的责任：
 
-> 把外部 device 内存交给 `Wrap` / 算子之前，必须先确保它对 hpcplatform 的流可见。
+> 把外部 device 内存交给 `TensorFactory::WrapExternal` / 算子之前，必须先确保它对 hpcplatform 的流可见。
 
 ---
 
@@ -49,8 +50,8 @@ hpcplatform 的 CUDA 流创建时带 `cudaStreamNonBlocking` 标志（`src/backe
 ```cpp
 cudaMemcpy(dptr, host_ptr, bytes, cudaMemcpyHostToDevice);
 cudaDeviceSynchronize();          // 等所有流上的所有操作完成
-auto t = cuda_ctx->Wrap(dptr, ...);
-auto out = Add(OpContext{cuda_ctx.get()}, t, t);   // 正确
+auto t = internal::TensorFactory::WrapExternal(*cuda_ctx, dptr, ...);
+auto out = Add(OpContext(*cuda_ctx), t, t);   // 正确
 ```
 
 `cudaDeviceSynchronize()` 等整个设备空闲，保证数据可见。简单但重（会等无关工作）。适合功能正确性优先的场景。

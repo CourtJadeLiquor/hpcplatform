@@ -9,15 +9,14 @@
 
 #include "core/backend.h"
 #include "hpcplatform/hpcplatform.h"
+#include "hpcplatform/core/transfer.h"
 
 namespace {
 
 using namespace hpcplatform;
 
 OpContext CpuOpContext(Context& context) {
-  OpContext result;
-  result.context = &context;
-  result.stream = &context.stream();
+  OpContext result(context);
   return result;
 }
 
@@ -47,7 +46,7 @@ Tensor MakeImage(int64_t n, int64_t h, int64_t w, int64_t c, ImageLayout layout,
   if (!context) return Tensor{};
   const Shape shape =
       layout == ImageLayout::kNHWC ? Shape{n, h, w, c} : Shape{n, c, h, w};
-  auto tensor = context->AllocateTensor(shape, dtype);
+  auto tensor = Tensor::Empty(*context, shape, dtype);
   EXPECT_TRUE(tensor.ok());
   if (!tensor.ok()) return Tensor{};
   for (int64_t ni = 0; ni < n; ++ni) {
@@ -71,7 +70,7 @@ Tensor MakeImage(int64_t n, int64_t h, int64_t w, int64_t c, ImageLayout layout,
 Tensor MakeConstant(int64_t n, int64_t h, int64_t w, int64_t c, double value) {
   auto context = GetCpuContext();
   if (!context) return Tensor{};
-  auto tensor = context->AllocateTensor(Shape{n, h, w, c}, DataType::kFloat32);
+  auto tensor = Tensor::Empty(*context, Shape{n, h, w, c}, DataType::kFloat32);
   EXPECT_TRUE(tensor.ok());
   if (!tensor.ok()) return Tensor{};
   for (int64_t i = 0; i < tensor.value().Numel(); ++i) {
@@ -141,7 +140,7 @@ TEST(hpcplatform, WaveletShapesAndBands) {
 TEST(hpcplatform, WaveletHaarHandComputedTwoByTwo) {
   auto context = GetCpuContext();
   if (!context) return;
-  auto input = context->AllocateTensor(Shape{2, 2}, DataType::kFloat32);
+  auto input = Tensor::Empty(*context, Shape{2, 2}, DataType::kFloat32);
   EXPECT_TRUE(input.ok());
   if (!input.ok()) return;
   const double values[4] = {1.0, 2.0, 3.0, 4.0};  // [[1, 2], [3, 4]]
@@ -259,9 +258,9 @@ TEST(hpcplatform, WaveletCpuLevelsAreBitExact) {
   for (CpuKernelLevel level :
        {CpuKernelLevel::kOpenMP, CpuKernelLevel::kSimdGeneric,
         CpuKernelLevel::kSimdAvx2, CpuKernelLevel::kTbb}) {
-    if (!context->backend_ptr()->SupportsKernelLevel(level)) continue;
+    if (!context->SupportsKernelLevel(level)) continue;
     OpContext level_context = CpuOpContext(*context);
-    level_context.cpu_level = level;
+    level_context.set_cpu_level(level);
     auto actual =
         WaveletTransform(level_context, input, WaveletKind::kDaubechies4);
     // Backend-wide capability is broader than this operator's matrix; an
@@ -287,7 +286,7 @@ TEST(hpcplatform, WaveletRejectsInvalidParameters) {
   auto odd_result = WaveletTransform(op_context, odd);
   EXPECT_EQ(odd_result.status().code(), StatusCode::kInvalidArgument);
 
-  auto u8 = context->AllocateTensor(Shape{1, 8, 8, 3}, DataType::kUInt8);
+  auto u8 = Tensor::Empty(*context, Shape{1, 8, 8, 3}, DataType::kUInt8);
   EXPECT_TRUE(u8.ok());
   if (u8.ok()) {
     // Signed detail bands cannot be stored in u8.
@@ -295,13 +294,13 @@ TEST(hpcplatform, WaveletRejectsInvalidParameters) {
     EXPECT_EQ(unsupported.status().code(), StatusCode::kUnsupported);
   }
   auto rank5 =
-      context->AllocateTensor(Shape{1, 1, 2, 2, 2}, DataType::kFloat32);
+      Tensor::Empty(*context, Shape{1, 1, 2, 2, 2}, DataType::kFloat32);
   EXPECT_TRUE(rank5.ok());
   if (rank5.ok()) {
     auto bad_rank = WaveletTransform(op_context, rank5.value());
     EXPECT_EQ(bad_rank.status().code(), StatusCode::kInvalidArgument);
   }
-  auto null_context = WaveletTransform(OpContext{}, valid);
+  auto null_context = WaveletTransform(OpContext::Null(), valid);
   EXPECT_EQ(null_context.status().code(), StatusCode::kInvalidArgument);
 
   auto bands = WaveletTransform(op_context, valid);
@@ -313,7 +312,7 @@ TEST(hpcplatform, WaveletRejectsInvalidParameters) {
   EXPECT_EQ(undefined.status().code(), StatusCode::kInvalidArgument);
 
   WaveletBands mismatched = bands.value();
-  auto other = context->AllocateTensor(Shape{1, 4, 4, 1}, DataType::kFloat32);
+  auto other = Tensor::Empty(*context, Shape{1, 4, 4, 1}, DataType::kFloat32);
   EXPECT_TRUE(other.ok());
   if (other.ok()) {
     mismatched.lh = other.value();
@@ -322,7 +321,7 @@ TEST(hpcplatform, WaveletRejectsInvalidParameters) {
   }
   WaveletBands wrong_dtype = bands.value();
   auto double_band =
-      context->AllocateTensor(Shape{1, 4, 4, 3}, DataType::kFloat64);
+      Tensor::Empty(*context, Shape{1, 4, 4, 3}, DataType::kFloat64);
   EXPECT_TRUE(double_band.ok());
   if (double_band.ok()) {
     wrong_dtype.hl = double_band.value();
@@ -336,12 +335,10 @@ TEST(hpcplatform, WaveletOpenCvIsNotImplemented) {
   auto backend = Context::Create(BackendType::kOpenCV);
   if (!backend.ok()) return;  // backend not usable on this machine
   auto input =
-      backend.value()->AllocateTensor(Shape{1, 8, 8, 1}, DataType::kFloat32);
+      Tensor::Empty(*backend.value(), Shape{1, 8, 8, 1}, DataType::kFloat32);
   EXPECT_TRUE(input.ok());
   if (!input.ok()) return;
-  OpContext context;
-  context.context = backend.value().get();
-  context.stream = &backend.value()->stream();
+  OpContext context(*backend.value().get());
   auto result = WaveletTransform(context, input.value());
   EXPECT_EQ(result.status().code(), StatusCode::kNotImplemented);
 }
@@ -364,16 +361,14 @@ std::shared_ptr<Context> GetCudaContext() {
 }
 
 Result<Tensor> CopyTo(Context& destination, const Tensor& source) {
-  auto output = destination.AllocateTensor(source.shape(), source.dtype());
+  auto output = Tensor::Empty(destination, source.shape(), source.dtype());
   if (!output.ok()) return output.status();
-  hpcplatform_RETURN_IF_ERROR(destination.Copy(&output.value(), source));
+  hpcplatform_RETURN_IF_ERROR(Copy(&output.value(), source));
   return output;
 }
 
 OpContext CudaOpContext(Context& context) {
-  OpContext result;
-  result.context = &context;
-  result.stream = &context.stream();
+  OpContext result(context);
   return result;
 }
 
@@ -432,5 +427,3 @@ TEST(hpcplatform, WaveletCudaRoundTripIsIdentity) {
   }
 }
 #endif
-
-

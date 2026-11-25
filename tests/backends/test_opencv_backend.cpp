@@ -8,6 +8,7 @@
 
 #include <opencv2/core.hpp>
 
+#include "hpcplatform/core/transfer.h"
 #include "hpcplatform/hpcplatform.h"
 
 namespace {
@@ -15,17 +16,15 @@ namespace {
 using namespace hpcplatform;
 
 OpContext Ops(Context& context, CpuKernelLevel level = CpuKernelLevel::kNaive) {
-  OpContext result;
-  result.context = &context;
-  result.stream = &context.stream();
-  result.cpu_level = level;
+  OpContext result(context);
+  result.set_cpu_level(level);
   return result;
 }
 
 Result<Tensor> CopyTo(Context& destination, const Tensor& source) {
-  auto output = destination.AllocateTensor(source.shape(), source.dtype());
+  auto output = Tensor::Empty(destination, source.shape(), source.dtype());
   if (!output.ok()) return output.status();
-  hpcplatform_RETURN_IF_ERROR(destination.Copy(&output.value(), source));
+  hpcplatform_RETURN_IF_ERROR(Copy(&output.value(), source));
   return output;
 }
 
@@ -76,7 +75,7 @@ TEST(hpcplatform, CvMatConversionCopiesRoiAndOwnsStorage) {
   }
   cv::Mat roi = source(cv::Rect(1, 1, 2, 2));
   EXPECT_FALSE(roi.isContinuous());
-  auto tensor = CopyFromCvMat(*context, roi);
+  auto tensor = Tensor::From(roi, *context);
   EXPECT_TRUE(tensor.ok());
   if (!tensor.ok()) return;
   const Shape expected_shape{2, 2, 3};
@@ -85,7 +84,7 @@ TEST(hpcplatform, CvMatConversionCopiesRoiAndOwnsStorage) {
   source.setTo(cv::Scalar::all(0));
   EXPECT_EQ(tensor.value().Data<float>()[0], 15.0f);
 
-  auto restored = CopyToCvMat(tensor.value());
+  auto restored = Tensor::Into<cv::Mat>(tensor.value());
   EXPECT_TRUE(restored.ok());
   if (!restored.ok()) return;
   EXPECT_EQ(restored.value().rows, 2);
@@ -97,7 +96,7 @@ TEST(hpcplatform, CvMatConversionCopiesRoiAndOwnsStorage) {
 TEST(hpcplatform, NativeAndOpenCvCopyBothWays) {
   auto native = Context::Create(BackendType::kNativeCpu).value();
   auto opencv = Context::Create(BackendType::kOpenCV).value();
-  auto input = native->AllocateTensor(Shape{2, 3}, DataType::kFloat32).value();
+  auto input = Tensor::Empty(*native, Shape{2, 3}, DataType::kFloat32).value();
   for (int i = 0; i < 6; ++i)
     input.Data<float>()[i] = static_cast<float>(i + 1);
   auto device_side = CopyTo(*opencv, input);
@@ -114,31 +113,31 @@ TEST(hpcplatform, OpenCvMemoryStatsReturnToZero) {
   auto context = Context::Create(BackendType::kOpenCV).value();
   {
     auto first =
-        context->AllocateTensor(Shape{8, 8, 3}, DataType::kFloat32).value();
-    auto second = context->AllocateTensor(Shape{16}, DataType::kUInt8).value();
-    EXPECT_EQ(context->memory().Stats().allocation_count,
+        Tensor::Empty(*context, Shape{8, 8, 3}, DataType::kFloat32).value();
+    auto second = Tensor::Empty(*context, Shape{16}, DataType::kUInt8).value();
+    EXPECT_EQ(context->GetMemoryStats().allocation_count,
                    static_cast<size_t>(2));
-    EXPECT_TRUE(context->memory().Stats().allocated_bytes >=
+    EXPECT_TRUE(context->GetMemoryStats().allocated_bytes >=
                      first.ByteSize() + second.ByteSize());
   }
-  EXPECT_EQ(context->memory().Stats().allocation_count,
+  EXPECT_EQ(context->GetMemoryStats().allocation_count,
                  static_cast<size_t>(0));
-  EXPECT_EQ(context->memory().Stats().allocated_bytes,
+  EXPECT_EQ(context->GetMemoryStats().allocated_bytes,
                  static_cast<size_t>(0));
-  EXPECT_TRUE(context->memory().Stats().peak_bytes > 0);
+  EXPECT_TRUE(context->GetMemoryStats().peak_bytes > 0);
 }
 
 TEST(hpcplatform, OpenCvRejectsUnsupportedModesWithoutFallback) {
   auto context = Context::Create(BackendType::kOpenCV).value();
   auto input =
-      context->AllocateTensor(Shape{2, 2, 3}, DataType::kFloat32).value();
+      Tensor::Empty(*context, Shape{2, 2, 3}, DataType::kFloat32).value();
   auto optimized = Resize(Ops(*context, CpuKernelLevel::kOpenMP), input, 4, 4);
   EXPECT_EQ(optimized.status().code(), StatusCode::kInvalidArgument);
-  auto half = context->AllocateTensor(Shape{1}, DataType::kFloat16);
+  auto half = Tensor::Empty(*context, Shape{1}, DataType::kFloat16);
   EXPECT_EQ(half.status().code(), StatusCode::kUnsupported);
 
   auto nchw =
-      context->AllocateTensor(Shape{1, 3, 2, 2}, DataType::kFloat32).value();
+      Tensor::Empty(*context, Shape{1, 3, 2, 2}, DataType::kFloat32).value();
   auto resized = Resize(Ops(*context), nchw, 4, 4, InterpolationMode::kBilinear,
                         ImageLayout::kNCHW);
   EXPECT_EQ(resized.status().code(), StatusCode::kInvalidArgument);
@@ -148,7 +147,7 @@ TEST(hpcplatform, OpenCvOperatorsMatchNativeCpu) {
   auto native = Context::Create(BackendType::kNativeCpu).value();
   auto opencv = Context::Create(BackendType::kOpenCV).value();
   auto input =
-      native->AllocateTensor(Shape{4, 5, 3}, DataType::kFloat32).value();
+      Tensor::Empty(*native, Shape{4, 5, 3}, DataType::kFloat32).value();
   for (int64_t i = 0; i < input.Numel(); ++i) {
     input.Data<float>()[i] = static_cast<float>(i % 17) * 0.25f;
   }
@@ -168,5 +167,4 @@ TEST(hpcplatform, OpenCvOperatorsMatchNativeCpu) {
 }
 
 }  // namespace
-
 

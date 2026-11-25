@@ -89,7 +89,7 @@ Result<WaveletBands> WaveletTransform(const OpContext& context,
   if (!image.ok()) return image.status();
   hpcplatform_RETURN_IF_ERROR(ValidateEvenExtent(image.value()));
   auto kernel = ops_internal::FindKernel(OpKind::kWaveletTransform,
-                                         input.backend(), context.cpu_level);
+                                         input.backend(), context.cpu_level());
   if (!kernel.ok()) return kernel.status();
 
   const ops_internal::ImageInfo& info = image.value();
@@ -154,7 +154,7 @@ Result<Tensor> InverseWaveletTransform(const OpContext& context,
   if (!image.ok()) return image.status();
   const ops_internal::ImageInfo& band_info = image.value();
   auto kernel = ops_internal::FindKernel(OpKind::kWaveletTransform,
-                                         bands.ll.backend(), context.cpu_level);
+                                         bands.ll.backend(), context.cpu_level());
   if (!kernel.ok()) return kernel.status();
 
   const Shape image_shape =

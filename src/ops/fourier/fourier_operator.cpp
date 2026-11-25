@@ -74,7 +74,8 @@ OpKind FourierTransformOperator::kind() const {
 }
 
 Result<ComplexImage> FourierTransformOperator::Run(const Tensor& input) const {
-  const OpContext ctx{context_.get(), /*stream=*/nullptr, cpu_level_};
+  OpContext ctx(*context_);
+  ctx.set_cpu_level(cpu_level_);
   return hpcplatform::FourierTransform(ctx, input, layout_);
 }
 

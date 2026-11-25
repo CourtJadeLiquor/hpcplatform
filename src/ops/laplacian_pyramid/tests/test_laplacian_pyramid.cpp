@@ -1,7 +1,6 @@
 // Tests validate Laplacian pyramid level counts, reconstruction error, and the
 // composed resize/gaussian_blur behavior.
 #include "test_utils.h"
-
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -9,36 +8,27 @@
 #include <iostream>
 #include <memory>
 #include <vector>
-
 #include "core/backend.h"
 #include "hpcplatform/hpcplatform.h"
-
+#include "hpcplatform/core/transfer.h"
 namespace {
-
 using namespace hpcplatform;
-
 constexpr int kKernelSize = 5;
 constexpr double kSigma = 1.2;
-
 OpContext CpuOpContext(Context& context) {
-  OpContext result;
-  result.context = &context;
-  result.stream = &context.stream();
-  return result;
+  return OpContext(context);
 }
-
 std::shared_ptr<Context> GetCpuContext() {
   static auto context = Context::Create(BackendType::kNativeCpu);
   return context.ok() ? context.value() : nullptr;
 }
-
 Tensor MakeImage(int64_t n, int64_t h, int64_t w, int64_t c,
                  ImageLayout layout) {
   const Shape shape =
       layout == ImageLayout::kNHWC ? Shape{n, h, w, c} : Shape{n, c, h, w};
   auto context = GetCpuContext();
   if (!context) return Tensor{};
-  auto image = context->AllocateTensor(shape, DataType::kFloat32);
+  auto image = Tensor::Empty(*context, shape, DataType::kFloat32);
   EXPECT_TRUE(image.ok());
   if (!image.ok()) return Tensor{};
   float* data = image.value().Data<float>();
@@ -47,11 +37,10 @@ Tensor MakeImage(int64_t n, int64_t h, int64_t w, int64_t c,
   }
   return image.value();
 }
-
 Tensor Subtract(const Tensor& fine, const Tensor& coarse) {
   auto context = GetCpuContext();
   if (!context) return Tensor{};
-  auto output = context->AllocateTensor(fine.shape(), DataType::kFloat32);
+  auto output = Tensor::Empty(*context, fine.shape(), DataType::kFloat32);
   EXPECT_TRUE(output.ok());
   if (!output.ok()) return Tensor{};
   const float* a = fine.Data<float>();
@@ -61,12 +50,10 @@ Tensor Subtract(const Tensor& fine, const Tensor& coarse) {
     out[i] = a[i] - b[i];
   return output.value();
 }
-
 bool BitExact(const Tensor& a, const Tensor& b) {
   if (a.shape() != b.shape() || a.dtype() != b.dtype()) return false;
   return std::memcmp(a.data(), b.data(), a.ByteSize()) == 0;
 }
-
 bool Near(const Tensor& a, const Tensor& b, double tolerance) {
   if (a.shape() != b.shape() || a.dtype() != b.dtype()) return false;
   const float* lhs = a.Data<float>();
@@ -81,16 +68,13 @@ bool Near(const Tensor& a, const Tensor& b, double tolerance) {
   }
   return true;
 }
-
 Result<Tensor> CopyTo(Context& destination, const Tensor& source) {
-  auto output = destination.AllocateTensor(source.shape(), source.dtype());
+  auto output = Tensor::Empty(destination, source.shape(), source.dtype());
   if (!output.ok()) return output.status();
-  hpcplatform_RETURN_IF_ERROR(destination.Copy(&output.value(), source));
+  hpcplatform_RETURN_IF_ERROR(Copy(&output.value(), source));
   return output;
 }
-
 }  // namespace
-
 TEST(hpcplatform, LaplacianPyramidShapesAndLevelCount) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
   struct Case {
@@ -126,15 +110,13 @@ TEST(hpcplatform, LaplacianPyramidShapesAndLevelCount) {
     EXPECT_TRUE(shapes_ok);
   }
 }
-
 TEST(hpcplatform, LaplacianPyramidConstantImageHasZeroBands) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
-  auto input = context->AllocateTensor(Shape{1, 7, 9, 2}, DataType::kFloat32);
+  auto input = Tensor::Empty(*context, Shape{1, 7, 9, 2}, DataType::kFloat32);
   EXPECT_TRUE(input.ok());
   if (!input.ok()) return;
   std::fill(input.value().Data<float>(),
             input.value().Data<float>() + input.value().Numel(), 0.25f);
-
   auto result = BuildLaplacianPyramid(CpuOpContext(*context), input.value(), 2,
                                       kKernelSize, 1.0);
   EXPECT_TRUE(result.ok());
@@ -157,7 +139,6 @@ TEST(hpcplatform, LaplacianPyramidConstantImageHasZeroBands) {
   }
   EXPECT_TRUE(coarse_constant);
 }
-
 TEST(hpcplatform, LaplacianPyramidMatchesReferenceComposition) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
   const OpContext op_context = CpuOpContext(*context);
@@ -166,7 +147,6 @@ TEST(hpcplatform, LaplacianPyramidMatchesReferenceComposition) {
                                       ImageLayout::kNHWC);
   EXPECT_TRUE(result.ok());
   if (!result.ok()) return;
-
   // Independent composition written with the public single-level ops.
   Tensor gaussian = input;
   for (int level = 0; level < 3; ++level) {
@@ -190,7 +170,6 @@ TEST(hpcplatform, LaplacianPyramidMatchesReferenceComposition) {
   }
   EXPECT_TRUE(BitExact(gaussian, result.value().levels.back()));
 }
-
 TEST(hpcplatform, LaplacianPyramidCpuLevelsAreBitExact) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
   auto input = MakeImage(1, 17, 19, 3, ImageLayout::kNHWC);
@@ -201,9 +180,9 @@ TEST(hpcplatform, LaplacianPyramidCpuLevelsAreBitExact) {
   for (CpuKernelLevel level :
        {CpuKernelLevel::kOpenMP, CpuKernelLevel::kSimdGeneric,
         CpuKernelLevel::kSimdAvx2, CpuKernelLevel::kTbb}) {
-    if (!context->backend_ptr()->SupportsKernelLevel(level)) continue;
+    if (!context->SupportsKernelLevel(level)) continue;
     OpContext level_context = CpuOpContext(*context);
-    level_context.cpu_level = level;
+    level_context.set_cpu_level(level);
     auto actual =
         BuildLaplacianPyramid(level_context, input, 2, kKernelSize, kSigma);
     // Backend-wide capability is broader than this operator's matrix (no SIMD
@@ -223,22 +202,19 @@ TEST(hpcplatform, LaplacianPyramidCpuLevelsAreBitExact) {
     EXPECT_TRUE(identical);
   }
 }
-
 TEST(hpcplatform, LaplacianPyramidRejectsInvalidParameters) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
   const OpContext op_context = CpuOpContext(*context);
   auto valid = MakeImage(1, 8, 8, 3, ImageLayout::kNHWC);
-
   auto bad_levels = BuildLaplacianPyramid(op_context, valid, 0);
   EXPECT_EQ(bad_levels.status().code(), StatusCode::kInvalidArgument);
   auto even_kernel = BuildLaplacianPyramid(op_context, valid, 1, 4, 1.0);
   EXPECT_EQ(even_kernel.status().code(), StatusCode::kInvalidArgument);
   auto bad_sigma = BuildLaplacianPyramid(op_context, valid, 1, 5, 0.0);
   EXPECT_EQ(bad_sigma.status().code(), StatusCode::kInvalidArgument);
-  auto null_context = BuildLaplacianPyramid(OpContext{}, valid, 1);
+  auto null_context = BuildLaplacianPyramid(OpContext::Null(), valid, 1);
   EXPECT_EQ(null_context.status().code(), StatusCode::kInvalidArgument);
-
-  auto u8 = context->AllocateTensor(Shape{1, 8, 8, 3}, DataType::kUInt8);
+  auto u8 = Tensor::Empty(*context, Shape{1, 8, 8, 3}, DataType::kUInt8);
   EXPECT_TRUE(u8.ok());
   if (u8.ok()) {
     // Signed bands cannot be stored in u8.
@@ -246,23 +222,21 @@ TEST(hpcplatform, LaplacianPyramidRejectsInvalidParameters) {
     EXPECT_EQ(unsupported.status().code(), StatusCode::kUnsupported);
   }
   auto rank5 =
-      context->AllocateTensor(Shape{1, 1, 2, 2, 2}, DataType::kFloat32);
+      Tensor::Empty(*context, Shape{1, 1, 2, 2, 2}, DataType::kFloat32);
   EXPECT_TRUE(rank5.ok());
   if (rank5.ok()) {
     auto bad_rank = BuildLaplacianPyramid(op_context, rank5.value(), 1);
     EXPECT_EQ(bad_rank.status().code(), StatusCode::kInvalidArgument);
   }
-  auto tiny = context->AllocateTensor(Shape{1, 1, 1}, DataType::kFloat32);
+  auto tiny = Tensor::Empty(*context, Shape{1, 1, 1}, DataType::kFloat32);
   EXPECT_TRUE(tiny.ok());
   if (tiny.ok()) {
     auto too_deep = BuildLaplacianPyramid(op_context, tiny.value(), 1);
     EXPECT_EQ(too_deep.status().code(), StatusCode::kInvalidArgument);
   }
 }
-
 #ifdef hpcplatform_WITH_OPENCV
 namespace {
-
 std::shared_ptr<Context> GetOpenCvContext() {
   static auto result = Context::Create(BackendType::kOpenCV);
   static const bool reported = [] {
@@ -274,9 +248,7 @@ std::shared_ptr<Context> GetOpenCvContext() {
   (void)reported;
   return result.ok() ? result.value() : nullptr;
 }
-
 }  // namespace
-
 TEST(hpcplatform, LaplacianPyramidOpenCvMatchesCpuFloat) {
   auto cpu = Context::Create(BackendType::kNativeCpu).value();
   auto opencv = GetOpenCvContext();
@@ -304,10 +276,8 @@ TEST(hpcplatform, LaplacianPyramidOpenCvMatchesCpuFloat) {
   EXPECT_TRUE(equivalent);
 }
 #endif
-
 #ifdef hpcplatform_WITH_CUDA
 namespace {
-
 std::shared_ptr<Context> GetCudaContext() {
   static auto result = Context::Create(BackendType::kCUDA);
   static const bool reported = [] {
@@ -319,9 +289,7 @@ std::shared_ptr<Context> GetCudaContext() {
   (void)reported;
   return result.ok() ? result.value() : nullptr;
 }
-
 }  // namespace
-
 TEST(hpcplatform, LaplacianPyramidCudaMatchesCpuFloat) {
   auto cpu = Context::Create(BackendType::kNativeCpu).value();
   auto cuda = GetCudaContext();
@@ -349,5 +317,3 @@ TEST(hpcplatform, LaplacianPyramidCudaMatchesCpuFloat) {
   EXPECT_TRUE(equivalent);
 }
 #endif
-
-

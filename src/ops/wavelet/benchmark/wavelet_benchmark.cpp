@@ -158,19 +158,17 @@ int main() {
   for (ConfigResult& result : results) {
     if (!cuda.ok()) break;
     const Config& config = result.config;
-    auto input = cpu.value()->AllocateTensor(
-        Shape{config.height, config.width, config.channels},
+    auto input = Tensor::Empty(
+        *cpu.value(), Shape{config.height, config.width, config.channels},
         DataType::kFloat32);
     if (!input.ok()) continue;
     FillInput(&input.value());
-    auto device_input = cuda.value()->AllocateTensor(input.value().shape(),
+    auto device_input = Tensor::Empty(*cuda.value(), input.value().shape(),
                                                      input.value().dtype());
     if (!device_input.ok()) continue;
-    if (!cuda.value()->Copy(&device_input.value(), input.value()).ok())
+    if (!Copy(&device_input.value(), input.value()).ok())
       continue;
-    OpContext context;
-    context.context = cuda.value().get();
-    context.stream = &cuda.value()->stream();
+    OpContext context(*cuda.value());
     for (WaveletKind kind : {WaveletKind::kHaar, WaveletKind::kDaubechies4}) {
       Entry entry;
       entry.backend = "cuda";
@@ -185,18 +183,16 @@ int main() {
   // Phase 2: CPU levels, level-major so each level sees the same machine state.
   for (CpuKernelLevel level : {CpuKernelLevel::kNaive, CpuKernelLevel::kOpenMP,
                                CpuKernelLevel::kTbb}) {
-    if (!cpu.value()->backend_ptr()->SupportsKernelLevel(level)) continue;
+    if (!cpu.value()->SupportsKernelLevel(level)) continue;
     for (ConfigResult& result : results) {
       const Config& config = result.config;
-      auto input = cpu.value()->AllocateTensor(
-          Shape{config.height, config.width, config.channels},
+      auto input = Tensor::Empty(
+          *cpu.value(), Shape{config.height, config.width, config.channels},
           DataType::kFloat32);
       if (!input.ok()) continue;
       FillInput(&input.value());
-      OpContext context;
-      context.context = cpu.value().get();
-      context.stream = &cpu.value()->stream();
-      context.cpu_level = level;
+      OpContext context(*cpu.value());
+      context.set_cpu_level(level);
       for (WaveletKind kind : {WaveletKind::kHaar, WaveletKind::kDaubechies4}) {
         Entry entry;
         entry.backend = "cpu";

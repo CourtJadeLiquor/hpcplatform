@@ -180,7 +180,7 @@ int main() {
   const auto context = context_result.value();
 
   const auto input_result =
-      context->AllocateTensor(Shape{1, 4, 4, 3}, DataType::kFloat32);
+      Tensor::Empty(*context, Shape{1, 4, 4, 3}, DataType::kFloat32);
   if (!input_result.ok()) {
     std::cerr << input_result.status().ToString() << '\n';
     return 1;
@@ -188,8 +188,8 @@ int main() {
   auto input = input_result.value();
   std::fill_n(input.Data<float>(), input.Numel(), 1.0F);
 
-  const OpContext op_context{
-      context.get(), &context->stream(), CpuKernelLevel::kNaive};
+  OpContext op_context(*context);
+  op_context.set_cpu_level(CpuKernelLevel::kNaive);
 
   const auto resized = Resize(op_context, input, 2, 2);
   if (!resized.ok()) {
@@ -271,8 +271,8 @@ int main() {
     return 1;
   }
 
-  const auto input_result = downscale->context()->AllocateTensor(
-      Shape{1, 4, 4, 3}, DataType::kFloat32);
+  const auto input_result = Tensor::Empty(
+      *downscale->context(), Shape{1, 4, 4, 3}, DataType::kFloat32);
   if (!input_result.ok()) {
     std::cerr << input_result.status().ToString() << '\n';
     return 1;

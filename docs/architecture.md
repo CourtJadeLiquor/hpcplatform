@@ -50,7 +50,7 @@
 
 ```
 include/hpcplatform/
-  core/                  # shape / dtype / error / device / memory / stream / tensor / context
+  core/                  # shape / dtype / error / device / memory / stream / tensor / context / transfer
   ops/                   # image.h / op.h / resize.h / gaussian_blur.h / laplacian_pyramid.h / fourier.h / wavelet.h
   interop/opencv.h       # cv::Mat 与 Tensor 的数据适配器
   operator.h             # 配置驱动 Operator 基类与 LoadOperators（公共 API）
@@ -59,7 +59,7 @@ include/hpcplatform/
 src/
   core/                  # 数据结构与内部契约
     backend.h            # Backend 接口（core 内部契约）
-    copy.cpp             # Backend::CopyBuffer / CopyTensorData / Context::Copy
+    copy.cpp             # Backend::CopyBuffer / CopyTensorData / Copy / Upload / Download
     copy.h               # CopyTensorData / ResolveOwningBackend 声明
     tensor_iterator.h    # 内部 stride 逐元素遍历工具（非公共 API）
   framework/             # 框架工具层
@@ -112,8 +112,10 @@ samples/                 # 公共 API 使用样例
 
 `Tensor` 持有 `shape`、`dtype`、`strides`、`offset`、`Buffer` 与弱引用的所属后端。创建方式：
 
-- `Tensor::Create(backend, shape, dtype)`：由后端分配连续内存。
-- `Tensor::Wrap(backend, data, shape, dtype, kind, deleter)`：接管外部内存，不分配、不拷贝；`deleter` 为空表示借用。
+- 用户日常入口是 `Tensor::Empty(context, shape, dtype)`：在 Context 所属后端分配新内存（深分配、拥有所有权）。分配是后端细节，公共 API 只暴露顶层工厂。
+- `TensorConvert<T>` 特化实现的外部转换是透明边界：`Tensor::From<T>(external, context)` 负责把数据落到 `context` 所在域（device Context 时内部完成 H2D），`Tensor::Into<T>(tensor)` 负责从张量所在域搬回（device 张量时内部完成 D2H；非连续设备张量先 `Clone`）。用户只描述算法，不需要手动 upload/download。
+- 外部数据转换统一走扩展点 `Tensor::From<T>` / `Tensor::Into<T>`，由 `TensorConvert<T>` 特化提供实现（如 OpenCV 的 `TensorConvert<cv::Mat>`）。core 不依赖任何具体第三方类型，依赖方向是"第三方类型 → TensorConvert 特化 → Tensor"，未注册类型运行时返回 `kUnsupported`。
+- `Tensor::Create(backend, ...)` 与 `internal::TensorFactory::WrapExternal(context, ...)` 是库内底层工厂（不进入公共 API）：前者接受内部 `Backend`，后者绑定外部内存（`deleter` 为空表示借用，非空表示接管）。
 
 `Slice` / `Reshape` / `Transpose` 等视图只改元数据，共享同一个 `Buffer`。
 
@@ -123,7 +125,9 @@ samples/                 # 公共 API 使用样例
 
 ### 4.3 Context 与 Backend
 
-`Context` 是用户可见的门面：创建设备上下文、分配张量、包装外部内存、同步拷贝。它持有 `shared_ptr<Backend>`，但公共头只前向声明 `Backend`，用户无法接触后端能力。
+`Context` 是用户可见的门面：创建设备上下文、访问内存管理器/流、同步，并回答后端能力查询（`SupportsKernelLevel`）。分配已上移到 `Tensor::Empty`，跨边界传输已移到 `transfer.h` 的自由函数；Context 不再承担"在哪个 Context 上调用 copy"的心智负担。
+
+`Upload(host_src, &device_dst)` 只接受 host 源 + device 目标，`Download(device_src, &host_dst)` 只接受 device 源 + host 目标；执行者由目标/源张量的所属后端推断（`Copy` 用目标张量的 owner），所以调用方无需传入 Context，也不会"在错误的 Context 上调用"。方向与内存种类在入口处校验。`TensorConvert` 特化内部复用同一套传输原语，因此显式 API 与透明转换共享同一份拷贝语义。
 
 `Backend` 是 core 的内部契约，职责限定为：内存管理、流、`CopyBuffer`、后端 API 封装与数据转换。后端不实现具体算子。
 
@@ -146,7 +150,7 @@ samples/                 # 公共 API 使用样例
 - 后端只暴露窄接口与稳定的服务头，算子依赖服务而非实现细节（依赖倒置）。
 - 非 CPU 后端只接受 `kNaive` 级别的内核；`CopyBuffer` 不做主机中转。
 - `BackendType`/`Device` 保持公共，因为 `Context::Create` 需要；但它们只是枚举/值类型，不暴露能力。
-- `interop/opencv.h` 的 `CopyFromCvMat`/`CopyToCvMat` 属于对外数据适配器，不是后端能力，因此保留在公共 API。
+- `interop/opencv.h` 的 `TensorConvert<cv::Mat>` 特化属于对外数据适配器，不是后端能力，因此保留在公共 API；两个方向都在特化内部完成 H2D/D2H（device Context 时分配设备张量并搬运、device Into 时自动 D2H 并克隆非连续），调用方透明。新增第三方类型时只需在该类型所在的头文件里提供自己的 `TensorConvert<T>` 特化，不改 core。
 
 ***
 
@@ -389,13 +393,15 @@ classDiagram
 
   class Context {
     -shared_ptr~Backend~ backend_
+    -backend_ptr() const
+    -memory() MemoryManager
     +Create(backend, deviceIndex) Result
-    +AllocateTensor(shape, dtype) Result
-    +Wrap(data, shape, dtype) Result
-    +Copy(dst, src, stream) Status
-    +memory() MemoryManager
+    +backend_type() BackendType
+    +device() Device
+    +SupportsKernelLevel(level) bool
     +stream() Stream
     +Synchronize() Status
+    +GetMemoryStats() MemoryStats
   }
 
   class Tensor {
@@ -405,14 +411,24 @@ classDiagram
     -DataType dtype_
     -int64_t[] strides_
     -size_t offset_
-    +Create(backend, shape, dtype) Result
-    +Wrap(backend, data, shape, dtype) Result
+    -Create(backend, shape, dtype) Result
+    -WrapExternal(context, data, shape, dtype) Result
+    +Empty(context, shape, dtype) Result
+    +From~T~(external, context) Result
+    +Into~T~(tensor) Result
     +View(shape) Result
     +Slice(dim, begin, end) Result
     +Permute(order) Result
     +Reshape(shape) Result
     +Clone() Result
     +IsContiguous() bool
+  }
+
+  class Transfer {
+    <<free functions>>
+    +Copy(dst, src, stream) Status
+    +Upload(hostSrc, dst, stream) Status
+    +Download(src, hostDst, stream) Status
   }
 
   class Status {
@@ -466,8 +482,9 @@ classDiagram
   Tensor --> Device
   Tensor o-- Backend : weak owner
   Context o-- Backend : binds
-  Context --> MemoryManager : memory()
   Context --> Stream : stream()
+  Transfer ..> Tensor : infers owner backend
+  Transfer ..> Backend : CopyBuffer
   Backend o-- MemoryManager
   Backend o-- Stream
   MemoryManager ..> Buffer : allocates
@@ -636,20 +653,36 @@ classDiagram
   direction LR
 
   class OpContext {
-    +Context* context
-    +Stream* stream
-    +CpuKernelLevel cpu_level
+    -Context* context_
+    -Stream* stream_
+    -CpuKernelLevel cpu_level_
+    +OpContext(Context&)
+    +Null() OpContext
+    +From(Context&) OpContext
+    +set_stream(Stream*) OpContext
+    +set_cpu_level(CpuKernelLevel) OpContext
+    +context() Context*
+    +stream() Stream*
+    +cpu_level() CpuKernelLevel
   }
 
   class Context {
-    +AllocateTensor(shape, dtype) Result
-    +Copy(dst, src, stream) Status
+    +SupportsKernelLevel(level) bool
+    +stream() Stream
+    +GetMemoryStats() MemoryStats
   }
 
   class Tensor {
     +shape() Shape
     +dtype() DataType
     +IsContiguous() bool
+  }
+
+  class Transfer {
+    <<free functions>>
+    +Copy(dst, src, stream) Status
+    +Upload(hostSrc, dst, stream) Status
+    +Download(src, hostDst, stream) Status
   }
 
   class OpKind {

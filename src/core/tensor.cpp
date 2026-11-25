@@ -19,8 +19,8 @@ Status CheckDefined(const Tensor& tensor) {
 
 }  // namespace
 
-Result<Tensor> Tensor::Create(Context& context, const Shape& shape,
-                              DataType dtype, size_t alignment) {
+Result<Tensor> Tensor::Empty(Context& context, const Shape& shape,
+                             DataType dtype, size_t alignment) {
   return Create(context.backend_ptr(), shape, dtype, alignment);
 }
 
@@ -70,15 +70,17 @@ Result<Tensor> Tensor::Create(const std::shared_ptr<Backend>& backend,
   return tensor;
 }
 
-Result<Tensor> Tensor::Wrap(const std::shared_ptr<Backend>& backend, void* data,
-                            const Shape& shape, DataType dtype, MemoryKind kind,
-                            Buffer::Deleter deleter) {
+Result<Tensor> Tensor::WrapExternal(Context& context, void* data,
+                                    const Shape& shape, DataType dtype,
+                                    MemoryKind kind,
+                                    Buffer::Deleter deleter) {
+  const std::shared_ptr<Backend>& backend = context.backend_ptr();
   if (backend == nullptr) {
     return Status::InvalidArgument("tensor wrap requires a live backend");
   }
   hpcplatform_RETURN_IF_ERROR(shape.Validate());
   if (data == nullptr) {
-    return Status::InvalidArgument("Wrap requires non-null data");
+    return Status::InvalidArgument("WrapExternal requires non-null data");
   }
   const size_t element_size = DTypeSize(dtype);
   if (element_size == 0 || !backend->SupportsDType(dtype)) {
@@ -88,11 +90,11 @@ Result<Tensor> Tensor::Wrap(const std::shared_ptr<Backend>& backend, void* data,
   }
   const int64_t numel = shape.Numel();
   if (numel <= 0) {
-    return Status::InvalidArgument("Wrap requires a non-empty shape");
+    return Status::InvalidArgument("WrapExternal requires a non-empty shape");
   }
   const uint64_t count = static_cast<uint64_t>(numel);
   if (count > std::numeric_limits<size_t>::max() / element_size) {
-    return Status::InvalidArgument("Wrap byte size overflows size_t");
+    return Status::InvalidArgument("WrapExternal byte size overflows size_t");
   }
   const size_t bytes = static_cast<size_t>(count) * element_size;
 

@@ -16,6 +16,7 @@
 #include "hpcplatform/core/stream.h"
 #include "hpcplatform/core/tensor.h"
 #include "hpcplatform/core/timing.h"
+#include "hpcplatform/core/transfer.h"
 #include "hpcplatform/operator.h"
 #include "hpcplatform/ops/fourier.h"
 #include "hpcplatform/ops/gaussian_blur.h"

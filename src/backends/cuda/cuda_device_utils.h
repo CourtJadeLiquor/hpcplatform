@@ -74,13 +74,13 @@ inline unsigned int BlockCount(int64_t count) {
 }
 
 inline Result<CudaStream*> GetCudaStream(const OpContext& context) {
-  Stream* stream = context.stream;
-  if (stream == nullptr && context.context != nullptr) {
-    stream = &context.context->stream();
+  Stream* stream = context.stream();
+  if (stream == nullptr && context.context() != nullptr) {
+    stream = &context.context()->stream();
   }
   if (stream == nullptr) {
     return Status::InvalidArgument(
-        "CUDA kernel requires OpContext.stream or OpContext.context");
+        "CUDA kernel requires OpContext.stream() or OpContext.context()");
   }
   CudaStream* cuda_stream = dynamic_cast<CudaStream*>(stream);
   if (cuda_stream == nullptr) {

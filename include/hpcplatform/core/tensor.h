@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "hpcplatform/core/device.h"
@@ -19,31 +20,39 @@ namespace hpcplatform {
 class Backend;
 class Context;
 
+namespace internal {
+// Forward-declared here so Tensor can friend it before the full definition below.
+struct TensorFactory;
+}  // namespace internal
+
 // Tensor is a descriptor: shape + dtype + strides + a shared Buffer.
 // Metadata-only views (crop / reshape / transpose) reuse the same Buffer and
 // never copy elements.
+//
+// Public construction path: Tensor::Empty(context, shape, dtype). Everything
+// else — wrapping external memory, backends — is internal.
 class Tensor {
  public:
   Tensor() = default;
 
-  static Result<Tensor> Create(Context& context, const Shape& shape,
-                               DataType dtype, size_t alignment = 64);
+  // Allocates an uninitialized, contiguous tensor on `context`. The only public
+  // allocation entry point: the backend that provides the memory is a detail
+  // of the Context, not of the caller.
+  static Result<Tensor> Empty(Context& context, const Shape& shape,
+                              DataType dtype, size_t alignment = 64);
 
-  // Allocates on an explicit backend, keeping the allocation inside the same
-  // resource domain as the tensors it is derived from.
-  static Result<Tensor> Create(const std::shared_ptr<Backend>& backend,
-                               const Shape& shape, DataType dtype,
-                               size_t alignment = 64);
+  // Converts an external value into a Tensor bound to `context`. The
+  // specialization owns the memory movement, including H2D when `context` is a
+  // device. Enabled by specializing TensorConvert<T> (see
+  // core/conversion.h); unregistered types return kUnsupported.
+  template <typename T>
+  static Result<Tensor> From(const T& external, Context& context);
 
-  // Wraps externally owned memory without allocating or copying. `data` must
-  // hold at least shape.Numel() * DTypeSize(dtype) bytes. When `deleter` is
-  // empty the Tensor borrows the memory (caller keeps it alive); otherwise the
-  // deleter runs when the last reference dies, so memory from another runtime
-  // (cv::Mat, cudaMalloc, NPU, ...) can be adopted.
-  static Result<Tensor> Wrap(const std::shared_ptr<Backend>& backend,
-                             void* data, const Shape& shape, DataType dtype,
-                             MemoryKind kind = MemoryKind::kHost,
-                             Buffer::Deleter deleter = nullptr);
+  // Converts a Tensor into an owning external value T. Device tensors are
+  // downloaded transparently by the specialization. Enabled by specializing
+  // TensorConvert<T> (see core/conversion.h).
+  template <typename T>
+  static Result<T> Into(const Tensor& tensor);
 
   // Returns whether memory is bound; false for default-constructed or moved-from
   // Tensors.
@@ -99,8 +108,8 @@ class Tensor {
   Result<Tensor> Reshape(const Shape& shape) const;
   // Deep copy: allocates a new Buffer on the backend, preserving metadata.
   Result<Tensor> Clone() const;
-  // Type conversion lives in ops: use hpcplatform::Cast(OpContext, tensor, dtype) so
-  // the registered SIMD / OpenCV / CUDA kernels actually run.
+  // Type conversion lives in ops: use hpcplatform::Cast(OpContext, tensor, dtype)
+  // so the registered SIMD / OpenCV / CUDA kernels actually run.
 
   // Backend that allocated this tensor's buffer. Set only by the allocation
   // and wrap factories above; there is deliberately no setter. weak_ptr keeps
@@ -118,9 +127,20 @@ class Tensor {
   std::string ToString() const;
 
  private:
+  friend class Context;
+  friend struct internal::TensorFactory;
+
+  // Internal allocation entry points. Empty(context) wraps Create(backend).
+  static Result<Tensor> Create(const std::shared_ptr<Backend>& backend,
+                               const Shape& shape, DataType dtype,
+                               size_t alignment = 64);
+
+  // Internal wrap entry point reached through internal::TensorFactory.
+  static Result<Tensor> WrapExternal(Context& context, void* data,
+                                     const Shape& shape, DataType dtype,
+                                     MemoryKind kind, Buffer::Deleter deleter);
+
   std::shared_ptr<Buffer> buffer_;
-  // Non-owning reference to the allocating backend; written only by Create and
-  // Wrap, which are Tensor members, so no friend declaration is needed.
   std::weak_ptr<Backend> owner_;
   Shape shape_;
   DataType dtype_ = DataType::kFloat32;
@@ -129,6 +149,21 @@ class Tensor {
   Device device_;
   BackendType backend_ = BackendType::kNativeCpu;
 };
+
+namespace internal {
+// Internal factory struct reached through Tensor's friendship; used by
+// TensorConvert specializations and low-level tests that must alias external
+// memory. Never construct Tensors through this from public code.
+struct TensorFactory {
+  static Result<Tensor> WrapExternal(Context& context, void* data,
+                                     const Shape& shape, DataType dtype,
+                                     MemoryKind kind = MemoryKind::kHost,
+                                     Buffer::Deleter deleter = nullptr) {
+    return Tensor::WrapExternal(context, data, shape, dtype, kind,
+                                std::move(deleter));
+  }
+};
+}  // namespace internal
 
 }  // namespace hpcplatform
 

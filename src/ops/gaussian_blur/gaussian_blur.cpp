@@ -57,7 +57,7 @@ void RegisterGaussianBlurKernels() {
 // Public operator entry point. Steps:
 // 1) Validate the invocation; require odd kernel_size >= 3 and finite sigma > 0;
 // 2) Parse the shape according to layout and require u8/f32/f64 dtype;
-// 3) Find a registered kernel by (input.backend(), context.cpu_level);
+// 3) Find a registered kernel by (input.backend(), context.cpu_level());
 // 4) Allocate output with the same shape and dtype, then invoke the kernel with
 //    params. The kernel performs two 1D convolution passes, each O(H*W*K).
 Result<Tensor> GaussianBlur(const OpContext& context, const Tensor& input,
@@ -76,7 +76,7 @@ Result<Tensor> GaussianBlur(const OpContext& context, const Tensor& input,
     return Status::Unsupported("GaussianBlur supports u8, f32 and f64 images");
   }
   auto kernel = ops_internal::FindKernel(OpKind::kGaussianBlur, input.backend(),
-                                         context.cpu_level);
+                                         context.cpu_level());
   if (!kernel.ok()) return kernel.status();
   auto output =
       ops_internal::AllocateOutput(context, input.shape(), input.dtype());

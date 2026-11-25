@@ -21,7 +21,7 @@ TEST(hpcplatform, CreateTensorAllocatesContiguousBuffer) {
   auto context = context_result.value();
 
   auto tensor_result =
-      Tensor::Create(*context, Shape{2, 3}, DataType::kFloat32);
+      Tensor::Empty(*context, Shape{2, 3}, DataType::kFloat32);
   EXPECT_TRUE(tensor_result.ok());
   const Tensor& tensor = tensor_result.value();
 
@@ -44,15 +44,15 @@ TEST(hpcplatform, CreateTensorRejectsInvalidShapeAndDtype) {
   const Shape zero_dim{0, 3};
   const Shape negative{-1, 3};
   EXPECT_FALSE(
-      Tensor::Create(*context, zero_dim, DataType::kFloat32).ok());
+      Tensor::Empty(*context, zero_dim, DataType::kFloat32).ok());
   EXPECT_FALSE(
-      Tensor::Create(*context, negative, DataType::kFloat32).ok());
+      Tensor::Empty(*context, negative, DataType::kFloat32).ok());
 }
 
 TEST(hpcplatform, TensorWriteReadRoundTrip) {
   auto context = MakeCpuContext().value();
   auto tensor =
-      Tensor::Create(*context, Shape{2, 3}, DataType::kFloat32).value();
+      Tensor::Empty(*context, Shape{2, 3}, DataType::kFloat32).value();
   float* data = tensor.Data<float>();
   for (int i = 0; i < 6; ++i)
     data[i] = static_cast<float>(i) * 0.5f;
@@ -62,11 +62,10 @@ TEST(hpcplatform, TensorWriteReadRoundTrip) {
 
 TEST(hpcplatform, ScalarTensorHasOneElement) {
   auto context = MakeCpuContext().value();
-  auto tensor = Tensor::Create(*context, Shape{}, DataType::kInt32).value();
+  auto tensor = Tensor::Empty(*context, Shape{}, DataType::kInt32).value();
   EXPECT_EQ(tensor.Numel(), static_cast<int64_t>(1));
   EXPECT_TRUE(tensor.IsContiguous());
 }
 
 }  // namespace
-
 

@@ -125,23 +125,20 @@ int main() {
 
   for (const Config& config : configs) {
     for (DataType dtype : {DataType::kUInt8, DataType::kFloat32}) {
-      auto input = cpu.value()->AllocateTensor(
-          Shape{kHeight, kWidth, config.channels}, dtype);
+      auto input = Tensor::Empty(
+          *cpu.value(), Shape{kHeight, kWidth, config.channels}, dtype);
       if (!input.ok()) continue;
       FillInput(&input.value());
 
-      OpContext op_context;
-      op_context.context = cpu.value().get();
-      op_context.stream = &cpu.value()->stream();
-
+      OpContext op_context(*cpu.value());
       double baseline = 0.0;
       for (CpuKernelLevel level :
            {CpuKernelLevel::kNaive, CpuKernelLevel::kOpenMP,
             CpuKernelLevel::kSimdGeneric, CpuKernelLevel::kSimdAvx2,
             CpuKernelLevel::kTbb}) {
-        if (!cpu.value()->backend_ptr()->SupportsKernelLevel(level)) continue;
+        if (!cpu.value()->SupportsKernelLevel(level)) continue;
         OpContext level_context = op_context;
-        level_context.cpu_level = level;
+        level_context.set_cpu_level(level);
         bool ok = false;
         const Measurement run =
             Measure(level_context, input.value(), config, &ok);
@@ -152,13 +149,11 @@ int main() {
       }
 
       if (opencv.ok()) {
-        OpContext accelerated;
-        accelerated.context = opencv.value().get();
-        accelerated.stream = &opencv.value()->stream();
         auto device =
-            opencv.value()->AllocateTensor(input.value().shape(), dtype);
+            Tensor::Empty(*opencv.value(), input.value().shape(), dtype);
         if (device.ok() &&
-            opencv.value()->Copy(&device.value(), input.value()).ok()) {
+            Copy(&device.value(), input.value()).ok()) {
+          OpContext accelerated(*opencv.value());
           bool ok = false;
           const Measurement run =
               Measure(accelerated, device.value(), config, &ok);
@@ -166,13 +161,11 @@ int main() {
         }
       }
       if (cuda.ok()) {
-        OpContext accelerated;
-        accelerated.context = cuda.value().get();
-        accelerated.stream = &cuda.value()->stream();
         auto device =
-            cuda.value()->AllocateTensor(input.value().shape(), dtype);
+            Tensor::Empty(*cuda.value(), input.value().shape(), dtype);
         if (device.ok() &&
-            cuda.value()->Copy(&device.value(), input.value()).ok()) {
+            Copy(&device.value(), input.value()).ok()) {
+          OpContext accelerated(*cuda.value());
           bool ok = false;
           const Measurement run =
               Measure(accelerated, device.value(), config, &ok);

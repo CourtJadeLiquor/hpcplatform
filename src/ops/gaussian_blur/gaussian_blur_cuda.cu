@@ -194,7 +194,7 @@ Status GaussianBlurCuda(const OpContext& context, const Tensor& input,
   const std::vector<double> kernel =
       BuildGaussianKernel(options.kernel_size, options.sigma);
   auto intermediate =
-      context.context->AllocateTensor(input.shape(), DataType::kFloat64);
+      Tensor::Empty(*context.context(), input.shape(), DataType::kFloat64);
   if (!intermediate.ok()) return intermediate.status();
   return LaunchBlur(input, image.value(), options, kernel.data(),
                     static_cast<double*>(intermediate.value().data()), output,

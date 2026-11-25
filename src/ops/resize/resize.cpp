@@ -63,7 +63,7 @@ Result<Tensor> Resize(const OpContext& context, const Tensor& input,
     return Status::InvalidArgument("Resize output dimensions must be positive");
   }
   auto kernel = ops_internal::FindKernel(OpKind::kResize, input.backend(),
-                                         context.cpu_level);
+                                         context.cpu_level());
   if (!kernel.ok()) return kernel.status();
   // Preserve the input rank and layout, replacing only H/W.
   const Shape output_shape =

@@ -16,15 +16,12 @@ namespace {
 using namespace hpcplatform;
 
 OpContext CpuOpContext(Context& context) {
-  OpContext result;
-  result.context = &context;
-  result.stream = &context.stream();
-  return result;
+  return OpContext(context);
 }
 
 TEST(hpcplatform, ResizeBilinearMatchesHandComputedValues) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
-  auto input = context->AllocateTensor(Shape{2, 2}, DataType::kFloat32).value();
+  auto input = Tensor::Empty(*context, Shape{2, 2}, DataType::kFloat32).value();
   const float values[] = {0, 1, 2, 3};
   for (int i = 0; i < 4; ++i)
     input.Data<float>()[i] = values[i];
@@ -38,7 +35,7 @@ TEST(hpcplatform, ResizeBilinearMatchesHandComputedValues) {
 TEST(hpcplatform, ResizeNearestAndNCHWAreExplicit) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
   auto input =
-      context->AllocateTensor(Shape{1, 2, 2, 2}, DataType::kFloat32).value();
+      Tensor::Empty(*context, Shape{1, 2, 2, 2}, DataType::kFloat32).value();
   for (int i = 0; i < 8; ++i)
     input.Data<float>()[i] = static_cast<float>(i);
   auto output = Resize(CpuOpContext(*context), input, 1, 1,
@@ -59,7 +56,7 @@ TEST(hpcplatform, ResizeNearestAndNCHWAreExplicit) {
 TEST(hpcplatform, ImageOpsHandleSingleElementAndInvalidDimensions) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
   auto input =
-      context->AllocateTensor(Shape{1, 1, 1}, DataType::kUInt8).value();
+      Tensor::Empty(*context, Shape{1, 1, 1}, DataType::kUInt8).value();
   input.Data<uint8_t>()[0] = 200;
   auto output = Resize(CpuOpContext(*context), input, 3, 2).value();
   for (int i = 0; i < 6; ++i)
@@ -71,7 +68,7 @@ TEST(hpcplatform, ImageOpsHandleSingleElementAndInvalidDimensions) {
 TEST(hpcplatform, ResizeCpuLevelsAreBitExact) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
   auto input =
-      context->AllocateTensor(Shape{1, 33, 41, 3}, DataType::kFloat32).value();
+      Tensor::Empty(*context, Shape{1, 33, 41, 3}, DataType::kFloat32).value();
   for (int64_t i = 0; i < input.Numel(); ++i) {
     input.Data<float>()[i] = static_cast<float>(i % 29) * 0.125f;
   }
@@ -81,9 +78,9 @@ TEST(hpcplatform, ResizeCpuLevelsAreBitExact) {
   for (CpuKernelLevel level :
        {CpuKernelLevel::kOpenMP, CpuKernelLevel::kSimdGeneric,
         CpuKernelLevel::kSimdAvx2, CpuKernelLevel::kTbb}) {
-    if (!context->backend_ptr()->SupportsKernelLevel(level)) continue;
+    if (!context->SupportsKernelLevel(level)) continue;
     OpContext level_context = CpuOpContext(*context);
-    level_context.cpu_level = level;
+    level_context.set_cpu_level(level);
     auto result = Resize(level_context, input, 17, 23,
                          InterpolationMode::kBilinear, ImageLayout::kNHWC);
     // Backend-wide capability may include levels this operator never built
@@ -100,7 +97,7 @@ TEST(hpcplatform, ResizeCpuLevelsAreBitExact) {
 
 TEST(hpcplatform, ResizeRank2Float64PreservesShapeAndPrecision) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
-  auto input = context->AllocateTensor(Shape{2, 2}, DataType::kFloat64).value();
+  auto input = Tensor::Empty(*context, Shape{2, 2}, DataType::kFloat64).value();
   const double values[] = {0, 1, 2, 3};
   for (int i = 0; i < 4; ++i)
     input.Data<double>()[i] = values[i];
@@ -131,7 +128,7 @@ TEST(hpcplatform, ResizeOutputShapeFollowsLayout) {
   };
   for (const Case& item : cases) {
     auto input =
-        context->AllocateTensor(item.input, DataType::kFloat32).value();
+        Tensor::Empty(*context, item.input, DataType::kFloat32).value();
     auto output = Resize(CpuOpContext(*context), input, 4, 6,
                          InterpolationMode::kBilinear, item.layout);
     EXPECT_TRUE(output.ok());
@@ -144,19 +141,19 @@ TEST(hpcplatform, ResizeOutputShapeFollowsLayout) {
 
 TEST(hpcplatform, ResizeRejectsUnsupportedInputs) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
-  auto half = context->AllocateTensor(Shape{4, 4, 3}, DataType::kFloat16);
+  auto half = Tensor::Empty(*context, Shape{4, 4, 3}, DataType::kFloat16);
   if (half.ok()) {
     auto result = Resize(CpuOpContext(*context), half.value(), 2, 2);
     EXPECT_EQ(result.status().code(), StatusCode::kUnsupported);
   }
   auto rank5 =
-      context->AllocateTensor(Shape{1, 1, 2, 2, 2}, DataType::kFloat32).value();
+      Tensor::Empty(*context, Shape{1, 1, 2, 2, 2}, DataType::kFloat32).value();
   auto bad_rank = Resize(CpuOpContext(*context), rank5, 2, 2);
   EXPECT_EQ(bad_rank.status().code(), StatusCode::kInvalidArgument);
 
   auto valid =
-      context->AllocateTensor(Shape{2, 2, 3}, DataType::kFloat32).value();
-  auto null_context = Resize(OpContext{}, valid, 2, 2);
+      Tensor::Empty(*context, Shape{2, 2, 3}, DataType::kFloat32).value();
+  auto null_context = Resize(OpContext::Null(), valid, 2, 2);
   EXPECT_EQ(null_context.status().code(), StatusCode::kInvalidArgument);
   auto negative = Resize(CpuOpContext(*context), valid, -1, 2);
   EXPECT_EQ(negative.status().code(), StatusCode::kInvalidArgument);
@@ -165,7 +162,7 @@ TEST(hpcplatform, ResizeRejectsUnsupportedInputs) {
 TEST(hpcplatform, ResizeU8LevelsAreBitExact) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
   auto input =
-      context->AllocateTensor(Shape{1, 33, 41, 3}, DataType::kUInt8).value();
+      Tensor::Empty(*context, Shape{1, 33, 41, 3}, DataType::kUInt8).value();
   for (int64_t i = 0; i < input.Numel(); ++i) {
     input.Data<uint8_t>()[i] = static_cast<uint8_t>((i * 37) & 0xFF);
   }
@@ -175,9 +172,9 @@ TEST(hpcplatform, ResizeU8LevelsAreBitExact) {
   for (CpuKernelLevel level :
        {CpuKernelLevel::kOpenMP, CpuKernelLevel::kSimdGeneric,
         CpuKernelLevel::kSimdAvx2, CpuKernelLevel::kTbb}) {
-    if (!context->backend_ptr()->SupportsKernelLevel(level)) continue;
+    if (!context->SupportsKernelLevel(level)) continue;
     OpContext level_context = CpuOpContext(*context);
-    level_context.cpu_level = level;
+    level_context.set_cpu_level(level);
     auto result = Resize(level_context, input, 17, 23,
                          InterpolationMode::kBilinear, ImageLayout::kNHWC);
     // Backend-wide capability may include levels this operator never built
@@ -213,20 +210,20 @@ TEST(hpcplatform, ResizeOpenCvMatchesCpuU8) {
   auto cpu = Context::Create(BackendType::kNativeCpu).value();
   auto opencv = GetOpenCvContext();
   if (!opencv) return;
-  auto input = cpu->AllocateTensor(Shape{24, 32, 3}, DataType::kUInt8).value();
+  auto input = Tensor::Empty(*cpu, Shape{24, 32, 3}, DataType::kUInt8).value();
   for (int64_t i = 0; i < input.Numel(); ++i) {
     input.Data<uint8_t>()[i] = static_cast<uint8_t>((i * 17) & 0xFF);
   }
   auto reference = Resize(CpuOpContext(*cpu), input, 11, 15).value();
-  auto device = opencv->AllocateTensor(input.shape(), input.dtype()).value();
-  hpcplatform_EXPECT_OK(opencv->Copy(&device, input));
+  auto device = Tensor::Empty(*opencv, input.shape(), input.dtype()).value();
+  hpcplatform_EXPECT_OK(Copy(&device, input));
   auto actual = Resize(CpuOpContext(*opencv), device, 11, 15);
   EXPECT_TRUE(actual.ok());
   if (!actual.ok()) return;
   auto back =
-      cpu->AllocateTensor(actual.value().shape(), actual.value().dtype())
+      Tensor::Empty(*cpu, actual.value().shape(), actual.value().dtype())
           .value();
-  hpcplatform_EXPECT_OK(cpu->Copy(&back, actual.value()));
+  hpcplatform_EXPECT_OK(Copy(&back, actual.value()));
   bool within_one = true;
   for (int64_t i = 0; i < back.Numel() && within_one; ++i) {
     // u8 cross-backend: ±1 absolute (fixed-point / rounding differences).
@@ -260,20 +257,20 @@ TEST(hpcplatform, ResizeCudaMatchesCpuFloat) {
   auto cuda = GetCudaContext();
   if (!cuda) return;
   auto input =
-      cpu->AllocateTensor(Shape{24, 32, 3}, DataType::kFloat32).value();
+      Tensor::Empty(*cpu, Shape{24, 32, 3}, DataType::kFloat32).value();
   for (int64_t i = 0; i < input.Numel(); ++i) {
     input.Data<float>()[i] = static_cast<float>(i % 101) * 0.125f;
   }
   auto reference = Resize(CpuOpContext(*cpu), input, 11, 15).value();
-  auto device = cuda->AllocateTensor(input.shape(), input.dtype()).value();
-  hpcplatform_EXPECT_OK(cuda->Copy(&device, input));
+  auto device = Tensor::Empty(*cuda, input.shape(), input.dtype()).value();
+  hpcplatform_EXPECT_OK(Copy(&device, input));
   auto actual = Resize(CpuOpContext(*cuda), device, 11, 15);
   EXPECT_TRUE(actual.ok());
   if (!actual.ok()) return;
   auto back =
-      cpu->AllocateTensor(actual.value().shape(), actual.value().dtype())
+      Tensor::Empty(*cpu, actual.value().shape(), actual.value().dtype())
           .value();
-  hpcplatform_EXPECT_OK(cpu->Copy(&back, actual.value()));
+  hpcplatform_EXPECT_OK(Copy(&back, actual.value()));
   bool equivalent = true;
   for (int64_t i = 0; i < back.Numel() && equivalent; ++i) {
     const double a = reference.Data<float>()[i];
@@ -285,5 +282,4 @@ TEST(hpcplatform, ResizeCudaMatchesCpuFloat) {
 #endif
 
 }  // namespace
-
 

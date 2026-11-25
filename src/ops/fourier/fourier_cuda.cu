@@ -286,7 +286,7 @@ Status FourierCuda(const OpContext& context, const Tensor& input,
   // plane (buffers = 1). If either uses the DFT fallback, reads and writes must
   // be separate, so allocate another pair as ping-pong buffers.
   const int64_t buffers = (radix_h && radix_w) ? 1 : 2;
-  auto scratch = context.context->AllocateTensor(
+  auto scratch = Tensor::Empty(*context.context(), 
       Shape{buffers * 2 * plane_size}, DataType::kFloat64);
   if (!scratch.ok()) {
     cudaFree(table);

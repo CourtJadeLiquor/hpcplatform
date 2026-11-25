@@ -310,7 +310,7 @@ Status WaveletCuda(const OpContext& context, const Tensor& input, const Tensor*,
   //   Inverse: LL/LH/HL/HH (H*W/4 each) + low_rows/high_rows (H*W/2 each)
   // Both view groups start at the same address (plane and ll both point to
   // scratch_base) because the two directions are never used simultaneously.
-  auto scratch = context.context->AllocateTensor(Shape{2 * plane_size},
+  auto scratch = Tensor::Empty(*context.context(), Shape{2 * plane_size},
                                                  DataType::kFloat64);
   if (!scratch.ok()) return scratch.status();
   double* scratch_base = static_cast<double*>(scratch.value().data());

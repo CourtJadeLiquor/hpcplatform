@@ -6,17 +6,17 @@
 #include "hpcplatform/core/error.h"
 
 // Core-internal copy contract: declared in src/core (never exposed through the
-// public API) and implemented in src/core/copy.cpp. Callers are Context::Copy
-// and Tensor::Clone.
+// public API) and implemented in src/core/copy.cpp. Callers are the transfer
+// functions (Copy / Upload / Download) and Tensor::Clone.
 namespace hpcplatform {
 
 class Backend;
 class Stream;
 class Tensor;
 
-// Copies element data from `src` into a caller-allocated `dst`; used by
-// Context::Copy and Tensor::Clone. The backend that owns the device side
-// drives the transfer; host-only copies use `backend`. Metadata (shape /
+// Copies element data from `src` into a caller-allocated `dst`; used by the
+// public transfer functions and Tensor::Clone. The backend that owns the device
+// side drives the transfer; host-only copies use `backend`. Metadata (shape /
 // dtype / strides) is the caller's responsibility and is never copied here.
 Status CopyTensorData(const Backend& backend, Tensor* dst, const Tensor& src,
                       Stream* stream);

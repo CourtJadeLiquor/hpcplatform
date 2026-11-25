@@ -94,7 +94,7 @@ int main(int argc, char** argv) {
   // decoder / previous stage; the operator objects are reusable across calls.
   auto context = Context::Create(BackendType::kNativeCpu).value();
   auto input =
-      context->AllocateTensor(Shape{1, 4, 4, 3}, DataType::kFloat32).value();
+      Tensor::Empty(*context, Shape{1, 4, 4, 3}, DataType::kFloat32).value();
   for (int64_t i = 0; i < input.Numel(); ++i) {
     input.Data<float>()[i] = static_cast<float>(i % 5);
   }

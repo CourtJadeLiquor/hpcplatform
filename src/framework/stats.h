@@ -25,8 +25,8 @@ struct MemorySnapshot {
 // Reads the Context's current memory statistics into the corresponding bucket.
 inline MemorySnapshot SnapshotMemory(Context& context) {
   MemorySnapshot snapshot;
-  const MemoryStats stats = context.memory().Stats();
-  switch (context.memory().device().type) {
+  const MemoryStats stats = context.GetMemoryStats();
+  switch (context.device().type) {
     case DeviceType::kCPU:
       snapshot.host = stats;
       break;

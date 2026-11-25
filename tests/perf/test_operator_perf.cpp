@@ -21,17 +21,15 @@ constexpr int kIterations = 20;
 constexpr size_t kOutputBytes = static_cast<size_t>(256 * 256 * 3 * 4);
 
 OpContext CpuOpContext(Context& context) {
-  OpContext op_context;
-  op_context.context = &context;
-  op_context.stream = &context.stream();
+  OpContext op_context(context);
+  op_context.set_cpu_level(CpuKernelLevel::kNaive);
   return op_context;
 }
 
 TEST(hpcplatform, ResizePerformanceAndMemorySnapshot) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
   auto input =
-      context
-          ->AllocateTensor(Shape{1, kInputHeight, kInputWidth, kChannels},
+      Tensor::Empty(*context, Shape{1, kInputHeight, kInputWidth, kChannels},
                            DataType::kFloat32)
           .value();
   float* input_data = input.Data<float>();
@@ -90,5 +88,4 @@ TEST(hpcplatform, ResizePerformanceAndMemorySnapshot) {
 }
 
 }  // namespace
-
 

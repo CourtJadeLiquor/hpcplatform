@@ -1,8 +1,9 @@
 // Core copy semantics: Backend::CopyBuffer default path, ResolveOwningBackend,
-// CopyTensorData and Context::Copy. This is library implementation (not a test
-// helper): Context::Copy and Tensor::Clone are its two callers.
+// CopyTensorData and the public transfer functions (Copy / Upload / Download).
+// This is library implementation (not a test helper): Tensor::Clone and the
+// transfer API are its callers.
 
-#include "hpcplatform/core/context.h"
+#include "hpcplatform/core/transfer.h"
 
 #include <cstring>
 #include <string>
@@ -10,6 +11,7 @@
 #include "core/backend.h"
 #include "core/copy.h"
 #include "core/tensor_iterator.h"
+#include "hpcplatform/core/tensor.h"
 
 namespace hpcplatform {
 
@@ -146,8 +148,47 @@ Status CopyTensorData(const Backend& backend, Tensor* dst, const Tensor& src,
   }
 }
 
-Status Context::Copy(Tensor* dst, const Tensor& src, Stream* stream) {
-  return CopyTensorData(*backend_, dst, src, stream);
+Status Copy(Tensor* dst, const Tensor& src, Stream* stream) {
+  if (dst == nullptr || !dst->defined() || !src.defined()) {
+    return Status::InvalidArgument("Copy requires two defined tensors");
+  }
+  const auto owner = ResolveOwningBackend(*dst);
+  if (!owner.ok()) return owner.status();
+  return CopyTensorData(*owner.value(), dst, src, stream);
+}
+
+namespace {
+
+bool IsHostBuffer(const Tensor& tensor) {
+  return tensor.buffer()->kind() != MemoryKind::kDevice;
+}
+
+}  // namespace
+
+Status Upload(const Tensor& host_src, Tensor* device_dst, Stream* stream) {
+  if (device_dst == nullptr || !device_dst->defined() || !host_src.defined()) {
+    return Status::InvalidArgument("Upload requires two defined tensors");
+  }
+  if (!IsHostBuffer(host_src)) {
+    return Status::InvalidArgument("Upload source must be host memory");
+  }
+  if (device_dst->buffer()->kind() != MemoryKind::kDevice) {
+    return Status::InvalidArgument("Upload destination must be device memory");
+  }
+  return Copy(device_dst, host_src, stream);
+}
+
+Status Download(const Tensor& device_src, Tensor* host_dst, Stream* stream) {
+  if (host_dst == nullptr || !host_dst->defined() || !device_src.defined()) {
+    return Status::InvalidArgument("Download requires two defined tensors");
+  }
+  if (device_src.buffer()->kind() != MemoryKind::kDevice) {
+    return Status::InvalidArgument("Download source must be device memory");
+  }
+  if (!IsHostBuffer(*host_dst)) {
+    return Status::InvalidArgument("Download destination must be host memory");
+  }
+  return Copy(host_dst, device_src, stream);
 }
 
 }  // namespace hpcplatform

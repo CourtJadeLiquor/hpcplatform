@@ -45,4 +45,3 @@ TEST(hpcplatform, ShapeToString) {
 
 }  // namespace
 
-

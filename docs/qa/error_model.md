@@ -48,12 +48,12 @@ class Result {
 **最重要的一个坑**：`Result::value()` **不会抛异常**。如果 `!ok()`，调用 `value()` 拿到的是一个**默认构造的 `T`**（不是错误、不是异常），用了就是静默错误。所以：
 
 ```cpp
-auto r = ctx->AllocateTensor(...);
+auto r = Tensor::Empty(*ctx, Shape{2, 3}, DataType::kFloat32);
 if (!r.ok()) { /* 处理 r.status() */ return; }   // 必须先查
 Tensor t = r.value();                             // 再取值
 ```
 
-> 新手常写 `Tensor t = ctx->AllocateTensor(...).value();` 一步到位——失败时 `t` 是个空壳（`buffer_ == nullptr`），后续 `t.Data<float>()` 返回 `nullptr`，解引用就崩。**永远先查 `ok()`。**
+> 新手常写 `Tensor t = Tensor::Empty(*ctx, ...).value();` 一步到位——失败时 `t` 是个空壳（`buffer_ == nullptr`），后续 `t.Data<float>()` 返回 `nullptr`，解引用就崩。**永远先查 `ok()`。**
 
 ---
 

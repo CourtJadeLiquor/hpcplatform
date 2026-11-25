@@ -115,8 +115,8 @@ Status CpuMemoryManager::Copy(Buffer* dst, size_t dst_offset, const Buffer* src,
   if (dst->kind() == MemoryKind::kDevice ||
       src->kind() == MemoryKind::kDevice) {
     return Status::Unsupported(
-        "CpuMemoryManager cannot copy device memory; use Context::Copy once "
-        "cross-device support lands");
+        "CpuMemoryManager cannot copy device memory; use the Copy / Download "
+        "transfer functions instead");
   }
 
   std::memcpy(static_cast<char*>(dst->data()) + dst_offset,

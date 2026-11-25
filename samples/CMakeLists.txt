@@ -20,3 +20,13 @@ if(hpcplatform_WITH_YAML)
   add_executable(05_config_operator 05_config_operator.cpp)
   target_link_libraries(05_config_operator PRIVATE hpcplatform)
 endif()
+
+# PNG loading/saving for the cross-runtime image pipeline needs imgcodecs on top
+# of the core/imgproc components the library already links.
+if(hpcplatform_WITH_CUDA AND hpcplatform_WITH_OPENCV)
+  find_package(OpenCV 4 REQUIRED COMPONENTS imgcodecs)
+  add_executable(06_image_cuda_pipeline 06_image_cuda_pipeline.cpp)
+  target_link_libraries(06_image_cuda_pipeline PRIVATE hpcplatform opencv_imgcodecs)
+  target_compile_definitions(06_image_cuda_pipeline PRIVATE
+    hpcplatform_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+endif()

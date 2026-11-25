@@ -1,38 +1,28 @@
 // Tests fourier forward/inverse consistency, normalization, and boundary handling.
 #include "test_utils.h"
-
 #include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <memory>
 #include <vector>
-
 #include "core/backend.h"
 #include "hpcplatform/hpcplatform.h"
-
+#include "hpcplatform/core/transfer.h"
 namespace {
-
 using namespace hpcplatform;
-
 OpContext CpuOpContext(Context& context) {
-  OpContext result;
-  result.context = &context;
-  result.stream = &context.stream();
-  return result;
+  return OpContext(context);
 }
-
 std::shared_ptr<Context> GetCpuContext() {
   static auto context = Context::Create(BackendType::kNativeCpu);
   return context.ok() ? context.value() : nullptr;
 }
-
 double ReadElement(const Tensor& tensor, int64_t index) {
   if (tensor.dtype() == DataType::kFloat32) {
     return tensor.Data<float>()[index];
   }
   return tensor.Data<double>()[index];
 }
-
 void WriteElement(Tensor* tensor, int64_t index, double value) {
   if (tensor->dtype() == DataType::kFloat32) {
     tensor->Data<float>()[index] = static_cast<float>(value);
@@ -40,7 +30,6 @@ void WriteElement(Tensor* tensor, int64_t index, double value) {
   }
   tensor->Data<double>()[index] = value;
 }
-
 // Fills by logical (n, y, x, c) coordinates, independent of the memory order,
 // so the same logical image can be materialized as NHWC or NCHW.
 Tensor MakeImage(int64_t n, int64_t h, int64_t w, int64_t c, ImageLayout layout,
@@ -49,7 +38,7 @@ Tensor MakeImage(int64_t n, int64_t h, int64_t w, int64_t c, ImageLayout layout,
   if (!context) return Tensor{};
   const Shape shape =
       layout == ImageLayout::kNHWC ? Shape{n, h, w, c} : Shape{n, c, h, w};
-  auto tensor = context->AllocateTensor(shape, dtype);
+  auto tensor = Tensor::Empty(*context, shape, dtype);
   EXPECT_TRUE(tensor.ok());
   if (!tensor.ok()) return Tensor{};
   for (int64_t ni = 0; ni < n; ++ni) {
@@ -69,11 +58,10 @@ Tensor MakeImage(int64_t n, int64_t h, int64_t w, int64_t c, ImageLayout layout,
   }
   return tensor.value();
 }
-
 Tensor MakeConstant(int64_t n, int64_t h, int64_t w, int64_t c, double value) {
   auto context = GetCpuContext();
   if (!context) return Tensor{};
-  auto tensor = context->AllocateTensor(Shape{n, h, w, c}, DataType::kFloat32);
+  auto tensor = Tensor::Empty(*context, Shape{n, h, w, c}, DataType::kFloat32);
   EXPECT_TRUE(tensor.ok());
   if (!tensor.ok()) return Tensor{};
   for (int64_t i = 0; i < tensor.value().Numel(); ++i) {
@@ -81,7 +69,6 @@ Tensor MakeConstant(int64_t n, int64_t h, int64_t w, int64_t c, double value) {
   }
   return tensor.value();
 }
-
 bool Near(const Tensor& actual, const Tensor& expected, double tolerance) {
   if (actual.shape() != expected.shape() ||
       actual.dtype() != expected.dtype()) {
@@ -96,7 +83,6 @@ bool Near(const Tensor& actual, const Tensor& expected, double tolerance) {
   }
   return true;
 }
-
 bool NearValues(const Tensor& actual, const std::vector<double>& expected,
                 double tolerance) {
   if (actual.Numel() != static_cast<int64_t>(expected.size())) return false;
@@ -109,12 +95,10 @@ bool NearValues(const Tensor& actual, const std::vector<double>& expected,
   }
   return true;
 }
-
 bool BitExact(const Tensor& a, const Tensor& b) {
   if (a.shape() != b.shape() || a.dtype() != b.dtype()) return false;
   return std::memcmp(a.data(), b.data(), a.ByteSize()) == 0;
 }
-
 // Same logical element read from NHWC and NCHW tensors of the same image.
 double LogicalElement(const Tensor& tensor, ImageLayout layout, int64_t n,
                       int64_t y, int64_t x, int64_t c, int64_t h, int64_t w,
@@ -124,19 +108,16 @@ double LogicalElement(const Tensor& tensor, ImageLayout layout, int64_t n,
                             : ((n * channels + c) * h + y) * w + x;
   return ReadElement(tensor, index);
 }
-
 }  // namespace
-
 TEST(hpcplatform, FourierHandComputedFourPoint) {
   auto context = GetCpuContext();
   if (!context) return;
-  auto input = context->AllocateTensor(Shape{1, 4}, DataType::kFloat32);
+  auto input = Tensor::Empty(*context, Shape{1, 4}, DataType::kFloat32);
   EXPECT_TRUE(input.ok());
   if (!input.ok()) return;
   const double values[4] = {1.0, 2.0, 3.0, 4.0};
   for (int64_t i = 0; i < 4; ++i)
     WriteElement(&input.value(), i, values[i]);
-
   auto result = FourierTransform(CpuOpContext(*context), input.value());
   EXPECT_TRUE(result.ok());
   if (!result.ok()) return;
@@ -145,7 +126,6 @@ TEST(hpcplatform, FourierHandComputedFourPoint) {
   EXPECT_TRUE(
       NearValues(result.value().imag, {0.0, 2.0, 0.0, -2.0}, 1e-6));
 }
-
 TEST(hpcplatform, FourierConstantImageIsImpulse) {
   auto context = GetCpuContext();
   if (!context) return;
@@ -162,7 +142,6 @@ TEST(hpcplatform, FourierConstantImageIsImpulse) {
   }
   EXPECT_TRUE(ok);
 }
-
 TEST(hpcplatform, FourierImpulseIsFlatSpectrum) {
   auto context = GetCpuContext();
   if (!context) return;
@@ -178,7 +157,6 @@ TEST(hpcplatform, FourierImpulseIsFlatSpectrum) {
   }
   EXPECT_TRUE(ok);
 }
-
 TEST(hpcplatform, FourierSatisfiesParseval) {
   auto context = GetCpuContext();
   if (!context) return;
@@ -200,7 +178,6 @@ TEST(hpcplatform, FourierSatisfiesParseval) {
   const double expected = static_cast<double>(input.Numel()) * spatial;
   EXPECT_TRUE(std::fabs(spectral - expected) <= 1e-9 * expected);
 }
-
 TEST(hpcplatform, FourierRoundTripIsIdentity) {
   auto context = GetCpuContext();
   if (!context) return;
@@ -230,7 +207,6 @@ TEST(hpcplatform, FourierRoundTripIsIdentity) {
     EXPECT_TRUE(Near(inverse.value(), input, item.tolerance));
   }
 }
-
 TEST(hpcplatform, FourierLayoutsAgree) {
   auto context = GetCpuContext();
   if (!context) return;
@@ -263,7 +239,6 @@ TEST(hpcplatform, FourierLayoutsAgree) {
   }
   EXPECT_TRUE(equal);
 }
-
 TEST(hpcplatform, FourierCpuLevelsAreBitExact) {
   auto context = GetCpuContext();
   if (!context) return;
@@ -275,9 +250,9 @@ TEST(hpcplatform, FourierCpuLevelsAreBitExact) {
   for (CpuKernelLevel level :
        {CpuKernelLevel::kOpenMP, CpuKernelLevel::kSimdGeneric,
         CpuKernelLevel::kSimdAvx2, CpuKernelLevel::kTbb}) {
-    if (!context->backend_ptr()->SupportsKernelLevel(level)) continue;
+    if (!context->SupportsKernelLevel(level)) continue;
     OpContext level_context = CpuOpContext(*context);
-    level_context.cpu_level = level;
+    level_context.set_cpu_level(level);
     auto actual = FourierTransform(level_context, input);
     // Backend-wide capability is broader than this operator's matrix; an
     // unavailable level is skipped instead of failing the comparison.
@@ -290,35 +265,32 @@ TEST(hpcplatform, FourierCpuLevelsAreBitExact) {
     EXPECT_TRUE(BitExact(actual.value().imag, reference.value().imag));
   }
 }
-
 TEST(hpcplatform, FourierRejectsInvalidParameters) {
   auto context = GetCpuContext();
   if (!context) return;
   const OpContext op_context = CpuOpContext(*context);
   auto valid = MakeImage(1, 8, 8, 3, ImageLayout::kNHWC);
-
-  auto u8 = context->AllocateTensor(Shape{1, 8, 8, 3}, DataType::kUInt8);
+  auto u8 = Tensor::Empty(*context, Shape{1, 8, 8, 3}, DataType::kUInt8);
   EXPECT_TRUE(u8.ok());
   if (u8.ok()) {
     auto unsupported = FourierTransform(op_context, u8.value());
     EXPECT_EQ(unsupported.status().code(), StatusCode::kUnsupported);
   }
   auto rank5 =
-      context->AllocateTensor(Shape{1, 1, 2, 2, 2}, DataType::kFloat32);
+      Tensor::Empty(*context, Shape{1, 1, 2, 2, 2}, DataType::kFloat32);
   EXPECT_TRUE(rank5.ok());
   if (rank5.ok()) {
     auto bad_rank = FourierTransform(op_context, rank5.value());
     EXPECT_EQ(bad_rank.status().code(), StatusCode::kInvalidArgument);
   }
-  auto null_context = FourierTransform(OpContext{}, valid);
+  auto null_context = FourierTransform(OpContext::Null(), valid);
   EXPECT_EQ(null_context.status().code(), StatusCode::kInvalidArgument);
-
   // Inverse: the imaginary part must describe the same image.
   auto forward = FourierTransform(op_context, valid);
   EXPECT_TRUE(forward.ok());
   if (forward.ok()) {
     auto mismatch_shape =
-        context->AllocateTensor(Shape{1, 8, 8, 1}, DataType::kFloat32);
+        Tensor::Empty(*context, Shape{1, 8, 8, 1}, DataType::kFloat32);
     EXPECT_TRUE(mismatch_shape.ok());
     if (mismatch_shape.ok()) {
       auto bad = InverseFourierTransform(op_context, forward.value().real,
@@ -326,7 +298,7 @@ TEST(hpcplatform, FourierRejectsInvalidParameters) {
       EXPECT_EQ(bad.status().code(), StatusCode::kInvalidArgument);
     }
     auto double_imag =
-        context->AllocateTensor(Shape{1, 8, 8, 3}, DataType::kFloat64);
+        Tensor::Empty(*context, Shape{1, 8, 8, 3}, DataType::kFloat64);
     EXPECT_TRUE(double_imag.ok());
     if (double_imag.ok()) {
       auto bad_dtype = InverseFourierTransform(op_context, forward.value().real,
@@ -338,26 +310,21 @@ TEST(hpcplatform, FourierRejectsInvalidParameters) {
     EXPECT_EQ(undefined.status().code(), StatusCode::kInvalidArgument);
   }
 }
-
 #ifdef hpcplatform_WITH_OPENCV
 TEST(hpcplatform, FourierOpenCvIsNotImplemented) {
   auto backend = Context::Create(BackendType::kOpenCV);
   if (!backend.ok()) return;  // backend not usable on this machine
   auto input =
-      backend.value()->AllocateTensor(Shape{1, 8, 8, 1}, DataType::kFloat32);
+      Tensor::Empty(*backend.value(), Shape{1, 8, 8, 1}, DataType::kFloat32);
   EXPECT_TRUE(input.ok());
   if (!input.ok()) return;
-  OpContext context;
-  context.context = backend.value().get();
-  context.stream = &backend.value()->stream();
+  OpContext context(*backend.value().get());
   auto result = FourierTransform(context, input.value());
   EXPECT_EQ(result.status().code(), StatusCode::kNotImplemented);
 }
 #endif
-
 #ifdef hpcplatform_WITH_CUDA
 namespace {
-
 std::shared_ptr<Context> GetCudaContext() {
   static auto result = Context::Create(BackendType::kCUDA);
   static const bool reported = [] {
@@ -370,23 +337,16 @@ std::shared_ptr<Context> GetCudaContext() {
   (void)reported;
   return result.ok() ? result.value() : nullptr;
 }
-
 Result<Tensor> CopyTo(Context& destination, const Tensor& source) {
-  auto output = destination.AllocateTensor(source.shape(), source.dtype());
+  auto output = Tensor::Empty(destination, source.shape(), source.dtype());
   if (!output.ok()) return output.status();
-  hpcplatform_RETURN_IF_ERROR(destination.Copy(&output.value(), source));
+  hpcplatform_RETURN_IF_ERROR(Copy(&output.value(), source));
   return output;
 }
-
 OpContext CudaOpContext(Context& context) {
-  OpContext result;
-  result.context = &context;
-  result.stream = &context.stream();
-  return result;
+  return OpContext(context);
 }
-
 }  // namespace
-
 // Device radix-2 path (16x12) and the out-of-place DFT fallback (9x7) are both
 // compared against the CPU reference.
 TEST(hpcplatform, FourierCudaMatchesCpu) {
@@ -427,7 +387,6 @@ TEST(hpcplatform, FourierCudaMatchesCpu) {
     EXPECT_TRUE(Near(imag.value(), reference.value().imag, 1e-4));
   }
 }
-
 TEST(hpcplatform, FourierCudaRoundTripIsIdentity) {
   auto cpu_context = GetCpuContext();
   auto cuda_context = GetCudaContext();
@@ -450,5 +409,3 @@ TEST(hpcplatform, FourierCudaRoundTripIsIdentity) {
   EXPECT_TRUE(Near(back.value(), input, 1e-4));
 }
 #endif
-
-

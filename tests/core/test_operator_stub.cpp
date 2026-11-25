@@ -34,4 +34,3 @@ TEST(hpcplatform, LoadOperatorsAcceptsEmptyConfigWithYaml) {
 
 }  // namespace
 
-

@@ -55,10 +55,10 @@ TEST(hpcplatform, OpenCvBackendIsExplicitlySelected) {
 #endif
 
 TEST(hpcplatform, OpContextDefaultsToNaiveCpu) {
-  const OpContext op_context;
-  EXPECT_TRUE(op_context.context == nullptr);
-  EXPECT_TRUE(op_context.stream == nullptr);
-  EXPECT_EQ(op_context.cpu_level, CpuKernelLevel::kNaive);
+  auto op_context = OpContext::Null();
+  EXPECT_TRUE(op_context.context() == nullptr);
+  EXPECT_TRUE(op_context.stream() == nullptr);
+  EXPECT_EQ(op_context.cpu_level(), CpuKernelLevel::kNaive);
   EXPECT_TRUE(IsSimdKernelLevel(CpuKernelLevel::kSimdGeneric));
   EXPECT_FALSE(IsSimdKernelLevel(CpuKernelLevel::kOpenMP));
 }
@@ -70,5 +70,4 @@ TEST(hpcplatform, CpuStreamIsSynchronous) {
 }
 
 }  // namespace
-
 

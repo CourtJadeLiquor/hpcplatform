@@ -16,7 +16,7 @@ int main() {
   std::cout << "hpcplatform " << hpcplatform_VERSION_STRING << " | " << context->Describe()
             << "\n";
 
-  auto tensor_result = context->AllocateTensor(Shape{2, 3}, DataType::kFloat32);
+  auto tensor_result = Tensor::Empty(*context, Shape{2, 3}, DataType::kFloat32);
   if (!tensor_result.ok()) {
     std::cerr << "failed to allocate tensor: "
               << tensor_result.status().ToString() << "\n";

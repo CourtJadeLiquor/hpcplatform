@@ -80,7 +80,8 @@ class MemoryManager {
                                                    size_t alignment = 64) = 0;
 
   // Synchronous copy between two buffers owned by this manager.
-  // Cross-device transfers are resolved by Context::Copy.
+  // Cross-device transfers are resolved by the transfer functions in
+  // hpcplatform/core/transfer.h.
   virtual Status Copy(Buffer* dst, size_t dst_offset, const Buffer* src,
                       size_t src_offset, size_t bytes,
                       Stream* stream = nullptr) = 0;

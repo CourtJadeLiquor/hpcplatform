@@ -9,22 +9,18 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
-
 #include "core/backend.h"
 #include "framework/image_utils.h"
 #include "hpcplatform/hpcplatform.h"
 #include "test_utils.h"
-
+#include "hpcplatform/core/transfer.h"
 using namespace hpcplatform;
 using ops_internal::ImageByteOffset;
 using ops_internal::ImageInfo;
 using ops_internal::ParseImage;
-
 namespace {
-
 constexpr int kKernelSize = 5;
 constexpr double kSigma = 1.2;
-
 // T -> DataType selector (core/dtype.h exposes no trait template).
 template <typename T>
 constexpr DataType DTypeOf() {
@@ -36,7 +32,6 @@ constexpr DataType DTypeOf() {
     return DataType::kFloat64;
   }
 }
-
 OpContext MakeOpContext() {
   static auto context = Context::Create(BackendType::kNativeCpu);
   static const bool reported = [] {
@@ -46,25 +41,21 @@ OpContext MakeOpContext() {
     return true;
   }();
   (void)reported;
-  if (!context.ok()) return OpContext{};
-  OpContext op_context;
-  op_context.context = context.value().get();
-  op_context.cpu_level = CpuKernelLevel::kNaive;
+  if (!context.ok()) return OpContext::Null();
+  OpContext op_context(*context.value().get());
+  op_context.set_cpu_level(CpuKernelLevel::kNaive);
   return op_context;
 }
-
 std::shared_ptr<Context> GetCpuContext() {
   static auto context = Context::Create(BackendType::kNativeCpu);
   return context.ok() ? context.value() : nullptr;
 }
-
 Result<Tensor> CopyTo(Context& destination, const Tensor& source) {
-  auto output = destination.AllocateTensor(source.shape(), source.dtype());
+  auto output = Tensor::Empty(destination, source.shape(), source.dtype());
   if (!output.ok()) return output.status();
-  hpcplatform_RETURN_IF_ERROR(destination.Copy(&output.value(), source));
+  hpcplatform_RETURN_IF_ERROR(Copy(&output.value(), source));
   return output;
 }
-
 std::vector<CpuKernelLevel> AvailableLevels() {
   static auto context = Context::Create(BackendType::kNativeCpu);
   std::vector<CpuKernelLevel> levels;
@@ -73,13 +64,12 @@ std::vector<CpuKernelLevel> AvailableLevels() {
        {CpuKernelLevel::kNaive, CpuKernelLevel::kOpenMP,
         CpuKernelLevel::kSimdGeneric, CpuKernelLevel::kSimdAvx2,
         CpuKernelLevel::kTbb}) {
-    if (context.value()->backend_ptr()->SupportsKernelLevel(level)) {
+    if (context.value()->SupportsKernelLevel(level)) {
       levels.push_back(level);
     }
   }
   return levels;
 }
-
 // Deterministic logical-pixel value shared by every layout/rank, so tensors
 // built for different layouts hold the same image content.
 double PixelValue(int64_t n, int64_t y, int64_t x, int64_t c) {
@@ -90,7 +80,6 @@ double PixelValue(int64_t n, int64_t y, int64_t x, int64_t c) {
   return static_cast<double>(hash % 251ULL) +
          0.25 * static_cast<double>((x + c) % 4);
 }
-
 // Builds a rank-3 (NHWC {h,w,c} / NCHW {c,h,w}) or rank-4 (NHWC {n,h,w,c} /
 // NCHW {n,c,h,w}) image tensor filled with PixelValue per logical pixel.
 template <typename T>
@@ -102,7 +91,7 @@ Tensor MakeImage(int64_t n, int64_t h, int64_t w, int64_t c, ImageLayout layout,
           : (layout == ImageLayout::kNHWC ? Shape({n, h, w, c})
                                           : Shape({n, c, h, w}));
   auto context = Context::Create(BackendType::kNativeCpu);
-  auto tensor = context.value()->AllocateTensor(shape, DTypeOf<T>());
+  auto tensor = Tensor::Empty(*context.value(), shape, DTypeOf<T>());
   T* data = static_cast<T*>(tensor.value().data());
   const ImageInfo info{rank, n, h, w, c, layout};
   // Rank-3 holds a single image; the n coordinate does not exist there.
@@ -120,7 +109,6 @@ Tensor MakeImage(int64_t n, int64_t h, int64_t w, int64_t c, ImageLayout layout,
   }
   return tensor.value();
 }
-
 double ReadPixel(const Tensor& tensor, const ops_internal::ImageInfo& info,
                  int64_t n, int64_t y, int64_t x, int64_t c) {
   const size_t offset = ops_internal::ImageByteOffset(tensor, info, n, y, x, c);
@@ -134,24 +122,20 @@ double ReadPixel(const Tensor& tensor, const ops_internal::ImageInfo& info,
       return *reinterpret_cast<const double*>(base + offset);
   }
 }
-
 // Relative error |a-b| <= tol * max(1, |a|); same rule as the backend tests
 // (docs/qa/testing.md §4.2). tol = 0 means exact equality.
 bool ExpectPixel(double expected, double actual, double tolerance) {
   const double diff = std::fabs(expected - actual);
   return diff <= tolerance * std::fmax(1.0, std::fabs(expected));
 }
-
 ImageInfo InfoOf(const Tensor& tensor, ImageLayout layout) {
   auto info = ops_internal::ParseImage(tensor.shape(), layout);
   return info.ok() ? info.value() : ImageInfo{};
 }
-
 }  // namespace
-
 TEST(hpcplatform, GaussianBlurRejectsBadKernelSize) {
   auto op_context = MakeOpContext();
-  if (op_context.context == nullptr) return;
+  if (op_context.context()== nullptr) return;
   auto image = MakeImage<uint8_t>(1, 8, 8, 3, ImageLayout::kNHWC, 4);
   EXPECT_FALSE(GaussianBlur(op_context, image, 4, kSigma).ok());
   EXPECT_FALSE(GaussianBlur(op_context, image, 1, kSigma).ok());
@@ -163,22 +147,20 @@ TEST(hpcplatform, GaussianBlurRejectsBadKernelSize) {
                         .ok());
   EXPECT_FALSE(GaussianBlur(op_context, image, 3, std::nan("")).ok());
 }
-
 TEST(hpcplatform, GaussianBlurRejectsUnsupportedDType) {
   auto op_context = MakeOpContext();
-  if (op_context.context == nullptr) return;
+  if (op_context.context()== nullptr) return;
   const Shape shape({4, 4, 3});
   auto context = Context::Create(BackendType::kNativeCpu);
-  auto f16 = context.value()->AllocateTensor(shape, DataType::kFloat16);
+  auto f16 = Tensor::Empty(*context.value(), shape, DataType::kFloat16);
   if (!f16.ok()) return;
   auto result = GaussianBlur(op_context, f16.value(), kKernelSize, kSigma,
                              ImageLayout::kNHWC);
   EXPECT_FALSE(result.ok());
 }
-
 TEST(hpcplatform, GaussianBlurCpuLevelsAreBitExact) {
   auto op_context = MakeOpContext();
-  if (op_context.context == nullptr) return;
+  if (op_context.context()== nullptr) return;
   const auto levels = AvailableLevels();
   if (levels.empty()) return;
   struct LayoutCase {
@@ -197,7 +179,7 @@ TEST(hpcplatform, GaussianBlurCpuLevelsAreBitExact) {
     for (CpuKernelLevel level : levels) {
       if (level == CpuKernelLevel::kNaive) continue;
       OpContext level_context = op_context;
-      level_context.cpu_level = level;
+      level_context.set_cpu_level(level);
       auto result = GaussianBlur(level_context, reference_tensor, kKernelSize,
                                  kSigma, Case.layout);
       EXPECT_TRUE(result.ok());
@@ -217,7 +199,7 @@ TEST(hpcplatform, GaussianBlurCpuLevelsAreBitExact) {
   for (CpuKernelLevel level : levels) {
     if (level == CpuKernelLevel::kNaive) continue;
     OpContext level_context = op_context;
-    level_context.cpu_level = level;
+    level_context.set_cpu_level(level);
     auto result = GaussianBlur(level_context, reference_tensor, kKernelSize,
                                kSigma, ImageLayout::kNHWC);
     EXPECT_TRUE(result.ok());
@@ -227,10 +209,9 @@ TEST(hpcplatform, GaussianBlurCpuLevelsAreBitExact) {
                                  reference.value().ByteSize()) == 0);
   }
 }
-
 TEST(hpcplatform, GaussianBlurLayoutsAgree) {
   auto op_context = MakeOpContext();
-  if (op_context.context == nullptr) return;
+  if (op_context.context()== nullptr) return;
   const int64_t n = 2, h = 6, w = 7, c = 3;
   auto reference = GaussianBlur(
       op_context, MakeImage<float>(n, h, w, c, ImageLayout::kNHWC, 4),
@@ -265,13 +246,12 @@ TEST(hpcplatform, GaussianBlurLayoutsAgree) {
     EXPECT_TRUE(all_equal);
   }
 }
-
 TEST(hpcplatform, GaussianBlurConstantImageStaysConstant) {
   auto op_context = MakeOpContext();
-  if (op_context.context == nullptr) return;
+  if (op_context.context()== nullptr) return;
   auto context = Context::Create(BackendType::kNativeCpu);
   const Shape shape({1, 5, 6, 3});
-  auto image = context.value()->AllocateTensor(shape, DataType::kUInt8);
+  auto image = Tensor::Empty(*context.value(), shape, DataType::kUInt8);
   EXPECT_TRUE(image.ok());
   if (!image.ok()) return;
   std::memset(image.value().data(), 37, image.value().ByteSize());
@@ -286,9 +266,7 @@ TEST(hpcplatform, GaussianBlurConstantImageStaysConstant) {
   }
   EXPECT_TRUE(constant);
 }
-
 namespace {
-
 double Variance(const Tensor& tensor) {
   const double mean = [&] {
     double sum = 0.0;
@@ -304,30 +282,26 @@ double Variance(const Tensor& tensor) {
   }
   return sum / static_cast<double>(tensor.Numel());
 }
-
 }  // namespace
-
 TEST(hpcplatform, GaussianBlurImpulseResponseMatchesSeparableKernel) {
   auto op_context = MakeOpContext();
-  if (op_context.context == nullptr) return;
+  if (op_context.context()== nullptr) return;
   constexpr int64_t kSize = 9;
   constexpr int kK = 5;
   constexpr double kSigmaTest = 1.2;
   auto context = GetCpuContext();
   if (!context) return;
   auto image =
-      context->AllocateTensor(Shape{1, kSize, kSize, 1}, DataType::kFloat64);
+      Tensor::Empty(*context, Shape{1, kSize, kSize, 1}, DataType::kFloat64);
   EXPECT_TRUE(image.ok());
   if (!image.ok()) return;
   std::memset(image.value().data(), 0, image.value().ByteSize());
   auto* pixels = static_cast<double*>(image.value().data());
   pixels[(kSize / 2) * kSize + kSize / 2] = 1.0;
-
   auto result = GaussianBlur(op_context, image.value(), kK, kSigmaTest,
                              ImageLayout::kNHWC);
   EXPECT_TRUE(result.ok());
   if (!result.ok()) return;
-
   // Independent oracle: normalised 1-D kernel, response = k[i] * k[j].
   const int radius = kK / 2;
   std::vector<double> kernel(kK);
@@ -339,7 +313,6 @@ TEST(hpcplatform, GaussianBlurImpulseResponseMatchesSeparableKernel) {
   }
   for (double& weight : kernel)
     weight /= sum;
-
   const double* output = static_cast<const double*>(result.value().data());
   bool matches = true;
   for (int64_t y = 0; y < kSize && matches; ++y) {
@@ -355,19 +328,17 @@ TEST(hpcplatform, GaussianBlurImpulseResponseMatchesSeparableKernel) {
   EXPECT_TRUE(matches);
   EXPECT_EQ(result.value().dtype(), DataType::kFloat64);
 }
-
 TEST(hpcplatform, GaussianBlurRank2Float64ConstantStaysConstant) {
   auto op_context = MakeOpContext();
-  if (op_context.context == nullptr) return;
+  if (op_context.context()== nullptr) return;
   auto context = GetCpuContext();
   if (!context) return;
-  auto image = context->AllocateTensor(Shape{7, 7}, DataType::kFloat64);
+  auto image = Tensor::Empty(*context, Shape{7, 7}, DataType::kFloat64);
   EXPECT_TRUE(image.ok());
   if (!image.ok()) return;
   auto* pixels = static_cast<double*>(image.value().data());
   for (int64_t i = 0; i < image.value().Numel(); ++i)
     pixels[i] = 0.5;
-
   auto result =
       GaussianBlur(op_context, image.value(), 3, 1.0, ImageLayout::kNHWC);
   EXPECT_TRUE(result.ok());
@@ -382,14 +353,13 @@ TEST(hpcplatform, GaussianBlurRank2Float64ConstantStaysConstant) {
   }
   EXPECT_TRUE(constant);
 }
-
 TEST(hpcplatform, GaussianBlurLargerSigmaReducesVariance) {
   auto op_context = MakeOpContext();
-  if (op_context.context == nullptr) return;
+  if (op_context.context()== nullptr) return;
   auto context = GetCpuContext();
   if (!context) return;
   auto image =
-      context->AllocateTensor(Shape{1, 24, 24, 1}, DataType::kFloat64).value();
+      Tensor::Empty(*context, Shape{1, 24, 24, 1}, DataType::kFloat64).value();
   auto* pixels = static_cast<double*>(image.data());
   uint64_t state = 12345;
   for (int64_t i = 0; i < image.Numel(); ++i) {
@@ -407,40 +377,35 @@ TEST(hpcplatform, GaussianBlurLargerSigmaReducesVariance) {
   EXPECT_TRUE(mild_variance < original);
   EXPECT_TRUE(strong_variance < mild_variance);
 }
-
 TEST(hpcplatform, GaussianBlurVectorizedLevelsRejectStridedInput) {
   auto op_context = MakeOpContext();
-  if (op_context.context == nullptr) return;
+  if (op_context.context()== nullptr) return;
   auto context = GetCpuContext();
   if (!context) return;
   auto base =
-      context->AllocateTensor(Shape{4, 12, 4}, DataType::kFloat32).value();
+      Tensor::Empty(*context, Shape{4, 12, 4}, DataType::kFloat32).value();
   for (int64_t i = 0; i < base.Numel(); ++i) {
     base.Data<float>()[i] = static_cast<float>(i % 13);
   }
   auto strided = base.Slice(1, 1, 9);
   EXPECT_TRUE(strided.ok());
   if (!strided.ok()) return;
-
   // Scalar path handles views.
   auto naive =
       GaussianBlur(op_context, strided.value(), 3, 1.0, ImageLayout::kNHWC);
   EXPECT_TRUE(naive.ok());
-
   for (CpuKernelLevel level :
        {CpuKernelLevel::kSimdGeneric, CpuKernelLevel::kSimdAvx2}) {
-    if (!context->backend_ptr()->SupportsKernelLevel(level)) continue;
+    if (!context->SupportsKernelLevel(level)) continue;
     OpContext level_context = op_context;
-    level_context.cpu_level = level;
+    level_context.set_cpu_level(level);
     auto result = GaussianBlur(level_context, strided.value(), 3, 1.0,
                                ImageLayout::kNHWC);
     EXPECT_EQ(result.status().code(), StatusCode::kUnsupported);
   }
 }
-
 #ifdef hpcplatform_WITH_CUDA
 namespace {
-
 std::shared_ptr<Context> GetCudaContext() {
   static auto result = Context::Create(BackendType::kCUDA);
   static const bool reported = [] {
@@ -452,12 +417,10 @@ std::shared_ptr<Context> GetCudaContext() {
   (void)reported;
   return result.ok() ? result.value() : nullptr;
 }
-
 }  // namespace
-
 TEST(hpcplatform, GaussianBlurCudaMatchesCpu) {
   auto op_context = MakeOpContext();
-  if (op_context.context == nullptr) return;
+  if (op_context.context()== nullptr) return;
   auto cuda_context = GetCudaContext();
   if (!cuda_context) return;
   auto source_tensor = MakeImage<float>(1, 24, 32, 3, ImageLayout::kNHWC, 4);
@@ -466,7 +429,7 @@ TEST(hpcplatform, GaussianBlurCudaMatchesCpu) {
   EXPECT_TRUE(reference.ok());
   if (!reference.ok()) return;
   OpContext cuda_op = op_context;
-  cuda_op.context = cuda_context.get();
+  cuda_op = OpContext(*cuda_context);
   auto cpu_context = GetCpuContext();
   if (!cpu_context) return;
   auto copied = CopyTo(*cuda_context, source_tensor);
@@ -493,10 +456,9 @@ TEST(hpcplatform, GaussianBlurCudaMatchesCpu) {
   }
   EXPECT_TRUE(equivalent);
 }
-
 TEST(hpcplatform, GaussianBlurCudaMatchesCpuU8) {
   auto op_context = MakeOpContext();
-  if (op_context.context == nullptr) return;
+  if (op_context.context()== nullptr) return;
   auto cuda_context = GetCudaContext();
   if (!cuda_context) return;
   auto cpu_context = GetCpuContext();
@@ -507,7 +469,7 @@ TEST(hpcplatform, GaussianBlurCudaMatchesCpuU8) {
   EXPECT_TRUE(reference.ok());
   if (!reference.ok()) return;
   OpContext cuda_op = op_context;
-  cuda_op.context = cuda_context.get();
+  cuda_op = OpContext(*cuda_context);
   auto copied = CopyTo(*cuda_context, source_tensor);
   EXPECT_TRUE(copied.ok());
   if (!copied.ok()) return;
@@ -529,10 +491,8 @@ TEST(hpcplatform, GaussianBlurCudaMatchesCpuU8) {
   EXPECT_TRUE(within_one);
 }
 #endif
-
 #ifdef hpcplatform_WITH_OPENCV
 namespace {
-
 std::shared_ptr<Context> GetOpenCvContext() {
   static auto result = Context::Create(BackendType::kOpenCV);
   static const bool reported = [] {
@@ -544,12 +504,10 @@ std::shared_ptr<Context> GetOpenCvContext() {
   (void)reported;
   return result.ok() ? result.value() : nullptr;
 }
-
 }  // namespace
-
 TEST(hpcplatform, GaussianBlurOpenCvMatchesCpu) {
   auto op_context = MakeOpContext();
-  if (op_context.context == nullptr) return;
+  if (op_context.context()== nullptr) return;
   auto opencv_context = GetOpenCvContext();
   if (!opencv_context) return;
   auto source_tensor = MakeImage<uint8_t>(1, 24, 32, 3, ImageLayout::kNHWC, 4);
@@ -558,7 +516,7 @@ TEST(hpcplatform, GaussianBlurOpenCvMatchesCpu) {
   EXPECT_TRUE(reference.ok());
   if (!reference.ok()) return;
   OpContext opencv_op = op_context;
-  opencv_op.context = opencv_context.get();
+  opencv_op = OpContext(*opencv_context);
   auto cpu_context = GetCpuContext();
   if (!cpu_context) return;
   auto copied = CopyTo(*opencv_context, source_tensor);
@@ -586,10 +544,9 @@ TEST(hpcplatform, GaussianBlurOpenCvMatchesCpu) {
   }
   EXPECT_TRUE(equivalent);
 }
-
 TEST(hpcplatform, GaussianBlurOpenCvMatchesCpuFloat) {
   auto op_context = MakeOpContext();
-  if (op_context.context == nullptr) return;
+  if (op_context.context()== nullptr) return;
   auto opencv_context = GetOpenCvContext();
   if (!opencv_context) return;
   auto cpu_context = GetCpuContext();
@@ -600,7 +557,7 @@ TEST(hpcplatform, GaussianBlurOpenCvMatchesCpuFloat) {
   EXPECT_TRUE(reference.ok());
   if (!reference.ok()) return;
   OpContext opencv_op = op_context;
-  opencv_op.context = opencv_context.get();
+  opencv_op = OpContext(*opencv_context);
   auto copied = CopyTo(*opencv_context, source_tensor);
   EXPECT_TRUE(copied.ok());
   if (!copied.ok()) return;
@@ -626,5 +583,3 @@ TEST(hpcplatform, GaussianBlurOpenCvMatchesCpuFloat) {
   EXPECT_TRUE(equivalent);
 }
 #endif
-
-

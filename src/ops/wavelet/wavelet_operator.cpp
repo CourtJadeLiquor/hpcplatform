@@ -80,7 +80,8 @@ OpKind WaveletTransformOperator::kind() const {
 }
 
 Result<WaveletBands> WaveletTransformOperator::Run(const Tensor& input) const {
-  const OpContext ctx{context_.get(), /*stream=*/nullptr, cpu_level_};
+  OpContext ctx(*context_);
+  ctx.set_cpu_level(cpu_level_);
   return hpcplatform::WaveletTransform(ctx, input, kind_, layout_);
 }
 

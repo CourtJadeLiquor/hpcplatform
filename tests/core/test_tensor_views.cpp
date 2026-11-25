@@ -15,7 +15,7 @@ using namespace hpcplatform;
 TEST(hpcplatform, ViewSliceAndPermutePreserveLogicalElements) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
   auto tensor =
-      context->AllocateTensor(Shape{2, 3, 4}, DataType::kFloat32).value();
+      Tensor::Empty(*context, Shape{2, 3, 4}, DataType::kFloat32).value();
   for (int i = 0; i < 24; ++i)
     tensor.Data<float>()[i] = static_cast<float>(i);
 
@@ -54,7 +54,7 @@ TEST(hpcplatform, ViewSliceAndPermutePreserveLogicalElements) {
 
 TEST(hpcplatform, ReshapeOfStridedViewClonesIntoLogicalOrder) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
-  auto tensor = context->AllocateTensor(Shape{2, 4}, DataType::kInt32).value();
+  auto tensor = Tensor::Empty(*context, Shape{2, 4}, DataType::kInt32).value();
   for (int i = 0; i < 8; ++i)
     tensor.Data<int32_t>()[i] = i;
   auto slice = tensor.Slice(1, 1, 3).value();
@@ -70,7 +70,7 @@ TEST(hpcplatform, ReshapeOfStridedViewClonesIntoLogicalOrder) {
 
 TEST(hpcplatform, CloneIsDeepAndInvalidViewsAreRejected) {
   auto context = Context::Create(BackendType::kNativeCpu).value();
-  auto tensor = context->AllocateTensor(Shape{3}, DataType::kFloat32).value();
+  auto tensor = Tensor::Empty(*context, Shape{3}, DataType::kFloat32).value();
   tensor.Data<float>()[0] = 7.0f;
   auto clone = tensor.Clone().value();
   EXPECT_TRUE(clone.buffer().get() != tensor.buffer().get());
@@ -85,12 +85,11 @@ TEST(hpcplatform, TensorCanOutliveItsContext) {
   Tensor survivor;
   {
     auto context = Context::Create(BackendType::kNativeCpu).value();
-    survivor = context->AllocateTensor(Shape{8}, DataType::kFloat64).value();
+    survivor = Tensor::Empty(*context, Shape{8}, DataType::kFloat64).value();
     survivor.Data<double>()[7] = 42.0;
   }
   EXPECT_EQ(survivor.Data<double>()[7], 42.0);
 }
 
 }  // namespace
-
 

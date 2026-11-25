@@ -80,7 +80,7 @@ Result<ComplexImage> FourierTransform(const OpContext& context,
   auto image = ops_internal::ParseImage(input.shape(), layout);
   if (!image.ok()) return image.status();
   auto kernel = ops_internal::FindKernel(OpKind::kFourierTransform,
-                                         input.backend(), context.cpu_level);
+                                         input.backend(), context.cpu_level());
   if (!kernel.ok()) return kernel.status();
 
   auto real =
@@ -124,7 +124,7 @@ Result<Tensor> InverseFourierTransform(const OpContext& context,
   auto image = ops_internal::ParseImage(real.shape(), layout);
   if (!image.ok()) return image.status();
   auto kernel = ops_internal::FindKernel(OpKind::kFourierTransform,
-                                         real.backend(), context.cpu_level);
+                                         real.backend(), context.cpu_level());
   if (!kernel.ok()) return kernel.status();
 
   auto output =

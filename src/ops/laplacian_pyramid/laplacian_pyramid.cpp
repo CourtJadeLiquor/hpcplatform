@@ -93,7 +93,7 @@ Result<LaplacianPyramid> BuildLaplacianPyramid(const OpContext& context,
   auto image = ops_internal::ParseImage(input.shape(), layout);
   if (!image.ok()) return image.status();
   auto kernel = ops_internal::FindKernel(OpKind::kLaplacianPyramid,
-                                         input.backend(), context.cpu_level);
+                                         input.backend(), context.cpu_level());
   if (!kernel.ok()) return kernel.status();
 
   LaplacianPyramid pyramid;

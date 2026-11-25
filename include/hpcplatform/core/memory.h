@@ -5,19 +5,12 @@
 #include <functional>
 #include <memory>
 
-#include "hpcplatform/core/device.h"
+#include "hpcplatform/core/common.h"
 #include "hpcplatform/core/error.h"
 
 namespace hpcplatform {
 
 class Stream;
-
-// Memory category; determines the allocator and copy path.
-enum class MemoryKind : uint8_t {
-  kHost = 0,        // Standard pageable host memory
-  kHostPinned = 1,  // Pinned host memory (suitable for DMA)
-  kDevice = 2,      // Device memory (GPU / NPU)
-};
 
 // Snapshot of memory statistics at a point in time.
 struct MemoryStats {

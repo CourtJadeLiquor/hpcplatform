@@ -21,7 +21,7 @@ using ops_internal::ParseImage;
 namespace {
 constexpr int kKernelSize = 5;
 constexpr double kSigma = 1.2;
-// T -> DataType selector (core/dtype.h exposes no trait template).
+// T -> DataType selector (core/common.h exposes no trait template).
 template <typename T>
 constexpr DataType DTypeOf() {
   if constexpr (std::is_same_v<T, uint8_t>) {

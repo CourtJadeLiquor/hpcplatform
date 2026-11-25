@@ -53,7 +53,15 @@
 include/hpcplatform/
   hpcplatform.h          # 伞形头（聚合全部公共 API）
   version.h              # 版本宏
-  core/                  # shape / dtype / error / device / memory / stream / tensor / context / transfer
+  core/                  # 类型与执行原语，7 个头
+    common.h             # 核心分类原语：DataType / BackendType / DeviceType / Device /
+                         #   CpuKernelLevel / MemoryKind / Shape 及其名称与解析函数
+    error.h              # Status / Result<T> / hpcplatform_RETURN_IF_ERROR（零依赖，被 common.h 依赖）
+    memory.h             # MemoryStats / Buffer / MemoryManager
+    stream.h             # Stream 抽象
+    tensor.h             # Tensor 描述符与 From/Into 声明
+    context.h            # Context 门面
+    transfer.h           # Copy / Upload / Download 自由函数
   ops/                   # image.h / op.h / resize.h / gaussian_blur.h / laplacian_pyramid.h / fourier.h / wavelet.h
     operator.h          # 配置驱动 Operator 基类与 LoadOperators（公共 API）
   interop/               # conversion.h（TensorConvert trait）+ opencv.h（cv::Mat 适配）
@@ -95,7 +103,7 @@ src/
 
 tests/
   test_utils.h           # GoogleTest 胶水层（Status 断言）；gtest_main 提供入口
-  core/                  # shape / tensor / views / memory / backend / copy
+  core/                  # common / tensor / views / memory / backend / copy
   backends/              # CUDA / OpenCV 后端级测试
   perf/                  # 算子性能评估（profiling.h / stats.h 为其本地计时与统计工具）
   operator/              # 配置驱动算子对象测试（hpcplatform_WITH_YAML）
@@ -107,6 +115,26 @@ samples/                 # 公共 API 使用样例（计时直接用 <chrono>，
 ***
 
 ## 4. 核心数据模型
+
+### 4.0 common.h：核心分类原语集中定义
+
+`core/common.h` 是**唯一**存放"核心分类原语"的公共头，包含 7 个定义：
+
+| 定义 | 类别 | 附属函数 |
+| --- | --- | --- |
+| `DataType` | 元素类型枚举 | `DTypeSize` / `DTypeName` / `IsFloatingPoint` |
+| `BackendType` | 后端类型枚举 | `BackendTypeName` / `BackendTypeFromName` |
+| `DeviceType` | 硬件域枚举 | `DeviceTypeName` / `DefaultDeviceType` |
+| `Device` | 值类型（type + index） | `ToString` |
+| `CpuKernelLevel` | CPU 实现档位枚举 | `CpuKernelLevelName` / `FromName` / `IsSimdKernelLevel` |
+| `MemoryKind` | 内存类别枚举 | — |
+| `Shape` | 定容形状值类型 | `Rank` / `Dim` / `Numel` / `Validate` / `ToString` |
+
+判据（新增定义时按此归位）：
+
+- **属于"分类/标识/基础值"** → 放进 `common.h`，不新建单类型头。这些定义没有行为、没有资源、没有依赖方向，拆成 `dtype.h` / `device.h` / `kernel_level.h` / `shape.h` 只会让 include 列表变长，并带来"哪个头属于哪一层"的歧义。
+- **持有抽象接口或资源** → 保持独立头。`error.h`（`Status`/`Result`，被 `common.h` 反向依赖）、`memory.h`（`Buffer`/`MemoryManager` 抽象）、`stream.h`（`Stream` 抽象）不属于基础类型，各自成头。
+- 全部枚举名称/解析函数都是 `inline`，无 `.cpp`，跨翻译单元零链接开销。
 
 ### 4.1 Tensor：描述符
 
@@ -328,15 +356,20 @@ core / framework / 其他算子均零改动；未启用 `hpcplatform_WITH_YAML` 
 
 类图使用 Mermaid `classDiagram`（Markdown 原生渲染，无需额外运行时）。按模块拆分为三张图，避免单图过大。
 
+**语法约束**（保证在 Mermaid 8/9/10 各版本一致渲染，修改图示时必须遵守）：
+
+- 不使用 `direction` 指令（旧版本不支持，会导致整图解析失败）。
+- 类成员的类型不写 `*` 与 `[]`：`void*` 写作 `void_ptr`，`int64_t[8]` 写作 `int64_t`（数组语义在图下方的图例中说明）。
+- 泛型参数用 `~T~` 形式（`shared_ptr~Backend~`），其余尖括号、模板实参会破坏解析。
+- 构造型只用简单单词（`<<abstract>>` / `<<enumeration>>` / `<<utility>>` / `<<module>>` / `<<placeholder>>` / `<<typedef>>` / `<<template>>`），不写空格。
+
 ### 12.1 core 数据模型
 
 ```mermaid
 classDiagram
-  direction LR
-
   class Shape {
     -int rank_
-    -int64_t[] dims_
+    -int64_t dims_
     +Rank() int
     +Dim(index) int64_t
     +Numel() int64_t
@@ -352,12 +385,12 @@ classDiagram
   }
 
   class Buffer {
-    -void* data_
+    -void_ptr data_
     -size_t bytes_
     -Device device_
     -MemoryKind kind_
     -Deleter deleter_
-    +data() void*
+    +data() void_ptr
     +size() size_t
     +device() Device
     +kind() MemoryKind
@@ -409,7 +442,7 @@ classDiagram
     -weak_ptr~Backend~ owner_
     -Shape shape_
     -DataType dtype_
-    -int64_t[] strides_
+    -int64_t strides_
     -size_t offset_
     -Create(backend, shape, dtype) Result
     -WrapExternal(context, data, shape, dtype) Result
@@ -425,7 +458,7 @@ classDiagram
   }
 
   class Transfer {
-    <<free functions>>
+    <<utility>>
     +Copy(dst, src, stream) Status
     +Upload(hostSrc, dst, stream) Status
     +Download(src, hostDst, stream) Status
@@ -440,7 +473,7 @@ classDiagram
   }
 
   class Result {
-    <<template T>>
+    <<template>>
     -bool ok_
     -T value_
     -Status status_
@@ -496,12 +529,12 @@ classDiagram
   Tensor ..> Result : returns
 ```
 
+> 图例：`void_ptr` 表示 `void*`；`dims_` / `strides_` 为定容数组（`int64_t[Shape::kMaxDims]`，`strides_` 实际长度等于 rank）；`shared_ptr~X~` / `weak_ptr~X~` 为对应智能指针。
+
 ### 12.2 后端实现
 
 ```mermaid
 classDiagram
-  direction TB
-
   class Backend {
     <<abstract>>
     +type() BackendType
@@ -650,8 +683,6 @@ classDiagram
 
 ```mermaid
 classDiagram
-  direction LR
-
   class OpContext {
     -Context* context_
     -Stream* stream_
@@ -679,7 +710,7 @@ classDiagram
   }
 
   class Transfer {
-    <<free functions>>
+    <<utility>>
     +Copy(dst, src, stream) Status
     +Upload(hostSrc, dst, stream) Status
     +Download(src, hostDst, stream) Status
@@ -713,7 +744,7 @@ classDiagram
 
   class OpKernelFn {
     <<typedef>>
-    Status(OpContext, Tensor, Tensor*, void*, Tensor*)
+    +Signature() Status
   }
 
   class KernelRegistry {

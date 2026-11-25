@@ -7,7 +7,7 @@
 
 #include "hpcplatform/core/context.h"
 #include "hpcplatform/core/error.h"
-#include "hpcplatform/core/kernel_level.h"
+#include "hpcplatform/core/common.h"
 #include "hpcplatform/ops/op.h"
 #include "hpcplatform/ops/operator.h"
 

@@ -1,4 +1,4 @@
-#include "hpcplatform/core/shape.h"
+#include "hpcplatform/core/common.h"
 
 #include <sstream>
 

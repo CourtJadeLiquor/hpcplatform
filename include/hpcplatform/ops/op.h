@@ -5,7 +5,7 @@
 #include <string>
 
 #include "hpcplatform/core/context.h"
-#include "hpcplatform/core/kernel_level.h"
+#include "hpcplatform/core/common.h"
 #include "hpcplatform/core/stream.h"
 
 namespace hpcplatform {

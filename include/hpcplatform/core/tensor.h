@@ -9,11 +9,9 @@
 #include <utility>
 #include <vector>
 
-#include "hpcplatform/core/device.h"
-#include "hpcplatform/core/dtype.h"
+#include "hpcplatform/core/common.h"
 #include "hpcplatform/core/error.h"
 #include "hpcplatform/core/memory.h"
-#include "hpcplatform/core/shape.h"
 
 namespace hpcplatform {
 

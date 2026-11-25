@@ -5,8 +5,7 @@
 
 #include <string>
 
-#include "hpcplatform/core/device.h"
-#include "hpcplatform/core/kernel_level.h"
+#include "hpcplatform/core/common.h"
 #include "hpcplatform/ops/image.h"
 #include "hpcplatform/ops/op.h"
 #include "hpcplatform/ops/wavelet.h"

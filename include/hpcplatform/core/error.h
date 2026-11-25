@@ -96,10 +96,11 @@ class Result {
 }  // namespace hpcplatform
 
 // Propagates a failed Status out of a function returning Status or Result<T>.
-#define hpcplatform_RETURN_IF_ERROR(expr)             \
-  do {                                         \
-    ::hpcplatform::Status hpcplatform_status = (expr);       \
-    if (!hpcplatform_status.ok()) return hpcplatform_status; \
+// Returns only on failure; the library never prints to stdio by itself.
+#define hpcplatform_RETURN_IF_ERROR(expr)                        \
+  do {                                                           \
+    const ::hpcplatform::Status hpcplatform_status = (expr);     \
+    if (!hpcplatform_status.ok()) return hpcplatform_status;     \
   } while (0)
 
 #endif  // hpcplatform_CORE_ERROR_H_

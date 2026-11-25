@@ -60,7 +60,6 @@ endif()
 add_library(hpcplatform STATIC
   src/core/context.cpp
   src/core/copy.cpp
-  src/core/dtype.cpp
   src/core/error.cpp
   src/core/shape.cpp
   src/core/tensor.cpp

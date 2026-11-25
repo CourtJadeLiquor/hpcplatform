@@ -26,9 +26,8 @@
 #include "framework/op_descriptor.h"
 #include "framework/op_registry.h"
 #include "hpcplatform/core/context.h"
-#include "hpcplatform/core/device.h"
+#include "hpcplatform/core/common.h"
 #include "hpcplatform/core/error.h"
-#include "hpcplatform/core/kernel_level.h"
 #include "hpcplatform/ops/operator.h"
 
 namespace hpcplatform {

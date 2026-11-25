@@ -1,7 +1,7 @@
 // Tests for Shape construction, Numel/Strides computation, and invalid-dimension validation.
 #include "test_utils.h"
 
-#include "hpcplatform/core/shape.h"
+#include "hpcplatform/core/common.h"
 
 namespace {
 

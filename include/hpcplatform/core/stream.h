@@ -1,7 +1,7 @@
 #ifndef hpcplatform_CORE_STREAM_H_
 #define hpcplatform_CORE_STREAM_H_
 
-#include "hpcplatform/core/device.h"
+#include "hpcplatform/core/common.h"
 #include "hpcplatform/core/error.h"
 
 namespace hpcplatform {

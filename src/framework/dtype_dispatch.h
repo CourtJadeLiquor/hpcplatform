@@ -1,7 +1,7 @@
 #ifndef hpcplatform_SRC_FRAMEWORK_DTYPE_DISPATCH_H_
 #define hpcplatform_SRC_FRAMEWORK_DTYPE_DISPATCH_H_
 
-#include "hpcplatform/core/dtype.h"
+#include "hpcplatform/core/common.h"
 #include "hpcplatform/core/error.h"
 
 // Loop-vectorization hint for portable SIMD kernels, kept next to the image

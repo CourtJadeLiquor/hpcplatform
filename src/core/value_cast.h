@@ -8,7 +8,7 @@
 #include <limits>
 #include <type_traits>
 
-#include "hpcplatform/core/dtype.h"
+#include "hpcplatform/core/common.h"
 
 namespace hpcplatform {
 namespace detail {

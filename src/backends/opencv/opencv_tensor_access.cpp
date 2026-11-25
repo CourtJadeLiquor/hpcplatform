@@ -5,7 +5,7 @@
 
 #include <opencv2/core.hpp>
 
-#include "hpcplatform/core/dtype.h"
+#include "hpcplatform/core/common.h"
 
 namespace hpcplatform {
 namespace ops_internal {

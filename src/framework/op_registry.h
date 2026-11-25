@@ -1,9 +1,8 @@
 #ifndef hpcplatform_SRC_FRAMEWORK_OP_REGISTRY_H_
 #define hpcplatform_SRC_FRAMEWORK_OP_REGISTRY_H_
 
-#include "hpcplatform/core/device.h"
+#include "hpcplatform/core/common.h"
 #include "hpcplatform/core/error.h"
-#include "hpcplatform/core/kernel_level.h"
 #include "hpcplatform/core/tensor.h"
 #include "hpcplatform/ops/op.h"
 

@@ -8,8 +8,7 @@
 #include <string>
 #include <utility>
 
-#include "hpcplatform/core/device.h"
-#include "hpcplatform/core/kernel_level.h"
+#include "hpcplatform/core/common.h"
 #include "hpcplatform/ops/op.h"
 
 // Optional operator profiling (docs/architecture.md §6.4). Compile the target

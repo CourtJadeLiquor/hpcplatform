@@ -6,13 +6,10 @@
 #ifdef hpcplatform_WITH_OPENCV
 #include "hpcplatform/interop/opencv.h"
 #endif
+#include "hpcplatform/core/common.h"
 #include "hpcplatform/core/context.h"
-#include "hpcplatform/core/device.h"
-#include "hpcplatform/core/dtype.h"
 #include "hpcplatform/core/error.h"
-#include "hpcplatform/core/kernel_level.h"
 #include "hpcplatform/core/memory.h"
-#include "hpcplatform/core/shape.h"
 #include "hpcplatform/core/stream.h"
 #include "hpcplatform/core/tensor.h"
 #include "hpcplatform/core/transfer.h"

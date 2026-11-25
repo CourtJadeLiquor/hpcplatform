@@ -59,13 +59,13 @@ Tensor t = r.value();                             // 再取值
 
 ## 3. `hpcplatform_RETURN_IF_ERROR`
 
-最常用的错误传播宏（[error.h](../../include/hpcplatform/core/error.h#L87-L91)）：
+最常用的错误传播宏（[error.h](../../include/hpcplatform/core/error.h#L98-L104)）：
 
 ```cpp
-#define hpcplatform_RETURN_IF_ERROR(expr)              \
-  do {                                          \
-    ::hpcplatform::Status hpcplatform_status = (expr);         \
-    if (!hpcplatform_status.ok()) return hpcplatform_status;   \
+#define hpcplatform_RETURN_IF_ERROR(expr)                        \
+  do {                                                           \
+    const ::hpcplatform::Status hpcplatform_status = (expr);     \
+    if (!hpcplatform_status.ok()) return hpcplatform_status;     \
   } while (0)
 ```
 
@@ -73,9 +73,12 @@ Tensor t = r.value();                             // 再取值
 
 ```cpp
 hpcplatform_RETURN_IF_ERROR(ValidateInvocation(context, input));
+hpcplatform_RETURN_IF_ERROR(shape.Validate());   // 宏之后的语句照常执行
 auto kernel = FindKernel(...);
 if (!kernel.ok()) return kernel.status();   // Result 没有宏，手动查
 ```
+
+> 语义要点：**只在失败时返回**，成功时展开为空操作，宏之后的语句照常执行。库自身绝不向 stdout/stderr 打印错误——打印是调用方的决定。
 
 > `hpcplatform_RETURN_IF_ERROR` 只接返回 `Status` 的表达式；返回 `Result<T>` 的要手动 `if (!x.ok()) return x.status();`，因为还需要把 `T` 取出来。
 

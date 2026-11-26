@@ -29,10 +29,20 @@ namespace hpcplatform
         cudaDeviceProp properties{};
         hpcplatform_RETURN_IF_ERROR(CudaStatus(cudaGetDeviceProperties(&properties, device_.index),
                                                "cudaGetDeviceProperties"));
+        if (!properties.managedMemory)
+        {
+            return Status::Unsupported(
+                "CUDA device does not support unified (managed) memory: " +
+                std::string(properties.name));
+        }
         device_name_ = properties.name;
         compute_major_ = properties.major;
         compute_minor_ = properties.minor;
-        return stream_.Initialize();
+        hpcplatform_RETURN_IF_ERROR(stream_.Initialize());
+        // Allocation-time prefetches join the backend stream, so they are
+        // stream-ordered with every kernel launched later on that stream.
+        memory_.AttachStream(stream_.handle());
+        return Status::Ok();
     }
 
     std::string CudaBackend::Describe() const

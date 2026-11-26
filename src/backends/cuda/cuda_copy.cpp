@@ -33,24 +33,10 @@ namespace hpcplatform
         const int device_index =
             src->kind() == MemoryKind::kDevice ? src->device().index : dst->device().index;
         hpcplatform_RETURN_IF_ERROR(CudaStatus(cudaSetDevice(device_index), "cudaSetDevice"));
-        cudaMemcpyKind kind = cudaMemcpyDefault;
-        if (src->kind() == MemoryKind::kDevice && dst->kind() == MemoryKind::kDevice)
-        {
-            kind = cudaMemcpyDeviceToDevice;
-        }
-        else if (src->kind() == MemoryKind::kDevice)
-        {
-            kind = cudaMemcpyDeviceToHost;
-        }
-        else if (dst->kind() == MemoryKind::kDevice)
-        {
-            kind = cudaMemcpyHostToDevice;
-        }
-        else
-        {
-            return Status::InvalidArgument("CudaCopyBuffer requires at least one device buffer");
-        }
 
+        // Backend allocations are unified memory and host buffers are plain host
+        // memory; cudaMemcpyDefault lets the driver infer the direction for every
+        // combination, so no explicit copy-kind table is needed.
         CudaStream* cuda_stream = dynamic_cast<CudaStream*>(stream);
         cudaStream_t handle = cuda_stream != nullptr ? cuda_stream->handle() : nullptr;
         if (cuda_stream == nullptr)
@@ -64,7 +50,7 @@ namespace hpcplatform
         hpcplatform_RETURN_IF_ERROR(
             CudaStatus(cudaMemcpyAsync(static_cast<char*>(dst->data()) + dst_offset,
                                        static_cast<const char*>(src->data()) + src_offset, bytes,
-                                       kind, handle),
+                                       cudaMemcpyDefault, handle),
                        "cudaMemcpyAsync"));
         return CudaStatus(cudaStreamSynchronize(handle), "cudaStreamSynchronize(copy)");
     }

@@ -1,6 +1,7 @@
 #include <cuda_runtime.h>
 
 #include <cmath>
+#include <cstring>
 #include <vector>
 
 #include "backends/cuda/cuda_device_utils.h"
@@ -15,9 +16,10 @@
 //  1) GaussianBlurCuda() parses the shape, builds a normalized kernel on the
 //     host with BuildGaussianKernel, and uses Context::AllocateTensor to
 //     allocate a same-shaped f64 intermediate tensor (the horizontal pass's
-//     output tmp, in device memory);
-//  2) LaunchBlur() uploads the kernel with cudaMalloc + cudaMemcpyAsync
-//     (H2D, on the same stream);
+//     output tmp, in unified memory);
+//  2) LaunchBlur() writes the kernel coefficients straight into managed memory
+//     from the host and prefetches the whole block with cudaMemPrefetchAsync —
+//     no explicit H2D transfer;
 //  3) BlurHorizontalKernel performs the horizontal pass:
 //       tmp[n,y,x,c] = sum_i k[i] * in[n, y, clamp(x+i-r), c]
 //     with replicate for out-of-range x;
@@ -139,39 +141,43 @@ __global__ void BlurVerticalKernel(const double* tmp, DeviceImage image,
   }
 }
 
-// Launch both kernels and manage device memory for kernel coefficients. Steps:
-// 1) cudaMalloc allocates tap_count doubles for the coefficients, then
-//    cudaMemcpyAsync(H2D) uploads them on the same stream as the subsequent
-//    kernels. The copy therefore completes before the kernels without extra
-//    synchronization;
-// 2) count = output->Numel(), blocks = BlockCount(count) (each block has
+// Launch both kernels and manage kernel coefficients in unified memory. Steps:
+//  1) cudaMallocManaged allocates tap_count doubles; the host memcpy writes the
+//     coefficients directly and CudaPrefetch migrates the whole block to the
+//     device on the same stream as the subsequent kernels, so the prefetch
+//     completes before the kernels without extra synchronization;
+//  2) count = output->Numel(), blocks = BlockCount(count) (each block has
 //    kThreadsPerBlock = 256 threads, at most 65535 blocks; grid-stride loops
 //    cover remaining elements);
-// 3) Launch horizontal then vertical kernels, using caller-provided tmp;
-// 4) FinishLaunch checks launch errors and synchronizes the stream. Only after
+//  3) Launch horizontal then vertical kernels, using caller-provided tmp;
+//  4) FinishLaunch checks launch errors and synchronizes the stream. Only after
 //    both kernels finish does cudaFree release the coefficients, avoiding
-//    freeing device memory still in use; return its status.
+//    freeing managed memory still in use; return its status.
 Status LaunchBlur(const Tensor& input, const ImageInfo& info,
                   const GaussianBlurParams& options, const double* kernel_host,
                   double* tmp, Tensor* output, cudaStream_t stream) {
   const int tap_count = options.kernel_size;
   const int radius = tap_count / 2;
-  double* kernel_device = nullptr;
-  if (cudaMalloc(&kernel_device, sizeof(double) * tap_count) != cudaSuccess) {
-    return CudaStatus(cudaGetLastError(), "cudaMalloc for blur kernel");
+  const size_t kernel_bytes = sizeof(double) * tap_count;
+  double* kernel = nullptr;
+  if (cudaMallocManaged(&kernel, kernel_bytes) != cudaSuccess) {
+    return CudaStatus(cudaGetLastError(), "cudaMallocManaged for blur kernel");
   }
-  cudaMemcpyAsync(kernel_device, kernel_host, sizeof(double) * tap_count,
-                  cudaMemcpyHostToDevice, stream);
-  const int64_t count = output->Numel();
-  const unsigned int blocks = BlockCount(count);
-  BlurHorizontalKernel<<<blocks, kThreadsPerBlock, 0, stream>>>(
-      Describe(input), Describe(info), tmp, count, kernel_device, tap_count,
-      radius, input.dtype());
-  BlurVerticalKernel<<<blocks, kThreadsPerBlock, 0, stream>>>(
-      tmp, Describe(info), output->data(), count, kernel_device, tap_count,
-      radius, input.dtype());
-  const Status status = FinishLaunch(stream, "GaussianBlur kernel launch");
-  cudaFree(kernel_device);
+  std::memcpy(kernel, kernel_host, kernel_bytes);
+  Status status =
+      CudaPrefetch(kernel, kernel_bytes, input.device().index, stream);
+  if (status.ok()) {
+    const int64_t count = output->Numel();
+    const unsigned int blocks = BlockCount(count);
+    BlurHorizontalKernel<<<blocks, kThreadsPerBlock, 0, stream>>>(
+        Describe(input), Describe(info), tmp, count, kernel, tap_count,
+        radius, input.dtype());
+    BlurVerticalKernel<<<blocks, kThreadsPerBlock, 0, stream>>>(
+        tmp, Describe(info), output->data(), count, kernel, tap_count,
+        radius, input.dtype());
+    status = FinishLaunch(stream, "GaussianBlur kernel launch");
+  }
+  cudaFree(kernel);
   return status;
 }
 

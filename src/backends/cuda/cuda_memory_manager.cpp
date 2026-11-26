@@ -1,7 +1,5 @@
 #include "backends/cuda/cuda_memory_manager.h"
 
-#include <cuda_runtime_api.h>
-
 #include <cstdint>
 #include <limits>
 
@@ -10,21 +8,7 @@
 namespace hpcplatform
 {
 
-    CudaAllocatorState::~CudaAllocatorState()
-    {
-        cudaSetDevice(device_index);
-        for (const CudaBlock& block : free_blocks) cudaFree(block.raw);
-    }
-
-    void CudaAllocatorState::Release(void* raw, void* data, size_t bytes)
-    {
-        {
-            std::lock_guard<std::mutex> lock(mutex);
-            free_blocks.push_back(CudaBlock{raw, data, bytes});
-        }
-        allocated_bytes.fetch_sub(bytes);
-        allocation_count.fetch_sub(1);
-    }
+    CudaMemoryManager::CudaMemoryManager(Device device) : device_(device) {}
 
     Result<std::shared_ptr<Buffer>> CudaMemoryManager::Allocate(size_t bytes, size_t alignment)
     {
@@ -40,31 +24,19 @@ namespace hpcplatform
             return Status::InvalidArgument("CUDA allocation size overflows alignment padding");
         }
 
-        CudaBlock block;
-        bool found = false;
-        {
-            std::lock_guard<std::mutex> lock(state_->mutex);
-            for (auto it = state_->free_blocks.begin(); it != state_->free_blocks.end(); ++it)
-            {
-                if (it->bytes == bytes && reinterpret_cast<uintptr_t>(it->data) % alignment == 0)
-                {
-                    block = *it;
-                    state_->free_blocks.erase(it);
-                    found = true;
-                    break;
-                }
-            }
-        }
+        hpcplatform_RETURN_IF_ERROR(CudaStatus(cudaSetDevice(device_.index), "cudaSetDevice"));
+        void* raw = nullptr;
+        hpcplatform_RETURN_IF_ERROR(
+            CudaStatus(cudaMallocManaged(&raw, bytes + alignment - 1), "cudaMallocManaged"));
+        const uintptr_t address = reinterpret_cast<uintptr_t>(raw);
+        void* data = reinterpret_cast<void*>((address + alignment - 1) & ~(alignment - 1));
 
-        if (!found)
-        {
-            hpcplatform_RETURN_IF_ERROR(CudaStatus(cudaSetDevice(device_.index), "cudaSetDevice"));
-            hpcplatform_RETURN_IF_ERROR(
-                CudaStatus(cudaMalloc(&block.raw, bytes + alignment - 1), "cudaMalloc"));
-            const uintptr_t raw = reinterpret_cast<uintptr_t>(block.raw);
-            block.data = reinterpret_cast<void*>((raw + alignment - 1) & ~(alignment - 1));
-            block.bytes = bytes;
-        }
+        // Prefetch the reserved block (payload plus alignment padding) as one
+        // operation. Stream-ordered behind the backend stream when attached, so a
+        // kernel enqueued afterwards cannot race the page migration.
+        const size_t reserved = bytes + alignment - 1;
+        hpcplatform_RETURN_IF_ERROR(
+            CudaPrefetch(raw, reserved, device_.index, prefetch_stream_));
 
         const size_t current = state_->allocated_bytes.fetch_add(bytes) + bytes;
         state_->allocation_count.fetch_add(1);
@@ -72,10 +44,17 @@ namespace hpcplatform
         while (current > peak && !state_->peak_bytes.compare_exchange_weak(peak, current))
         {
         }
+
         auto state = state_;
-        return std::make_shared<Buffer>(block.data, bytes, device_, MemoryKind::kDevice,
-                                        [state, raw = block.raw](void* data, size_t size)
-                                        { state->Release(raw, data, size); });
+        return std::make_shared<Buffer>(
+            data, bytes, device_, MemoryKind::kDevice,
+            [state, device_index = device_.index, raw](void* /*data*/, size_t size)
+            {
+                state->allocated_bytes.fetch_sub(size);
+                state->allocation_count.fetch_sub(1);
+                cudaSetDevice(device_index);
+                cudaFree(raw);
+            });
     }
 
     MemoryStats CudaMemoryManager::Stats() const

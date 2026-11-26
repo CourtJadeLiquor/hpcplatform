@@ -19,6 +19,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <vector>
 
 #include "backends/cuda/cuda_device_utils.h"
@@ -225,8 +226,8 @@ __global__ void FourierDftKernel(const double* in_re, const double* in_im,
 //  1. Obtain the stream, parse H/W/n/c from layout, and determine whether row
 //     and column transforms use radix-2.
 //  2. Generate four host twiddle-table segments [cos_h, sin_h, cos_w, sin_w]
-//     with angle -2*pi*k/n, upload them in one cudaMemcpyAsync, and share them
-//     across the entire image.
+//     with angle -2*pi*k/n, write them straight into managed memory and
+//     prefetch the whole block, and share them across the entire image.
 //  3. Allocate scratch space for 2*H*W f64 values (real/imaginary). If either
 //     direction needs the DFT fallback, append another 2*H*W pair as ping-pong
 //     buffers (buffers = 1 or 2).
@@ -272,11 +273,19 @@ Status FourierCuda(const OpContext& context, const Tensor& input,
   }
 
   double* table = nullptr;
-  if (cudaMalloc(&table, sizeof(double) * host_table.size()) != cudaSuccess) {
-    return CudaStatus(cudaGetLastError(), "cudaMalloc for FFT twiddle table");
+  const size_t table_bytes = sizeof(double) * host_table.size();
+  if (cudaMallocManaged(&table, table_bytes) != cudaSuccess) {
+    return CudaStatus(cudaGetLastError(), "cudaMallocManaged for FFT twiddle table");
   }
-  cudaMemcpyAsync(table, host_table.data(), sizeof(double) * host_table.size(),
-                  cudaMemcpyHostToDevice, stream);
+  // Unified memory: host writes the table directly, then one block prefetch
+  // migrates it to the device on the kernel stream — no explicit H2D copy.
+  std::memcpy(table, host_table.data(), table_bytes);
+  Status prefetch_status =
+      CudaPrefetch(table, table_bytes, input.device().index, stream);
+  if (!prefetch_status.ok()) {
+    cudaFree(table);
+    return prefetch_status;
+  }
   const double* cos_h = table;
   const double* sin_h = table + info.h;
   const double* cos_w = table + w_base;
